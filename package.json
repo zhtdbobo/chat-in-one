@@ -1,0 +1,43 @@
+{
+  "name": "chat-in-one",
+  "version": "1.0.0",
+  "description": "All-in-One AI Assistant Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder -w"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "electron"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.0"
+  },
+  "build": {
+    "appId": "com.chatinone.app",
+    "productName": "Chat-in-One",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhtdbobo/chat-in-one.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/zhtdbobo/chat-in-one/issues"
+  },
+  "homepage": "https://github.com/zhtdbobo/chat-in-one#readme"
+}
