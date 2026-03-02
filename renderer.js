@@ -24,7 +24,7 @@ const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
 // Status badging & controls
 const currentChatTitle = document.getElementById('current-chat-title');
 const welcomeScreen = document.getElementById('welcome-screen');
-const toolsRightEl = document.querySelector('.tools-right');
+const toggleSearchBtn = document.getElementById('toggle-search-btn');
 
 // Configure Marked.js syntax highlighting
 marked.setOptions({
@@ -60,6 +60,10 @@ async function initApp() {
     if (state.settings.enableThinking === undefined) {
         state.settings.enableThinking = true;
     }
+    updateThinkingBtnState();
+    updateSearchBtnState();
+    renderMcpSelectionDropdown();
+    renderSkillsBar();
 
     // 2. Setup UI events
     setupEvents();
@@ -72,6 +76,27 @@ async function initApp() {
     // Choose active chat
     if (state.chats.length > 0) {
         switchChat(state.chats[0].id);
+    } else {
+        updateWelcomeScreen();
+    }
+}
+
+function updateWelcomeScreen() {
+    if (!welcomeScreen) return;
+
+    // Check if at least one provider has an endpoint and API key
+    const providers = state.settings.providers || [];
+    const isConfigured = providers.some(p => p.endpoint && p.apiKey);
+
+    const h1 = welcomeScreen.querySelector('h1');
+    const p = welcomeScreen.querySelector('p');
+
+    if (isConfigured) {
+        h1.textContent = '准备就绪';
+        p.textContent = '开启您的 AI 之旅，发送第一条消息吧！';
+    } else {
+        h1.textContent = '您好，我是您的 AI 助理';
+        p.textContent = '请点击左下角「设置」配置 API 以开始使用。';
     }
 }
 
@@ -91,6 +116,7 @@ function applyTheme(theme) {
 function updateBadge() {
     state.settings.providers = state.settings.providers || [];
     renderSearchableModelSelect();
+    updateWelcomeScreen();
 }
 
 // -----------------------------------------
@@ -158,6 +184,8 @@ function renderSearchableModelSelect() {
                         const chat = state.chats.find(c => c.id === state.currentChatId);
                         if (chat) {
                             chat.model = val;
+                            state.settings.lastUsedModel = val;
+                            window.api.saveSettings(state.settings);
                             saveChats();
                             currentVal = val;
                             renderSearchableModelSelect();
@@ -230,7 +258,29 @@ function setupEvents() {
     newChatBtn.addEventListener('click', createNewChat);
 
     // Import / Export
-    document.getElementById('export-chats-btn').addEventListener('click', exportChats);
+    document.getElementById('export-chats-btn').addEventListener('click', enterExportMode);
+    document.getElementById('cancel-export-btn').addEventListener('click', exitExportMode);
+    document.getElementById('confirm-export-btn').addEventListener('click', confirmExport);
+    document.getElementById('select-all-chats').addEventListener('change', toggleSelectAll);
+
+    // MCP Selection Dropdown
+    const mcpBtn = document.getElementById('mcp-dropdown-btn');
+    if (mcpBtn) {
+        mcpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('mcp-selection-dropdown');
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                renderMcpSelectionDropdown();
+            }
+        });
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+        document.getElementById('mcp-selection-dropdown').classList.remove('show');
+    });
+
     document.getElementById('import-chats-btn').addEventListener('click', () => {
         document.getElementById('import-file-input').click();
     });
@@ -281,6 +331,30 @@ function setupEvents() {
             sendMessage();
         }
     });
+
+    // Toggle thinking process
+    if (toggleThinkingBtn) {
+        toggleThinkingBtn.addEventListener('click', () => {
+            state.settings.enableThinking = !state.settings.enableThinking;
+            updateThinkingBtnState();
+            window.api.saveSettings(state.settings);
+            // Sync with settings modal if open
+            const thinkingCheckbox = document.getElementById('enable-thinking');
+            if (thinkingCheckbox) thinkingCheckbox.checked = state.settings.enableThinking;
+        });
+    }
+
+    // Toggle web search
+    if (toggleSearchBtn) {
+        toggleSearchBtn.addEventListener('click', () => {
+            state.settings.enableSearch = !state.settings.enableSearch;
+            updateSearchBtnState();
+            window.api.saveSettings(state.settings);
+            // Sync with settings modal if open
+            const searchCheckbox = document.getElementById('enable-search');
+            if (searchCheckbox) searchCheckbox.checked = !!state.settings.enableSearch;
+        });
+    }
 
     // Stream IPC Listeners
     window.api.onStreamStart((data) => {
@@ -387,6 +461,10 @@ function openSettings() {
 
     document.getElementById('system-prompt').value = state.settings.systemPrompt || '';
     document.getElementById('enable-thinking').checked = state.settings.enableThinking !== false;
+    document.getElementById('enable-search').checked = !!state.settings.enableSearch;
+
+    initMCPSettings();
+    initSkillsSettings();
 
     renderProvidersSidebar();
     renderProviderDetail();
@@ -569,19 +647,362 @@ function closeSettings() {
 async function handleSettingsSave(e) {
     e.preventDefault();
     saveCurrentProviderData();
+    saveCurrentMCPServerData();
+    saveCurrentSkillData();
 
     const newSettings = {
         systemPrompt: document.getElementById('system-prompt').value.trim(),
         enableThinking: document.getElementById('enable-thinking').checked,
+        enableSearch: document.getElementById('enable-search').checked,
         theme: state.settings.theme || 'light',
         sidebarWidth: state.settings.sidebarWidth || '260px',
-        providers: tempProviders
+        providers: tempProviders,
+        mcpServers: tempMCPServers,
+        skills: tempSkills
     };
 
     state.settings = newSettings;
+    updateThinkingBtnState();
+    updateSearchBtnState();
     await window.api.saveSettings(newSettings);
     updateBadge();
     closeSettings();
+}
+
+// -----------------------------------------
+// Export Mode Logics
+// -----------------------------------------
+function enterExportMode() {
+    state.isExportMode = true;
+    document.getElementById('sidebar-actions-default').style.display = 'none';
+    document.getElementById('sidebar-actions-export').style.display = 'flex';
+    document.getElementById('chat-list').classList.add('export-mode');
+    document.getElementById('select-all-chats').checked = false;
+    updateSelectedCount();
+    renderChatList();
+}
+
+function exitExportMode() {
+    state.isExportMode = false;
+    document.getElementById('sidebar-actions-default').style.display = 'flex';
+    document.getElementById('sidebar-actions-export').style.display = 'none';
+    document.getElementById('chat-list').classList.remove('export-mode');
+    renderChatList();
+}
+
+function toggleSelectAll(e) {
+    const checked = e.target.checked;
+    document.querySelectorAll('.chat-item-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const selected = document.querySelectorAll('.chat-item-checkbox:checked').length;
+    document.getElementById('selected-count').textContent = `${selected} 已选`;
+
+    const total = document.querySelectorAll('.chat-item-checkbox').length;
+    document.getElementById('select-all-chats').checked = total > 0 && selected === total;
+}
+
+function confirmExport() {
+    const selectedIds = Array.from(document.querySelectorAll('.chat-item-checkbox:checked'))
+        .map(cb => cb.dataset.id);
+
+    if (selectedIds.length === 0) {
+        alert("请至少选择一个对话进行导出。");
+        return;
+    }
+
+    const chatsToExport = state.chats.filter(c => selectedIds.includes(c.id));
+    const dataStr = JSON.stringify(chatsToExport, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chats_export_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    exitExportMode();
+}
+
+// -----------------------------------------
+// MCP Settings Logics
+// -----------------------------------------
+let tempMCPServers = [];
+
+// Re-add these to openSettings or call manually
+function initMCPSettings() {
+    tempMCPServers = JSON.parse(JSON.stringify(state.settings.mcpServers || []));
+    renderMCPServers();
+}
+
+document.getElementById('add-mcp-server-btn').onclick = () => {
+    tempMCPServers.push({ id: generateId(), name: '', command: '', args: '', env: '' });
+    renderMCPServers();
+};
+
+function renderMCPServers() {
+    const container = document.getElementById('mcp-servers-container');
+    container.innerHTML = '';
+    tempMCPServers.forEach((server, index) => {
+        const item = document.createElement('div');
+        item.className = 'mcp-server-item';
+        // Mock status for now, ideally main process would return connectivity status
+        const isConfigured = server.command && server.command.trim().length > 0;
+        const statusClass = isConfigured ? 'status-online' : 'status-offline';
+        const statusText = isConfigured ? '配置就绪' : '部分配置缺失';
+
+        item.innerHTML = `
+            <div class="mcp-server-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="mcp-status-dot ${statusClass}"></span>
+                    <h4>服务器 #${index + 1}: ${server.name || '未命名'}</h4>
+                </div>
+                <div style="display:flex; gap:4px;">
+                    <button type="button" class="btn btn-icon btn-ghost btn-sm del-mcp-btn" data-index="${index}">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mcp-server-form">
+                <div class="form-group">
+                    <label>名称 (可选)</label>
+                    <input type="text" class="mcp-name" value="${server.name || ''}" placeholder="例如: local-files">
+                </div>
+                <div class="mcp-server-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>执行命令 (Command)</label>
+                        <input type="text" class="mcp-command" value="${server.command || ''}" placeholder="npx, python, etc.">
+                    </div>
+                    <div class="form-group" style="flex: 3;">
+                        <label>参数 (Arguments, 逗号分隔)</label>
+                        <input type="text" class="mcp-args" value="${server.args || ''}" placeholder="-y, @mcp/server-everything">
+                    </div>
+                </div>
+            </div>
+        `;
+        item.querySelector('.del-mcp-btn').onclick = () => {
+            tempMCPServers.splice(index, 1);
+            renderMCPServers();
+        };
+        container.appendChild(item);
+    });
+}
+
+// -----------------------------------------
+// MCP Runtime Selection Logics
+// -----------------------------------------
+function renderMcpSelectionDropdown() {
+    const list = document.getElementById('mcp-checkbox-list');
+    const servers = state.settings.mcpServers || [];
+
+    if (servers.length === 0) {
+        list.innerHTML = '<div style="padding:10px; font-size:12px; color:var(--text-muted);">尚未配置 MCP 服务器。请前往设置添加。</div>';
+        return;
+    }
+
+    list.innerHTML = '';
+    // Use an array in state to track which ones are enabled for the current session
+    if (!state.enabledMcpServerIds) {
+        state.enabledMcpServerIds = []; // Default ALL disabled as requested
+    }
+
+    servers.forEach(server => {
+        const item = document.createElement('div');
+        item.className = 'mcp-item';
+        const isEnabled = state.enabledMcpServerIds.includes(server.id);
+        const statusClass = server.command ? 'status-online' : 'status-offline';
+
+        item.innerHTML = `
+            <input type="checkbox" id="mcp-cb-${server.id}" ${isEnabled ? 'checked' : ''}>
+            <label for="mcp-cb-${server.id}">${server.name || server.command || '未命名服务器'}</label>
+            <span class="mcp-status-dot ${statusClass}"></span>
+        `;
+
+        item.querySelector('input').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (e.target.checked) {
+                if (!state.enabledMcpServerIds.includes(server.id)) {
+                    state.enabledMcpServerIds.push(server.id);
+                }
+            } else {
+                state.enabledMcpServerIds = state.enabledMcpServerIds.filter(id => id !== server.id);
+            }
+            updateMcpToolBtnState();
+        });
+
+        item.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT') {
+                item.querySelector('input').click();
+            }
+        });
+
+        list.appendChild(item);
+    });
+    updateMcpToolBtnState();
+}
+
+function updateMcpToolBtnState() {
+    const btn = document.getElementById('mcp-dropdown-btn');
+    if (!btn) return;
+    const activeCount = state.enabledMcpServerIds ? state.enabledMcpServerIds.length : 0;
+    if (activeCount > 0) {
+        btn.classList.add('active');
+        btn.title = `MCP工具开启中 (${activeCount})`;
+    } else {
+        btn.classList.remove('active');
+        btn.title = "MCP 工具盒 (未开启)";
+    }
+}
+
+function saveCurrentMCPServerData() {
+    const items = document.querySelectorAll('.mcp-server-item');
+    items.forEach((item, index) => {
+        if (tempMCPServers[index]) {
+            tempMCPServers[index].name = item.querySelector('.mcp-name').value.trim();
+            tempMCPServers[index].command = item.querySelector('.mcp-command').value.trim();
+            tempMCPServers[index].args = item.querySelector('.mcp-args').value.trim();
+        }
+    });
+}
+
+// -----------------------------------------
+// Skills Settings Logics
+// -----------------------------------------
+let tempSkills = [];
+
+function initSkillsSettings() {
+    tempSkills = JSON.parse(JSON.stringify(state.settings.skills || []));
+    if (tempSkills.length === 0 && (!state.settings.skills || state.settings.skills.length === 0)) {
+        // Add a default skill if empty
+        tempSkills.push({ id: 'default-all', name: '全能助手', desc: '默认的通用对话模式', prompt: '你是一个智能、高效且有帮助的助理。' });
+    }
+    renderSkillsSettings();
+}
+
+document.getElementById('add-skill-btn').onclick = () => {
+    tempSkills.push({ id: generateId(), name: '', desc: '', prompt: '' });
+    renderSkillsSettings();
+};
+
+function renderSkillsSettings() {
+    const container = document.getElementById('skills-container');
+    container.innerHTML = '';
+    tempSkills.forEach((skill, index) => {
+        const item = document.createElement('div');
+        item.className = 'skill-item';
+        item.innerHTML = `
+            <div class="skill-header">
+                <h4><i class="ph ph-sparkle"></i> 技能 #${index + 1}: ${skill.name || '未命名'}</h4>
+                <button type="button" class="btn btn-icon btn-ghost btn-sm del-skill-btn" data-index="${index}">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </div>
+            <div class="skill-form">
+                <div class="form-group">
+                    <label>技能名称</label>
+                    <input type="text" class="skill-name-input" value="${skill.name || ''}" placeholder="例如: 翻译官">
+                </div>
+                <div class="form-group">
+                    <label>简短描述</label>
+                    <input type="text" class="skill-desc-input" value="${skill.desc || ''}" placeholder="简单描述一下这个技能...">
+                </div>
+                <div class="form-group">
+                    <label>系统提示词 (System Prompt)</label>
+                    <textarea class="skill-prompt-input" placeholder="设定该技能的角色性格、回复要求等...">${skill.prompt || ''}</textarea>
+                </div>
+            </div>
+        `;
+        item.querySelector('.del-skill-btn').onclick = () => {
+            tempSkills.splice(index, 1);
+            renderSkillsSettings();
+        };
+        container.appendChild(item);
+    });
+}
+
+function saveCurrentSkillData() {
+    const items = document.querySelectorAll('.skill-item');
+    items.forEach((item, index) => {
+        if (tempSkills[index]) {
+            tempSkills[index].name = item.querySelector('.skill-name-input').value.trim();
+            tempSkills[index].desc = item.querySelector('.skill-desc-input').value.trim();
+            tempSkills[index].prompt = item.querySelector('.skill-prompt-input').value.trim();
+        }
+    });
+}
+
+// -----------------------------------------
+// Skills Runtime Chips Bar Logics
+// -----------------------------------------
+function renderSkillsBar() {
+    const bar = document.getElementById('skills-bar');
+    if (!bar) return;
+
+    const skills = state.settings.skills || [];
+    bar.innerHTML = '';
+
+    const getIconClass = (name) => {
+        const n = name.toLowerCase();
+        if (n.includes('翻译') || n.includes('translate')) return 'ph-translate';
+        if (n.includes('代码') || n.includes('code') || n.includes('工程师')) return 'ph-code';
+        if (n.includes('写作') || n.includes('文案') || n.includes('pencil')) return 'ph-pencil-circle';
+        if (n.includes('做图') || n.includes('图表') || n.includes('chart')) return 'ph-chart-bar';
+        if (n.includes('artifact') || n.includes('预览')) return 'ph-play-circle';
+        if (n.includes('全能') || n.includes('助') || n.includes('夸夸')) return 'ph-mask-happy';
+        return 'ph-sparkle';
+    };
+
+    // "None" (Default) Card
+    const defaultCard = document.createElement('div');
+    defaultCard.className = `skill-card ${!state.activeSkillId ? 'active' : ''}`;
+    defaultCard.innerHTML = `
+        <i class="ph-fill ph-mask-happy"></i>
+        <div class="skill-info">
+            <div class="skill-name">默认对话</div>
+        </div>
+    `;
+    defaultCard.onclick = () => {
+        state.activeSkillId = null;
+        renderSkillsBar();
+    };
+    bar.appendChild(defaultCard);
+
+    skills.forEach(skill => {
+        const card = document.createElement('div');
+        card.className = `skill-card ${state.activeSkillId === skill.id ? 'active' : ''}`;
+        const iconClass = getIconClass(skill.name);
+        card.innerHTML = `
+            <i class="ph-fill ${iconClass}"></i>
+            <div class="skill-info">
+                <div class="skill-name">${skill.name}</div>
+            </div>
+        `;
+        card.onclick = () => {
+            state.activeSkillId = skill.id;
+            renderSkillsBar();
+        };
+        bar.appendChild(card);
+    });
+
+    // Setup nav buttons once
+    const prevBtn = document.getElementById('skills-prev');
+    const nextBtn = document.getElementById('skills-next');
+    if (prevBtn && nextBtn) {
+        prevBtn.onclick = (e) => {
+            e.preventDefault();
+            bar.scrollBy({ left: -250, behavior: 'smooth' });
+        };
+        nextBtn.onclick = (e) => {
+            e.preventDefault();
+            bar.scrollBy({ left: 250, behavior: 'smooth' });
+        };
+    }
 }
 
 // -----------------------------------------
@@ -659,19 +1080,51 @@ function exportSingleChat(chatId) {
     URL.revokeObjectURL(url);
 }
 
-function deleteSingleChat(chatId) {
-    if (!chatId) return;
-    if (confirm("确定要删除当前对话吗？此操作不可恢复。")) {
-        state.chats = state.chats.filter(c => c.id !== chatId);
-        saveChats();
-        renderChatList();
 
-        if (state.currentChatId === chatId) {
-            if (state.chats.length > 0) {
-                switchChat(state.chats[0].id);
-            } else {
-                createNewChat();
-            }
+
+function showDeleteConfirm(chatItemEl, chatId) {
+    // Remove any existing overlays first
+    document.querySelectorAll('.delete-confirm-overlay').forEach(el => el.remove());
+
+    const overlay = document.createElement('div');
+    overlay.className = 'delete-confirm-overlay';
+    overlay.innerHTML = `
+        <button class="btn btn-danger btn-sm confirm-btn">确认删除</button>
+        <button class="btn btn-ghost btn-sm cancel-btn">取消</button>
+    `;
+
+    overlay.querySelector('.confirm-btn').onclick = (e) => {
+        e.stopPropagation();
+        executeDeleteChat(chatId);
+    };
+
+    overlay.querySelector('.cancel-btn').onclick = (e) => {
+        e.stopPropagation();
+        overlay.remove();
+    };
+
+    chatItemEl.appendChild(overlay);
+
+    // Click outside to cancel
+    const onOutsideClick = (e) => {
+        if (!overlay.contains(e.target)) {
+            overlay.remove();
+            document.removeEventListener('mousedown', onOutsideClick);
+        }
+    };
+    setTimeout(() => document.addEventListener('mousedown', onOutsideClick), 0);
+}
+
+function executeDeleteChat(chatId) {
+    state.chats = state.chats.filter(c => c.id !== chatId);
+    saveChats();
+    renderChatList();
+
+    if (state.currentChatId === chatId) {
+        if (state.chats.length > 0) {
+            switchChat(state.chats[0].id);
+        } else {
+            createNewChat();
         }
     }
 }
@@ -682,14 +1135,16 @@ function deleteSingleChat(chatId) {
 function createNewChat() {
     if (state.isStreaming) return;
 
-    // Get default model from first provider if available
-    let defaultModel = '';
-    const providers = state.settings.providers || [];
-    if (providers.length > 0) {
-        const p = providers[0];
-        const models = (p.models || "").split(',').map(m => m.trim()).filter(m => m);
-        if (models.length > 0) {
-            defaultModel = `${p.id}|${models[0]}`;
+    // Get default model from last used or first provider
+    let defaultModel = state.settings.lastUsedModel || '';
+    if (!defaultModel) {
+        const providers = state.settings.providers || [];
+        if (providers.length > 0) {
+            const p = providers[0];
+            const models = (p.models || "").split(',').map(m => m.trim()).filter(m => m);
+            if (models.length > 0) {
+                defaultModel = `${p.id}|${models[0]}`;
+            }
         }
     }
 
@@ -701,6 +1156,8 @@ function createNewChat() {
     };
 
     state.chats.unshift(newChat); // Add to top
+    state.isNewFreshChat = true;
+    state._newlyCreatedId = newChat.id; // temporary tracker
     saveChats();
     renderChatList();
     switchChat(newChat.id);
@@ -708,6 +1165,12 @@ function createNewChat() {
 
 function switchChat(chatId) {
     if (state.isStreaming) return;
+
+    // Only keep flag if we are switching to the chat we just created
+    if (state._newlyCreatedId !== chatId) {
+        state.isNewFreshChat = false;
+    }
+    state._newlyCreatedId = null; // consume it
 
     state.currentChatId = chatId;
     const chat = state.chats.find(c => c.id === chatId);
@@ -750,26 +1213,68 @@ function renderChatList() {
         div.className = `chat-item ${chat.id === state.currentChatId ? 'active' : ''}`;
 
         div.innerHTML = `
+            <input type="checkbox" class="chat-item-checkbox" data-id="${chat.id}">
             <i class="ph ph-chat-circle"></i>
             <span class="chat-item-title">${chat.title}</span>
             <div class="chat-actions">
-                <button class="export-btn" title="导出"><i class="ph ph-export"></i></button>
-                <button class="del-btn" title="删除"><i class="ph ph-trash"></i></button>
+                <button class="more-btn" title="更多操作"><i class="ph ph-dots-three-outline"></i></button>
+                <div class="chat-actions-menu">
+                    <button class="del-btn" title="删除"><i class="ph ph-trash"></i></button>
+                </div>
             </div>
         `;
 
+        const checkbox = div.querySelector('.chat-item-checkbox');
+        checkbox.addEventListener('click', (e) => e.stopPropagation());
+        checkbox.addEventListener('change', updateSelectedCount);
+
+        const moreBtn = div.querySelector('.more-btn');
+        const menu = div.querySelector('.chat-actions-menu');
+
+        moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close other open menus
+            document.querySelectorAll('.chat-actions-menu.show').forEach(m => {
+                if (m !== menu) m.classList.remove('show');
+            });
+            menu.classList.toggle('show');
+        });
+
+        div.querySelector('.del-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.classList.remove('show');
+            showDeleteConfirm(div, chat.id);
+        });
+
         div.addEventListener('click', (e) => {
-            if (e.target.closest('.export-btn')) {
-                exportSingleChat(chat.id);
-            } else if (e.target.closest('.del-btn')) {
-                deleteSingleChat(chat.id);
-            } else {
+            if (!e.target.closest('.chat-actions')) {
                 switchChat(chat.id);
             }
         });
 
         chatListEl.appendChild(div);
     });
+
+    // Close menus when clicking outside
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.chat-actions-menu.show').forEach(m => m.classList.remove('show'));
+    }, { once: true });
+}
+
+async function copyToClipboard(text, btn) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const icon = btn.querySelector('i');
+        const oldClass = icon.className;
+        icon.className = 'ph ph-check-circle';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            icon.className = oldClass;
+            btn.classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy: ', err);
+    }
 }
 
 function saveChats() {
@@ -783,6 +1288,11 @@ function renderMessages(messages) {
     messageContainer.innerHTML = '';
 
     if (messages.length === 0) {
+        updateWelcomeScreen();
+        const skillSec = welcomeScreen.querySelector('.skills-section');
+        if (skillSec) skillSec.style.display = state.isNewFreshChat ? 'block' : 'none';
+
+        renderSkillsBar(); // Ensure bar is updated for new chat
         welcomeScreen.style.display = 'flex';
         messageContainer.appendChild(welcomeScreen);
     } else {
@@ -796,6 +1306,30 @@ function renderMessages(messages) {
             hljs.highlightElement(block);
         });
         scrollToBottom();
+    }
+}
+
+function updateThinkingBtnState() {
+    if (toggleThinkingBtn) {
+        if (state.settings.enableThinking !== false) {
+            toggleThinkingBtn.classList.add('active');
+            toggleThinkingBtn.title = '思考过程已开启';
+        } else {
+            toggleThinkingBtn.classList.remove('active');
+            toggleThinkingBtn.title = '思考过程已关闭';
+        }
+    }
+}
+
+function updateSearchBtnState() {
+    if (toggleSearchBtn) {
+        if (state.settings.enableSearch) {
+            toggleSearchBtn.classList.add('active');
+            toggleSearchBtn.title = '联网搜索已开启';
+        } else {
+            toggleSearchBtn.classList.remove('active');
+            toggleSearchBtn.title = '联网搜索已关闭';
+        }
     }
 }
 
@@ -828,15 +1362,27 @@ function renderMessageItem(role, content) {
         }
     }
 
-    const dataRaw = encodeURIComponent(content.content !== undefined ? content.content : content);
-    const dataReasoning = content.reasoning_content ? encodeURIComponent(content.reasoning_content) : '';
+    const dataRaw = content.content !== undefined ? content.content : content;
+    const dataReasoning = content.reasoning_content || '';
 
     wrapper.innerHTML = `
         <div class="avatar">${icon}</div>
-        <div class="message-content" data-raw="${decodeURIComponent(dataRaw)}" data-reasoning="${decodeURIComponent(dataReasoning)}">
+        <div class="message-content" data-raw="${encodeURIComponent(dataRaw)}" data-reasoning="${encodeURIComponent(dataReasoning)}">
             ${htmlContent || '<div class="markdown-body"></div>'}
+            ${(role === 'assistant' || role === 'user') ? `
+                <div class="message-actions">
+                    <button class="message-action-btn copy-btn" title="复制内容">
+                        <i class="ph ph-copy"></i>
+                    </button>
+                </div>
+            ` : ''}
         </div>
     `;
+
+    if (role === 'assistant' || role === 'user') {
+        const copyBtn = wrapper.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', () => copyToClipboard(dataRaw, copyBtn));
+    }
 
     messageContainer.appendChild(wrapper);
     return wrapper;
@@ -885,20 +1431,43 @@ function sendMessage() {
     chat.messages.push({ role: 'user', content: text });
     renderMessageItem('user', { content: text });
 
+    // Hide welcome elements once first message is sent
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    state.isNewFreshChat = false;
+
     messageInput.value = '';
     messageInput.style.height = 'auto'; // reset textarea height
     scrollToBottom();
 
     saveChats();
 
+    let finalSystemPrompt = state.settings.systemPrompt || '';
+
+    // Skill Override
+    if (state.activeSkillId) {
+        const skill = (state.settings.skills || []).find(s => s.id === state.activeSkillId);
+        if (skill && skill.prompt) {
+            finalSystemPrompt = skill.prompt;
+        }
+    }
+
+    if (state.settings.enableSearch) {
+        finalSystemPrompt += "\n\n[System Nudge: Web Search is ENABLED. Please use your online search capabilities or tools to provide the most up-to-date information if the user's request requires it. If you don't have direct tools, acknowledge the current date and provide the best available knowledge.]";
+    }
+
     // Dispatch to Electron Main Process
     window.api.sendMessageStream({
         endpoint: provider.endpoint,
         apiKey: provider.apiKey,
         modelName: modelName,
-        systemPrompt: state.settings.systemPrompt,
+        systemPrompt: finalSystemPrompt,
         messages: chat.messages,
-        chatId: chat.id
+        chatId: chat.id,
+        enableThinking: state.settings.enableThinking !== false,
+        enableSearch: !!state.settings.enableSearch,
+        mcpServers: (state.settings.mcpServers || []).filter(s =>
+            (state.enabledMcpServerIds || []).includes(s.id)
+        )
     });
 }
 

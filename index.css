@@ -226,36 +226,142 @@ textarea {
     font-size: 14px;
 }
 
+.chat-item-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 10px;
+    display: none;
+    flex-shrink: 0;
+}
+
+.export-mode .chat-item-checkbox {
+    display: block;
+}
+
+.export-mode .chat-item i {
+    display: none;
+    /* Hide chat icon in export mode */
+}
+
 /* Chat Hover Actions */
 .chat-actions {
     display: none;
-    gap: 4px;
-    align-items: center;
+    position: relative;
+    margin-left: auto;
 }
 
 .chat-item:hover .chat-actions {
     display: flex;
 }
 
-.chat-actions button {
+.chat-actions .more-btn {
     background: none;
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
+    padding: 6px;
     border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all var(--transition);
 }
 
-.chat-actions button:hover {
+.chat-actions .more-btn:hover {
     background: var(--bg-surface-elevated);
     color: var(--text-primary);
 }
 
-.chat-actions button.del-btn:hover {
+/* Actions Menu */
+.chat-actions-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    z-index: 1001;
+    display: none;
+    flex-direction: row;
+    gap: 2px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    animation: fadeIn 0.1s ease-out;
+}
+
+.chat-actions-menu.show {
+    display: flex;
+}
+
+.chat-actions-menu button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.chat-actions-menu button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.chat-actions-menu button.del-btn:hover {
     color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Delete Confirmation Popover */
+.delete-confirm-overlay {
+    position: absolute;
+    right: 8px;
+    top: 32px;
+    /* Positioned below the action buttons */
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    animation: slideInDown 0.15s ease-out;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.delete-confirm-overlay .btn-sm {
+    padding: 2px 8px;
+    font-size: 11px;
+    height: 24px;
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.delete-confirm-overlay .btn-danger {
+    background-color: #ef4444;
+    color: white;
+}
+
+.delete-confirm-overlay .btn-danger:hover {
+    background-color: #dc2626;
 }
 
 /* Custom Scrollbar for Chat List */
@@ -426,11 +532,61 @@ textarea {
     color: var(--text-primary);
     max-width: calc(100% - 50px);
     word-break: break-word;
+    position: relative;
+}
+
+/* Message Actions (Copy etc) */
+.message-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: opacity;
+    opacity: 0;
+    transition: opacity 0.2s;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 2px;
+    display: flex;
+    gap: 2px;
+    z-index: 5;
+}
+
+.message:hover .message-actions {
+    opacity: 1;
+}
+
+.message-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.message-action-btn:hover {
+    color: var(--bg-primary);
+    background: var(--bg-surface-elevated);
+}
+
+.message-action-btn.copied {
+    color: #10b981;
 }
 
 .assistant .message-content {
     background-color: var(--bg-chat-assistant);
     padding: 8px 0;
+}
+
+.assistant .message-actions {
+    right: -32px;
+    top: 8px;
 }
 
 .system .message-content {
@@ -556,7 +712,7 @@ textarea {
 
 /* Input Area */
 .input-area {
-    padding: 16px 24px 24px 0;
+    padding: 12px 24px 24px 24px;
     background-color: var(--bg-base);
     position: relative;
     z-index: 100;
@@ -633,6 +789,11 @@ textarea {
 .tool-btn:hover {
     background: var(--bg-surface-elevated);
     color: var(--bg-primary);
+}
+
+.tool-btn.active {
+    color: var(--bg-primary);
+    background: rgba(59, 130, 246, 0.1);
 }
 
 .tool-btn i {
@@ -1204,4 +1365,287 @@ textarea {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* MCP Dropdown and Status */
+.mcp-dropdown-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.mcp-dropdown {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 0;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+    min-width: 220px;
+    display: none;
+    z-index: 1005;
+    flex-direction: column;
+    overflow: hidden;
+    animation: slideUp 0.15s ease-out;
+}
+
+.mcp-dropdown.show {
+    display: flex;
+}
+
+.mcp-dropdown-header {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.mcp-list {
+    padding: 6px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.mcp-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.mcp-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.mcp-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.mcp-item label {
+    flex: 1;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin: 0;
+    user-select: none;
+}
+
+.mcp-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-online {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+}
+
+.status-offline {
+    background: #94a3b8;
+}
+
+.status-error {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+.tool-btn.active {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.mcp-server-item .mcp-status-dot {
+    margin-right: 4px;
+}
+
+/* Skill Items in Settings */
+.skill-item {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.skill-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.skill-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.skill-form {
+    display: grid;
+    gap: 12px;
+}
+
+.skill-form textarea {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.skill-form input {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+/* My Partners (Skills) Section */
+.skills-section {
+    max-width: 800px;
+    margin: 24px auto 0 auto;
+    width: 100%;
+}
+
+.skills-title,
+.skills-header-row,
+.skills-nav {
+    display: none;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.nav-btn:hover {
+    color: var(--text-primary);
+}
+
+.skills-bar {
+    display: flex;
+    overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 12px;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+}
+
+.skills-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.skill-card {
+    min-width: 100px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.skill-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--border-strong);
+}
+
+.skill-card.active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.skill-card i {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.skill-card .skill-name {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Iconic colors */
+.skill-card .ph-mask-happy {
+    color: #f59e0b;
+}
+
+/* Default helper */
+.skill-card .ph-translate {
+    color: #3b82f6;
+}
+
+/* Translation helper */
+.skill-card .ph-code {
+    color: #10b981;
+}
+
+/* Code helper */
+.skill-card .ph-sparkle {
+    color: #8b5cf6;
+}
+
+/* Special/AI helper */
+.skill-card .ph-pencil-circle {
+    color: #ec4899;
+}
+
+/* Writer helper */
+
+.skill-card .skill-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.skill-card .skill-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Light/Dark specific tweaks */
+.light-theme .skill-card {
+    background: #ffffff;
+}
+
+.dark-theme .skill-card {
+    background: #252525;
 }

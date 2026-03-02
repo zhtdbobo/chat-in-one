@@ -39,7 +39,7 @@
                     style="margin-bottom: 8px;">
                     <i class="ph ph-plus-circle"></i> 新的对话
                 </button>
-                <div style="display: flex; gap: 8px;">
+                <div id="sidebar-actions-default" style="display: flex; gap: 8px;">
                     <button id="export-chats-btn" class="btn btn-ghost" style="flex: 1; font-size: 12px; padding: 6px;"
                         title="导出对话记录">
                         <i class="ph ph-export"></i> 导出
@@ -50,6 +50,25 @@
                     </button>
                     <!-- Hidden file input for import -->
                     <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                </div>
+                <div id="sidebar-actions-export" style="display: none; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 0 4px;">
+                        <input type="checkbox" id="select-all-chats" style="width: 14px; height: 14px;">
+                        <label for="select-all-chats"
+                            style="font-size: 12px; color: var(--text-secondary); cursor: pointer;">全选</label>
+                        <span id="selected-count"
+                            style="margin-left: auto; font-size: 11px; color: var(--text-muted);">0 已选</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="confirm-export-btn" class="btn btn-primary"
+                            style="flex: 1; font-size: 12px; padding: 6px;">
+                            确定导出
+                        </button>
+                        <button id="cancel-export-btn" class="btn btn-ghost"
+                            style="flex: 1; font-size: 12px; padding: 6px;">
+                            取消
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -77,12 +96,30 @@
                 <div class="welcome-screen" id="welcome-screen">
                     <div class="logo-circle"><i class="ph ph-robot"></i></div>
                     <h1>您好，我是您的 AI 助理</h1>
-                    <p>请点击左下角「设置」配置 API 以开始使用。</p>
+                    <p>请选择一个搭档或直接开始聊天：</p>
+
+                    <!-- Skills Section -->
+                    <div class="skills-section">
+                        <div class="skills-header-row">
+                            <div class="skills-title">我的搭档</div>
+                            <div class="skills-nav">
+                                <button class="nav-btn" id="skills-prev" title="向左滚动"><i
+                                        class="ph ph-caret-left"></i></button>
+                                <button class="nav-btn" id="skills-next" title="向右滚动"><i
+                                        class="ph ph-caret-right"></i></button>
+                            </div>
+                        </div>
+                        <div class="skills-bar" id="skills-bar">
+                            <!-- Skill cards will be injected here -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="input-area">
                 <div class="input-wrapper">
+
+
                     <!-- Row 1: Input and Send -->
                     <div class="input-row-main">
                         <textarea id="message-input" placeholder="输入消息，或 Shift + Enter 换行..." rows="1"
@@ -95,8 +132,22 @@
                     <!-- Row 2: Tools and Model Selection -->
                     <div class="input-row-tools">
                         <div class="tools-left">
+                            <button id="toggle-thinking-btn" class="tool-btn" title="显示/隐藏思考过程"><i
+                                    class="ph ph-brain"></i></button>
                             <button class="tool-btn" title="上传图片"><i class="ph ph-image-square"></i></button>
-                            <button class="tool-btn" title="MCP 工具盒"><i class="ph ph-command"></i></button>
+                            <div class="mcp-dropdown-wrapper">
+                                <button id="mcp-dropdown-btn" class="tool-btn" title="MCP 工具盒">
+                                    <i class="ph ph-command"></i>
+                                </button>
+                                <div id="mcp-selection-dropdown" class="mcp-dropdown">
+                                    <div class="mcp-dropdown-header">启用 MCP 工具</div>
+                                    <div id="mcp-checkbox-list" class="mcp-list">
+                                        <!-- MCP servers with checkboxes will be here -->
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="toggle-search-btn" class="tool-btn" title="联网搜索"><i
+                                    class="ph ph-globe"></i></button>
                             <button class="tool-btn" title="集成知识库"><i class="ph ph-books"></i></button>
                         </div>
                         <div class="tools-right">
@@ -138,6 +189,14 @@
                     <i class="ph ph-cloud"></i>
                     <span>模型服务商</span>
                 </div>
+                <div class="settings-tab" data-tab="tab-mcp">
+                    <i class="ph ph-cube"></i>
+                    <span>MCP 服务器</span>
+                </div>
+                <div class="settings-tab" data-tab="tab-skills">
+                    <i class="ph ph-sparkle"></i>
+                    <span>AI 技能库</span>
+                </div>
             </div>
 
             <div class="settings-panel">
@@ -158,6 +217,16 @@
                                 <span
                                     style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">针对支持
                                     reasoning 的模型（如 DeepSeek-R1）有效</span>
+                            </label>
+                        </div>
+                        <div class="form-group"
+                            style="display: flex; align-items: center; gap: 10px; margin-top: 12px;">
+                            <input type="checkbox" id="enable-search"
+                                style="width: 16px; height: 16px; flex-shrink: 0;">
+                            <label for="enable-search" style="margin-bottom: 0; cursor: pointer;">
+                                默认开启联网搜索
+                                <span
+                                    style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">开启后，模型将尝试通过搜索获取最新信息（需模型或插件支持）</span>
                             </label>
                         </div>
                     </div>
@@ -185,6 +254,33 @@
                                 <!-- Selected provider settings will be rendered here -->
                             </div>
                         </div>
+                    </div>
+                    <!-- MCP Tab -->
+                    <div id="tab-mcp" class="tab-pane">
+                        <div class="settings-section-title">MCP (Model Context Protocol) 配置</div>
+                        <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">
+                            配置 MCP 服务器以为模型提供额外的工具能力（如实时搜索、文件处理等）。
+                        </p>
+                        <div id="mcp-servers-container">
+                            <!-- MCP servers will be listed here -->
+                        </div>
+                        <button type="button" id="add-mcp-server-btn" class="btn btn-ghost" style="margin-top: 12px;">
+                            <i class="ph ph-plus"></i> 添加 MCP 服务器
+                        </button>
+                    </div>
+
+                    <!-- Skills Tab -->
+                    <div id="tab-skills" class="tab-pane">
+                        <div class="settings-section-title">AI 技能 (System Prompts)</div>
+                        <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">
+                            创建预定义的人设或特殊指令，以便在对话中快速切换。
+                        </p>
+                        <div id="skills-container">
+                            <!-- Skills will be listed here -->
+                        </div>
+                        <button type="button" id="add-skill-btn" class="btn btn-ghost" style="margin-top: 12px;">
+                            <i class="ph ph-plus"></i> 创建新技能
+                        </button>
                     </div>
                 </form>
             </div>

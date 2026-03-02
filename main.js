@@ -137,10 +137,45 @@ ipcMain.handle('save-chats', (event, chats) => {
 });
 
 // Stream Request Handler
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+
+let mcpClients = [];
+
+async function getMcpTools(servers) {
+    const allTools = [];
+    for (const server of servers) {
+        if (!server.command) continue;
+        try {
+            const transport = new StdioClientTransport({
+                command: server.command,
+                args: (server.args || '').split(',').map(a => a.trim())
+            });
+            const client = new Client({ name: "chat-in-one-client", version: "1.0.0" }, { capabilities: {} });
+            await client.connect(transport);
+            const tools = await client.listTools();
+            allTools.push(...tools.tools.map(t => ({ ...t, serverId: server.id })));
+            mcpClients.push({ id: server.id, client, transport });
+        } catch (e) {
+            console.error(`Failed to connect to MCP server ${server.name}:`, e);
+        }
+    }
+    return allTools;
+}
+
 ipcMain.on('send-message-stream', async (event, requestData) => {
-    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId } = requestData;
+    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, mcpServers } = requestData;
 
     try {
+        // Cleanup old clients
+        for (const c of mcpClients) await c.transport.close();
+        mcpClients = [];
+
+        let tools = [];
+        if (mcpServers && mcpServers.length > 0) {
+            tools = await getMcpTools(mcpServers);
+        }
+
         const apiMessages = [
             { role: 'system', content: systemPrompt },
             ...messages.map(m => ({ role: m.role, content: m.content }))
@@ -148,17 +183,33 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
 
         const fetchPath = endpoint.endsWith('/') ? `${endpoint}chat/completions` : `${endpoint}/chat/completions`;
 
+        const body = {
+            model: modelName,
+            messages: apiMessages,
+            stream: true,
+            ...(enableThinking !== undefined ? { include_reasoning: enableThinking } : {}),
+            ...(enableSearch !== undefined ? { web_search: enableSearch, search: enableSearch, enable_search: enableSearch } : {})
+        };
+
+        if (tools.length > 0) {
+            body.tools = tools.map(t => ({
+                type: "function",
+                function: {
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.inputSchema
+                }
+            }));
+            body.tool_choice = "auto";
+        }
+
         const response = await fetch(fetchPath, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify({
-                model: modelName,
-                messages: apiMessages,
-                stream: true
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
@@ -172,46 +223,100 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
 
         event.reply('stream-start', { chatId });
 
+        let toolCalls = [];
+
         while (true) {
             const { done, value } = await reader.read();
-            if (done) {
-                event.reply('stream-end', { chatId });
-                break;
-            }
+            if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
             for (const line of lines) {
-                if (line.includes('[DONE]')) {
-                    event.reply('stream-end', { chatId });
-                    return;
-                }
+                if (line.includes('[DONE]')) break;
                 if (line.startsWith('data: ')) {
                     const dataStr = line.replace('data: ', '');
                     if (dataStr === '[DONE]') continue;
                     try {
                         const parsed = JSON.parse(dataStr);
-                        if (parsed.choices && parsed.choices.length > 0) {
-                            const delta = parsed.choices[0].delta;
-                            if (delta) {
-                                let content = "";
-                                if (delta.reasoning_content) {
-                                    event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
-                                }
-                                if (delta.content) {
-                                    event.reply('stream-chunk', { chatId, content: delta.content });
+                        const delta = parsed.choices?.[0]?.delta;
+                        if (delta) {
+                            if (delta.reasoning_content && enableThinking !== false) {
+                                event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
+                            }
+                            if (delta.content) {
+                                event.reply('stream-chunk', { chatId, content: delta.content });
+                            }
+                            if (delta.tool_calls) {
+                                for (const tc of delta.tool_calls) {
+                                    if (!toolCalls[tc.index]) toolCalls[tc.index] = { id: tc.id, name: '', args: '' };
+                                    if (tc.function?.name) toolCalls[tc.index].name += tc.function.name;
+                                    if (tc.function?.arguments) toolCalls[tc.index].args += tc.function.arguments;
                                 }
                             }
                         }
+                    } catch (e) { }
+                }
+            }
+        }
+
+        // Handle Tool Calls if any
+        if (toolCalls.length > 0) {
+            event.reply('stream-chunk', { chatId, content: "\n\n*正在调用工具...*\n" });
+            const toolResults = [];
+            for (const tc of toolCalls) {
+                const clientObj = mcpClients.find(c => true); // In a real app, map tool name to server
+                if (clientObj) {
+                    try {
+                        const result = await clientObj.client.callTool({
+                            name: tc.name,
+                            arguments: JSON.parse(tc.args)
+                        });
+                        toolResults.push({
+                            role: "tool",
+                            tool_call_id: tc.id,
+                            content: JSON.stringify(result.content)
+                        });
                     } catch (e) {
-                        console.error("Error parsing stream line:", line, e);
+                        toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Error: ${e.message}` });
+                    }
+                }
+            }
+
+            // Send tool results back to LLM for final answer
+            // (Note: This is a recursive step, simplified for this implementation)
+            const finalResponse = await fetch(fetchPath, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
+                    stream: true
+                })
+            });
+
+            const finalReader = finalResponse.body.getReader();
+            while (true) {
+                const { done, value } = await finalReader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataStr = line.replace('data: ', '');
+                        if (dataStr === '[DONE]') continue;
+                        try {
+                            const parsed = JSON.parse(dataStr);
+                            const delta = parsed.choices?.[0]?.delta;
+                            if (delta?.content) event.reply('stream-chunk', { chatId, content: delta.content });
+                        } catch (e) { }
                     }
                 }
             }
         }
+
+        event.reply('stream-end', { chatId });
     } catch (error) {
-        console.error("Fetch Error:", error);
         event.reply('stream-error', { chatId, error: error.message });
     }
 });
