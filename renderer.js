@@ -25,6 +25,7 @@ const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
 const currentChatTitle = document.getElementById('current-chat-title');
 const welcomeScreen = document.getElementById('welcome-screen');
 const toggleSearchBtn = document.getElementById('toggle-search-btn');
+const toggleThinkingBtn = document.getElementById('toggle-thinking-btn');
 
 // Configure Marked.js syntax highlighting
 marked.setOptions({
@@ -246,9 +247,6 @@ function setupEvents() {
     });
 
     // Settings modal interactions
-    document.getElementById('add-provider-btn').addEventListener('click', () => {
-        addProviderBlock({ id: generateId(), name: '', endpoint: '', apiKey: '', models: '' });
-    });
     settingsBtn.addEventListener('click', openSettings);
     closeSettingsBtn.addEventListener('click', closeSettings);
     cancelSettingsBtn.addEventListener('click', closeSettings);
@@ -973,6 +971,24 @@ function renderSkillsBar() {
     };
     bar.appendChild(defaultCard);
 
+    const updatePromptPreview = () => {
+        const preview = document.getElementById('skill-prompt-preview');
+        const promptText = document.getElementById('skill-prompt-text');
+        if (!preview || !promptText) return;
+
+        if (state.activeSkillId) {
+            const skill = skills.find(s => s.id === state.activeSkillId);
+            if (skill && skill.prompt) {
+                promptText.textContent = `提示词预览: ${skill.prompt}`;
+                preview.style.display = 'flex';
+            } else {
+                preview.style.display = 'none';
+            }
+        } else {
+            preview.style.display = 'none';
+        }
+    };
+
     skills.forEach(skill => {
         const card = document.createElement('div');
         card.className = `skill-card ${state.activeSkillId === skill.id ? 'active' : ''}`;
@@ -984,11 +1000,13 @@ function renderSkillsBar() {
             </div>
         `;
         card.onclick = () => {
-            state.activeSkillId = skill.id;
+            state.activeSkillId = (state.activeSkillId === skill.id) ? null : skill.id;
             renderSkillsBar();
         };
         bar.appendChild(card);
     });
+
+    updatePromptPreview();
 
     // Setup nav buttons once
     const prevBtn = document.getElementById('skills-prev');
@@ -1287,16 +1305,17 @@ function saveChats() {
 function renderMessages(messages) {
     messageContainer.innerHTML = '';
 
+    const skillSection = document.querySelector('.skills-section');
+
     if (messages.length === 0) {
         updateWelcomeScreen();
-        const skillSec = welcomeScreen.querySelector('.skills-section');
-        if (skillSec) skillSec.style.display = state.isNewFreshChat ? 'block' : 'none';
-
         renderSkillsBar(); // Ensure bar is updated for new chat
+        if (skillSection) skillSection.style.display = 'block';
         welcomeScreen.style.display = 'flex';
         messageContainer.appendChild(welcomeScreen);
     } else {
         welcomeScreen.style.display = 'none';
+        if (skillSection) skillSection.style.display = 'none';
         messages.forEach(msg => {
             renderMessageItem(msg.role, msg.content);
         });

@@ -5,14 +5,17 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder -w"
+    "clean": "rd /s /q dist",
+    "prebuild": "npm run clean",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
   },
   "keywords": [
     "ai",
     "chat",
     "electron"
   ],
-  "author": "",
+  "author": "Chat-in-One Dev Team",
   "license": "ISC",
   "devDependencies": {
     "electron": "^33.0.0",
@@ -29,8 +32,33 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
-    }
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Chat-in-One",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    },
+    "asar": true,
+    "files": [
+      "**/*",
+      "!dist",
+      "!node_modules",
+      "node_modules/**/*"
+    ]
   },
   "repository": {
     "type": "git",

@@ -26,23 +26,31 @@ function parseDataFile(filePath, defaults) {
 }
 
 async function initStore() {
+    const defaultSettings = {
+        theme: "light",
+        systemPrompt: "You are a helpful assistant.",
+        providers: [
+            {
+                id: "default",
+                name: "默认服务商",
+                endpoint: "https://api.openai.com/v1",
+                apiKey: "",
+                models: "gpt-3.5-turbo, deepseek-chat"
+            }
+        ],
+        skills: [
+            { id: 'all-in-one', name: '全能助手', desc: '处理各种通用任务', prompt: '你是一个智能、高效且有帮助的助理。' },
+            { id: 'code-helper', name: '代码专家', desc: '精通多语言编程', prompt: '你是一个资深的程序员，擅长优化代码、寻找 Bug 并提供优雅的架构建议。' },
+            { id: 'translator', name: '翻译翻译', desc: '信达雅的翻译官', prompt: '你是一个精通多国语言的翻译官，能够根据上下文提供最自然、地道的翻译结果。' }
+        ],
+        mcpServers: []
+    };
+
     try {
         const Store = (await import('electron-store')).default;
         store = new Store({
             defaults: {
-                settings: {
-                    theme: "light",
-                    systemPrompt: "You are a helpful assistant.",
-                    providers: [
-                        {
-                            id: "default",
-                            name: "默认服务商",
-                            endpoint: "https://api.openai.com/v1",
-                            apiKey: "",
-                            models: "gpt-3.5-turbo, deepseek-chat"
-                        }
-                    ]
-                },
+                settings: defaultSettings,
                 chats: []
             }
         });
@@ -51,13 +59,7 @@ async function initStore() {
         store = new SimpleStore({
             name: 'config',
             defaults: {
-                settings: {
-                    theme: "light",
-                    systemPrompt: "You are a helpful assistant.",
-                    providers: [
-                        { id: "default", name: "默认服务商", endpoint: "https://api.openai.com/v1", apiKey: "", models: "gpt-3.5-turbo, deepseek-chat" }
-                    ]
-                },
+                settings: defaultSettings,
                 chats: []
             }
         });

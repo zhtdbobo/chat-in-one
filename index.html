@@ -98,21 +98,25 @@
                     <h1>您好，我是您的 AI 助理</h1>
                     <p>请选择一个搭档或直接开始聊天：</p>
 
-                    <!-- Skills Section -->
-                    <div class="skills-section">
-                        <div class="skills-header-row">
-                            <div class="skills-title">我的搭档</div>
-                            <div class="skills-nav">
-                                <button class="nav-btn" id="skills-prev" title="向左滚动"><i
-                                        class="ph ph-caret-left"></i></button>
-                                <button class="nav-btn" id="skills-next" title="向右滚动"><i
-                                        class="ph ph-caret-right"></i></button>
-                            </div>
-                        </div>
-                        <div class="skills-bar" id="skills-bar">
-                            <!-- Skill cards will be injected here -->
-                        </div>
+                    <!-- welcome-screen-end -->
+                </div>
+            </div>
+
+            <!-- Skills Section (Moved to be above input area) -->
+            <div class="skills-section">
+                <div id="skill-prompt-preview" class="skill-prompt-preview" style="display: none;">
+                    <i class="ph ph-info"></i>
+                    <span id="skill-prompt-text"></span>
+                </div>
+                <div class="skills-header-row" style="display: none;">
+                    <div class="skills-title">我的搭档</div>
+                    <div class="skills-nav">
+                        <button class="nav-btn" id="skills-prev" title="向左滚动"><i class="ph ph-caret-left"></i></button>
+                        <button class="nav-btn" id="skills-next" title="向右滚动"><i class="ph ph-caret-right"></i></button>
                     </div>
+                </div>
+                <div class="skills-bar" id="skills-bar">
+                    <!-- Skill cards will be injected here -->
                 </div>
             </div>
 
