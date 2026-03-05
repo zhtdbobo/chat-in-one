@@ -32,7 +32,7 @@
       "output": "dist"
     },
     "win": {
-      "icon": "assets/icon.ico",
+      "icon": "src/assets/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -48,9 +48,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Chat-in-One",
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico"
+      "installerIcon": "src/assets/icon.ico",
+      "uninstallerIcon": "src/assets/icon.ico",
+      "installerHeaderIcon": "src/assets/icon.ico"
     },
     "asar": true,
     "files": [

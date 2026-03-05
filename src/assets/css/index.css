@@ -1,0 +1,14 @@
+/*
+  Chat-in-One Global Stylesheet
+  This file serves as the main entry point for all CSS.
+  Styles are split into multiple files for better maintainability.
+*/
+
+@import 'variables.css';
+@import 'base.css';
+@import 'sidebar.css';
+@import 'chat.css';
+@import 'input.css';
+@import 'markdown.css';
+@import 'settings.css';
+@import 'components.css';
