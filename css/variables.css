@@ -1,0 +1,62 @@
+:root {
+    /* Color Palette */
+    --bg-base: #14151a;
+    --bg-surface: #1e1f26;
+    --bg-surface-elevated: #262831;
+    --bg-primary: #3b82f6;
+    --bg-primary-hover: #2563eb;
+    --bg-chat-user: #262831;
+    --bg-chat-assistant: transparent;
+
+    /* Text Colors */
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Borders & Dividers */
+    --border-subtle: #33415540;
+    --border-focus: #3b82f6;
+
+    /* Metrics */
+    --sidebar-width: 260px;
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Light Theme Variables */
+body.light-theme {
+    --bg-base: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #f1f5f9;
+    --bg-primary: #3b82f6;
+    --bg-primary-hover: #2563eb;
+    --bg-chat-user: #e2e8f0;
+    --bg-chat-assistant: transparent;
+
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    --border-subtle: #cbd5e1;
+    --border-focus: #3b82f6;
+}
+
+body.light-theme .chat-header {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+body.light-theme .markdown-body pre {
+    background-color: #f1f5f9;
+    border: 1px solid var(--border-subtle);
+}
+
+body.light-theme .markdown-body code:not(pre code) {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+
+body.light-theme .markdown-body strong {
+    color: #0f172a;
+}

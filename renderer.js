@@ -49,18 +49,30 @@ async function initApp() {
     state.chats = await window.api.getChats() || [];
 
     // Migrate old settings
-    if (!state.settings.providers && state.settings.endpoint) {
+    const hasProviders = state.settings.providers && state.settings.providers.length > 0;
+    const hasOldSettings = state.settings.endpoint || state.settings.apiKey;
+
+    // Even if providers exists, if it looks like defaults and we have old top-level settings, migrate them
+    const isDefaultProvider = hasProviders && state.settings.providers.length === 1 && state.settings.providers[0].id === 'default' && !state.settings.providers[0].apiKey;
+
+    if ((!hasProviders || isDefaultProvider) && hasOldSettings) {
         state.settings.providers = [{
             id: 'default',
-            name: '\u9ed8\u8ba4\u670d\u52a1\u5546',
-            endpoint: state.settings.endpoint,
-            apiKey: state.settings.apiKey,
-            models: state.settings.modelName || ''
+            name: '默认服务商',
+            endpoint: state.settings.endpoint || "https://api.openai.com/v1",
+            apiKey: state.settings.apiKey || "",
+            models: state.settings.modelName || 'gpt-3.5-turbo, deepseek-chat'
         }];
+        // Clean up old top-level settings to avoid repeated migration
+        delete state.settings.endpoint;
+        delete state.settings.apiKey;
+        delete state.settings.modelName;
     }
+
     if (state.settings.enableThinking === undefined) {
         state.settings.enableThinking = true;
     }
+
     updateThinkingBtnState();
     updateSearchBtnState();
     renderMcpSelectionDropdown();
@@ -206,10 +218,12 @@ function renderSearchableModelSelect() {
     trigger.addEventListener('click', (e) => {
         e.stopPropagation();
         const isOpen = dropdown.classList.contains('show');
-        document.querySelectorAll('.select-dropdown.show').forEach(d => d.classList.remove('show'));
+        // Close other dropdowns
+        document.querySelectorAll('.select-dropdown.show, .mcp-dropdown.show').forEach(d => d.classList.remove('show'));
+
         if (!isOpen) {
             dropdown.classList.add('show');
-            searchInput.focus();
+            setTimeout(() => searchInput.focus(), 10);
             modelSearchQuery = '';
             searchInput.value = '';
             refreshOptions();
@@ -223,12 +237,10 @@ function renderSearchableModelSelect() {
 
     searchInput.addEventListener('click', e => e.stopPropagation());
 
-    document.addEventListener('click', () => {
-        dropdown.classList.remove('show');
-    });
-
+    // Outside click handler is now handled globally in setupEvents
     refreshOptions();
 }
+
 
 // -----------------------------------------
 // Events
@@ -605,8 +617,11 @@ function renderProviderDetail() {
     };
 
     container.querySelector('#fetch-models-btn').onclick = async () => {
-        const url = container.querySelector('.prov-endpoint').value.trim();
-        const key = container.querySelector('.prov-apikey').value.trim();
+        // IMPORTANT: Save current inputs to tempProviders before fetching and re-rendering
+        saveCurrentProviderData();
+
+        const url = provider.endpoint;
+        const key = provider.apiKey;
         if (!url) { alert("请先填写Endpoint"); return; }
 
         try {
@@ -623,9 +638,15 @@ function renderProviderDetail() {
                 const existing = (provider.models || "").split(',').map(m => m.trim()).filter(m => m);
                 const merged = [...new Set([...existing, ...ids])];
                 provider.models = merged.join(', ');
+
+                // Re-render detail view with new model list
                 renderProviderDetail();
+                // Also update the sidebar if the name was changed
+                renderProvidersSidebar();
+
                 alert(`成功获取并合并了 ${ids.length} 个模型！`);
             }
+
         } catch (e) {
             alert("获取失败: " + e.message);
         } finally {
@@ -643,17 +664,17 @@ function closeSettings() {
 }
 
 async function handleSettingsSave(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     saveCurrentProviderData();
     saveCurrentMCPServerData();
     saveCurrentSkillData();
 
+    // Use spread to preserve all existing settings (like lastUsedModel, theme, etc.)
     const newSettings = {
+        ...state.settings,
         systemPrompt: document.getElementById('system-prompt').value.trim(),
         enableThinking: document.getElementById('enable-thinking').checked,
         enableSearch: document.getElementById('enable-search').checked,
-        theme: state.settings.theme || 'light',
-        sidebarWidth: state.settings.sidebarWidth || '260px',
         providers: tempProviders,
         mcpServers: tempMCPServers,
         skills: tempSkills
@@ -666,6 +687,7 @@ async function handleSettingsSave(e) {
     updateBadge();
     closeSettings();
 }
+
 
 // -----------------------------------------
 // Export Mode Logics
@@ -1203,13 +1225,14 @@ function switchChat(chatId) {
             let found = false;
             for (const p of providers) {
                 if (p.models && p.models.includes(chat.model)) {
-                    chat.model = `${p.id} | ${chat.model}`;
+                    chat.model = `${p.id}|${chat.model}`;
                     found = true; break;
                 }
             }
             if (!found && providers.length > 0) {
-                chat.model = `${providers[0].id} | ${chat.model}`;
+                chat.model = `${providers[0].id}|${chat.model}`;
             }
+
         }
 
         // Sync model dropdown

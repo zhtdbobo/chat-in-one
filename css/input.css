@@ -1,0 +1,148 @@
+/* Input Area */
+.input-area {
+    padding: 12px 24px 24px 24px;
+    background-color: var(--bg-base);
+    position: relative;
+    z-index: 100;
+    -webkit-app-region: no-drag;
+}
+
+
+.input-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 14px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    position: relative;
+    -webkit-app-region: no-drag;
+}
+
+.input-wrapper:focus-within {
+    border-color: var(--border-focus);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.input-row-main {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+#message-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 15px;
+    resize: none;
+    max-height: 200px;
+    min-height: 24px;
+    padding: 4px 0;
+    outline: none;
+    -webkit-app-region: no-drag;
+}
+
+
+.input-row-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.tools-left {
+    display: flex;
+    gap: 4px;
+}
+
+.tool-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.tool-btn:hover {
+    background: var(--bg-surface-elevated);
+    color: var(--bg-primary);
+}
+
+.tool-btn.active {
+    color: var(--bg-primary);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+#current-model-select {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    outline: none;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color var(--transition);
+}
+
+#current-model-select:hover {
+    border-color: var(--border-focus);
+}
+
+.btn-send {
+    background-color: var(--bg-primary);
+    color: white;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+}
+
+.btn-send:hover {
+    background-color: var(--bg-primary-hover);
+    transform: scale(1.05);
+}
+
+.btn-send:disabled {
+    background-color: var(--bg-surface-elevated);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Fix Input interactivity */
+.input-area {
+    position: relative;
+    background-color: var(--bg-base);
+    -webkit-app-region: no-drag;
+}
+
+.input-wrapper {
+    position: relative;
+    -webkit-app-region: no-drag;
+}
+
+#message-input {
+    position: relative;
+    -webkit-app-region: no-drag;
+}

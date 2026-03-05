@@ -1,0 +1,146 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Electron Titlebar Drag Region */
+.titlebar-drag-region {
+    -webkit-app-region: drag;
+    height: 35px;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    padding-left: 20px;
+    pointer-events: none;
+    /* Let clicks pass through except drag */
+}
+
+.titlebar-drag-region .app-title {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* App Layout */
+.app-container {
+    display: flex;
+    height: calc(100vh - 35px);
+    /* Subtract titlebar height */
+    margin-top: 35px;
+    /* Push content below titlebar */
+}
+
+/* Base Styles */
+h1,
+h2,
+h3 {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+button,
+input,
+textarea {
+    font-family: inherit;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    -webkit-app-region: no-drag;
+}
+
+.btn-primary {
+    background-color: var(--bg-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--bg-primary-hover);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+    background-color: var(--bg-surface-elevated);
+    color: var(--text-primary);
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-icon {
+    padding: 8px;
+    border-radius: var(--radius-sm);
+}
+
+/* Utilities & Animations */
+.text-left {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ph-spin {
+    animation: ph-spin 1s linear infinite;
+}
+
+@keyframes ph-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

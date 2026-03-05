@@ -12,18 +12,33 @@ const fs = require('fs');
 class SimpleStore {
     constructor(opts) {
         const userDataPath = app.getPath('userData');
+        if (!fs.existsSync(userDataPath)) {
+            fs.mkdirSync(userDataPath, { recursive: true });
+        }
         this.path = path.join(userDataPath, opts.name + '.json');
         this.data = parseDataFile(this.path, opts.defaults);
     }
     get(key) { return this.data[key]; }
     set(key, val) {
         this.data[key] = val;
-        fs.writeFileSync(this.path, JSON.stringify(this.data));
+        try {
+            fs.writeFileSync(this.path, JSON.stringify(this.data, null, 2));
+        } catch (e) {
+            console.error("Failed to write to store:", e);
+        }
     }
 }
 function parseDataFile(filePath, defaults) {
-    try { return JSON.parse(fs.readFileSync(filePath)); } catch (error) { return defaults; }
+    try {
+        if (!fs.existsSync(filePath)) return defaults;
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return JSON.parse(content) || defaults;
+    } catch (error) {
+        console.error("Error parsing settings file, using defaults:", error);
+        return defaults;
+    }
 }
+
 
 async function initStore() {
     const defaultSettings = {
