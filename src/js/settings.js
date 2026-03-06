@@ -49,8 +49,8 @@ function renderProvidersSidebar() {
         list.appendChild(item);
     });
 
-    // Add Provider Button
     document.getElementById('add-provider-btn').onclick = () => {
+        saveCurrentProviderData();
         const newP = { id: generateId(), name: '', endpoint: '', apiKey: '', models: '' };
         tempProviders.push(newP);
         currentProviderIndex = tempProviders.length - 1;
@@ -122,28 +122,29 @@ function renderProviderDetail() {
     // Render Checklist
     const renderChecklist = () => {
         const checklist = container.querySelector('#models-checklist');
-        const models = (provider.models || "").split(',').map(m => m.trim()).filter(m => m);
-        checklist.innerHTML = models.length === 0 ? '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。请点击获取。</div>' : '';
+        const allModels = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
+        const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
+        
+        checklist.innerHTML = allModels.length === 0 ? '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。请点击获取。</div>' : '';
 
-        models.forEach(m => {
+        allModels.forEach(m => {
+            const isVisible = visibleModels.includes(m);
             const item = document.createElement('div');
             item.className = 'model-check-item';
             item.innerHTML = `
-                <input type="checkbox" checked id="chk-${m}" value="${m}">
+                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${m}" value="${m}">
                 <label for="chk-${m}">${m}</label>
             `;
-            // If we had a mechanism to unselect, we'd use it here. 
-            // For now, provider.models IS the list of selected models.
-            // When we fetch, we append.
+            // Toggle visibility when checkbox changes
             item.querySelector('input').addEventListener('change', (e) => {
-                const currentModels = (provider.models || "").split(',').map(m => m.trim()).filter(m => m);
+                const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
                 if (e.target.checked) {
-                    if (!currentModels.includes(m)) currentModels.push(m);
+                    if (!currentVisible.includes(m)) currentVisible.push(m);
                 } else {
-                    const idx = currentModels.indexOf(m);
-                    if (idx > -1) currentModels.splice(idx, 1);
+                    const idx = currentVisible.indexOf(m);
+                    if (idx > -1) currentVisible.splice(idx, 1);
                 }
-                provider.models = currentModels.join(', ');
+                provider.visibleModels = currentVisible.join(', ');
             });
             checklist.appendChild(item);
         });
@@ -152,12 +153,12 @@ function renderProviderDetail() {
 
     // Bindings
     container.querySelector('#del-current-provider').onclick = () => {
-        if (confirm('确认删除此服务商？')) {
+        showConfirmDialog('确认删除此服务商？', () => {
             tempProviders.splice(currentProviderIndex, 1);
             currentProviderIndex = tempProviders.length > 0 ? 0 : -1;
             renderProvidersSidebar();
             renderProviderDetail();
-        }
+        });
     };
 
     container.querySelector('#fetch-models-btn').onclick = async () => {
@@ -166,7 +167,7 @@ function renderProviderDetail() {
 
         const url = provider.endpoint;
         const key = provider.apiKey;
-        if (!url) { alert("请先填写Endpoint"); return; }
+        if (!url) { showNotification("请先填写Endpoint", "error"); return; }
 
         try {
             const btn = container.querySelector('#fetch-models-btn');
@@ -179,20 +180,25 @@ function renderProviderDetail() {
             const data = await req.json();
             if (data && data.data) {
                 const ids = data.data.map(m => m.id).filter(id => id);
-                const existing = (provider.models || "").split(',').map(m => m.trim()).filter(m => m);
-                const merged = [...new Set([...existing, ...ids])];
-                provider.models = merged.join(', ');
-
-                // Re-render detail view with new model list
-                renderProviderDetail();
-                // Also update the sidebar if the name was changed
-                renderProvidersSidebar();
-
-                alert(`成功获取并合并了 ${ids.length} 个模型！`);
+                
+                // Store all models in allModels
+                provider.allModels = ids.join(', ');
+                // Initialize visibleModels as empty (user needs to manually enable)
+                if (!provider.visibleModels) {
+                    provider.visibleModels = '';
+                }
+                
+                // Show model selection panel
+                showModelSelectionPanel(ids, provider, () => {
+                    renderProviderDetail();
+                    renderProvidersSidebar();
+                });
+                
+                showNotification(`成功获取 ${ids.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
             }
 
         } catch (e) {
-            alert("获取失败: " + e.message);
+            showNotification("获取失败: " + e.message, "error");
         } finally {
             const btn = container.querySelector('#fetch-models-btn');
             if (btn) {

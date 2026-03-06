@@ -46,7 +46,10 @@ function setupEvents() {
 
     // Close dropdown on outside click
     document.addEventListener('click', (e) => {
-        document.getElementById('mcp-selection-dropdown').classList.remove('show');
+        const mcpDropdown = document.getElementById('mcp-selection-dropdown');
+        if (mcpDropdown) mcpDropdown.classList.remove('show');
+
+        document.querySelectorAll('.select-dropdown.show').forEach(d => d.classList.remove('show'));
     });
 
     document.getElementById('import-chats-btn').addEventListener('click', () => {
