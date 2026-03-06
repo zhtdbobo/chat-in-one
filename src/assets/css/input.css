@@ -22,6 +22,15 @@
     -webkit-app-region: no-drag;
 }
 
+.ai-disclaimer {
+    max-width: 800px;
+    margin: 12px auto -12px auto;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    user-select: none;
+}
+
 .input-wrapper:focus-within {
     border-color: var(--border-focus);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);

@@ -282,6 +282,8 @@ function sendMessage() {
 
     // Hide welcome elements once first message is sent
     if (welcomeScreen) welcomeScreen.style.display = 'none';
+    const skillSection = document.querySelector('.skills-section');
+    if (skillSection) skillSection.style.display = 'none';
     state.isNewFreshChat = false;
 
     messageInput.value = '';
