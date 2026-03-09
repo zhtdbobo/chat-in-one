@@ -8,6 +8,7 @@
 // -----------------------------------------
 let tempProviders = [];
 let currentProviderIndex = -1;
+const providerDetailUiState = {};
 
 function openSettings() {
     tempProviders = JSON.parse(JSON.stringify(state.settings.providers || []));
@@ -84,6 +85,7 @@ function renderProviderDetail() {
     }
 
     const provider = tempProviders[currentProviderIndex];
+    const uiState = providerDetailUiState[provider.id] || (providerDetailUiState[provider.id] = { modelSearchQuery: '' });
     container.innerHTML = `
         <div class="provider-detail-header">
             <h3>服务商配置</h3>
@@ -122,6 +124,7 @@ function renderProviderDetail() {
                     <i class="ph ph-plus"></i> 新增模型
                 </button>
             </div>
+            <input type="text" class="prov-model-search" placeholder="搜索模型列表..." />
             <div class="provider-test-result" id="provider-test-result" style="display:none"></div>
             <div class="multi-select-models" id="models-checklist">
                 <!-- Checklist will be here -->
@@ -134,10 +137,20 @@ function renderProviderDetail() {
         const checklist = container.querySelector('#models-checklist');
         const allModels = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
         const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-        
-        checklist.innerHTML = allModels.length === 0 ? '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。可点击“获取模型”或使用上方输入框手动新增。</div>' : '';
+        const q = (uiState.modelSearchQuery || '').trim().toLowerCase();
+        const filteredModels = q ? allModels.filter(m => (m || '').toLowerCase().includes(q)) : allModels;
 
-        allModels.forEach(m => {
+        checklist.innerHTML = '';
+        if (allModels.length === 0) {
+            checklist.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。可点击“获取模型”或使用上方输入框手动新增。</div>';
+            return;
+        }
+        if (filteredModels.length === 0) {
+            checklist.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:8px">未找到匹配的模型</div>';
+            return;
+        }
+
+        filteredModels.forEach(m => {
             const isVisible = visibleModels.includes(m);
             const item = document.createElement('div');
             item.className = 'model-check-item';
@@ -161,9 +174,19 @@ function renderProviderDetail() {
     };
     renderChecklist();
 
+    const modelSearchInput = container.querySelector('.prov-model-search');
+    if (modelSearchInput) {
+        modelSearchInput.value = uiState.modelSearchQuery || '';
+        modelSearchInput.addEventListener('input', () => {
+            uiState.modelSearchQuery = modelSearchInput.value || '';
+            renderChecklist();
+        });
+    }
+
     // Bindings
     container.querySelector('#del-current-provider').onclick = () => {
         showConfirmDialog('确认删除此服务商？', () => {
+            delete providerDetailUiState[provider.id];
             tempProviders.splice(currentProviderIndex, 1);
             currentProviderIndex = tempProviders.length > 0 ? 0 : -1;
             renderProvidersSidebar();

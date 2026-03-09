@@ -364,6 +364,10 @@
     flex: 1;
 }
 
+.prov-model-search {
+    margin-top: 8px;
+}
+
 .provider-test-result {
     display: block;
     padding: 10px 12px;

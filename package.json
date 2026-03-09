@@ -1,7 +1,7 @@
 {
   "name": "chat-in-one",
-  "version": "1.0.0",
-  "description": "All-in-One AI Assistant Desktop App",
+  "version": "1.0.1",
+  "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -15,7 +15,7 @@
     "chat",
     "electron"
   ],
-  "author": "Chat-in-One Dev Team",
+  "author": "chat-in-one Dev Team",
   "license": "ISC",
   "devDependencies": {
     "electron": "^33.0.0",
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.chatinone.app",
-    "productName": "Chat-in-One",
+    "productName": "chat-in-one",
     "directories": {
       "output": "dist"
     },
@@ -47,7 +47,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Chat-in-One",
+      "shortcutName": "chat-in-one",
       "installerIcon": "src/assets/icon.ico",
       "uninstallerIcon": "src/assets/icon.ico",
       "installerHeaderIcon": "src/assets/icon.ico"

@@ -1,4 +1,4 @@
-## Chat-in-One 桌面客户端
+## chat-in-one 桌面客户端
 
 一个支持多家大模型服务商、OpenAI 兼容协议、MCP 工具和技能系统的本地桌面聊天应用，基于 Electron + 原生 JS 实现。
 
