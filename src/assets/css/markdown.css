@@ -44,6 +44,45 @@
     border: 1px solid var(--border-subtle);
 }
 
+.code-block {
+    position: relative;
+}
+
+.code-block > pre {
+    margin: 12px 0;
+}
+
+.code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    border: 1px solid var(--border-subtle);
+    background: rgba(20, 21, 26, 0.7);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+}
+
+.code-block:hover .code-copy-btn {
+    opacity: 1;
+}
+
+.code-copy-btn:hover {
+    color: var(--bg-primary);
+    background: rgba(20, 21, 26, 0.9);
+}
+
+.code-copy-btn.copied {
+    color: #10b981;
+}
+
 .markdown-body pre code {
     background-color: transparent;
     padding: 0;

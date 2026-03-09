@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('api', {
     // Settings API
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+    testProviderConnection: (payload) => ipcRenderer.invoke('test-provider-connection', payload),
 
     // Chats API
     getChats: () => ipcRenderer.invoke('get-chats'),

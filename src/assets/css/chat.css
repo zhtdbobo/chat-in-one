@@ -140,7 +140,13 @@
     word-break: break-word;
     position: relative;
     min-width: 0;
+    overflow-x: visible;
+}
+
+.message-scroll {
     overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
 }
 
 /* Message Actions (Copy etc) */
@@ -232,4 +238,14 @@
     white-space: pre-wrap;
     font-family: inherit;
     line-height: 1.5;
+}
+
+/* Message Meta (word count, tokens, latency, model, time) */
+.message-meta {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono, ui-monospace, monospace);
 }

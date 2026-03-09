@@ -168,25 +168,39 @@ function setupEvents() {
             finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml)}</div>`;
         }
 
-        state.currentStreamDiv.innerHTML = finalHtml || '<div class="markdown-body"></div>';
+        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+        if (scrollEl) {
+            scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
+
+            // Syntax highlight + per-code-block copy button
+            scrollEl.querySelectorAll('pre code').forEach((block) => {
+                try { hljs.highlightElement(block); } catch (e) { }
+            });
+            if (typeof attachCodeBlockCopyButtons === 'function') {
+                attachCodeBlockCopyButtons(scrollEl);
+            }
+        }
         scrollToBottom();
     });
 
     window.api.onStreamEnd((data) => {
-        finalizeStream(data.chatId);
+        finalizeStream(data.chatId, data);
     });
 
     window.api.onStreamError((data) => {
         if (state.currentStreamDiv) {
-            state.currentStreamDiv.innerHTML += `<br><span style="color:red"> [发生错误: ${data.error}]</span>`;
+            const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+            if (scrollEl) {
+                scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${data.error}]</span>`;
+            }
         } else {
             renderMessageItem('system', `API 连接错误: ${data.error}`);
         }
-        finalizeStream(data.chatId);
+        finalizeStream(data.chatId, {});
     });
 }
 
-function finalizeStream(chatId) {
+function finalizeStream(chatId, meta) {
     state.isStreaming = false;
     sendBtn.disabled = false;
     messageInput.focus();
@@ -199,6 +213,28 @@ function finalizeStream(chatId) {
         // After stream is done, close the reasoning details
         const detailsEl = state.currentStreamDiv.querySelector('details.thinking-block');
         if (detailsEl) detailsEl.removeAttribute('open');
+
+        // Append message meta (word count, tokens, latency, model, time)
+        const wordCount = (finalContent || '').trim().split(/\s+/).filter(Boolean).length;
+        const parts = [];
+        parts.push('word count: ' + wordCount);
+        const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
+        parts.push('tokens used: ' + tokens);
+        parts.push(meta.firstTokenLatency != null ? 'first token latency: ' + meta.firstTokenLatency + 'ms' : null);
+        parts.push('model: ' + (meta.model || '—'));
+        parts.push('time: ' + (meta.time || '—'));
+        const metaStr = parts.filter(Boolean).join(', ');
+        const metaHtml = `<div class="message-meta">${metaStr}</div>`;
+
+        // Insert meta under the horizontal scrollbar (outside .message-scroll)
+        const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
+        if (existingMeta) existingMeta.remove();
+        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+        if (scrollEl) {
+            scrollEl.insertAdjacentHTML('afterend', metaHtml);
+        } else {
+            state.currentStreamDiv.insertAdjacentHTML('beforeend', metaHtml);
+        }
 
         const chat = state.chats.find(c => c.id === chatId);
         if (chat) {

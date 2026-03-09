@@ -153,6 +153,76 @@ ipcMain.handle('save-chats', (event, chats) => {
     return true;
 });
 
+// Connection test (for providers that may not support /models)
+ipcMain.handle('test-provider-connection', async (event, payload) => {
+    const { endpoint, apiKey, modelName } = payload || {};
+    if (!endpoint) return { ok: false, error: 'Missing endpoint' };
+    if (!apiKey) return { ok: false, error: 'Missing apiKey' };
+    if (!modelName) return { ok: false, error: 'Missing modelName' };
+
+    const fetchPath = endpoint.endsWith('/') ? `${endpoint}chat/completions` : `${endpoint}/chat/completions`;
+
+    const controller = new AbortController();
+    const timeoutMs = 12000;
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    const start = Date.now();
+    try {
+        const resp = await fetch(fetchPath, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: modelName,
+                stream: false,
+                temperature: 0,
+                max_tokens: 1,
+                messages: [{ role: 'user', content: 'ping' }]
+            })
+        });
+
+        const latencyMs = Date.now() - start;
+        const text = await resp.text();
+
+        if (!resp.ok) {
+            return {
+                ok: false,
+                status: resp.status,
+                latencyMs,
+                error: text ? text.slice(0, 500) : `HTTP ${resp.status}`
+            };
+        }
+
+        let json = null;
+        try { json = JSON.parse(text); } catch (e) { }
+
+        const usedModel = json?.model || modelName;
+        const usage = json?.usage || null;
+        const content = json?.choices?.[0]?.message?.content || json?.choices?.[0]?.delta?.content || '';
+
+        return {
+            ok: true,
+            latencyMs,
+            model: usedModel,
+            usage,
+            sample: content ? String(content).slice(0, 200) : ''
+        };
+    } catch (err) {
+        const latencyMs = Date.now() - start;
+        const aborted = err?.name === 'AbortError';
+        return {
+            ok: false,
+            latencyMs,
+            error: aborted ? `Timeout after ${timeoutMs}ms` : (err?.message || String(err))
+        };
+    } finally {
+        clearTimeout(t);
+    }
+});
+
 // Stream Request Handler
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
@@ -204,6 +274,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             model: modelName,
             messages: apiMessages,
             stream: true,
+            stream_options: { include_usage: true },
             ...(enableThinking !== undefined ? { include_reasoning: enableThinking } : {}),
             ...(enableSearch !== undefined ? { web_search: enableSearch, search: enableSearch, enable_search: enableSearch } : {})
         };
@@ -220,6 +291,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             body.tool_choice = "auto";
         }
 
+        const streamStartTime = Date.now();
         const response = await fetch(fetchPath, {
             method: 'POST',
             headers: {
@@ -241,6 +313,9 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         event.reply('stream-start', { chatId });
 
         let toolCalls = [];
+        let firstTokenLatency = null;
+        let lastUsage = null;
+        let lastModel = modelName;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -257,7 +332,12 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     try {
                         const parsed = JSON.parse(dataStr);
                         const delta = parsed.choices?.[0]?.delta;
+                        if (parsed.model) lastModel = parsed.model;
+                        if (parsed.usage && parsed.usage.total_tokens != null) lastUsage = parsed.usage;
                         if (delta) {
+                            if (firstTokenLatency == null && (delta.reasoning_content || delta.content)) {
+                                firstTokenLatency = Date.now() - streamStartTime;
+                            }
                             if (delta.reasoning_content && enableThinking !== false) {
                                 event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
                             }
@@ -301,18 +381,22 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             }
 
             // Send tool results back to LLM for final answer
-            // (Note: This is a recursive step, simplified for this implementation)
+            const toolStreamStart = Date.now();
             const finalResponse = await fetch(fetchPath, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                 body: JSON.stringify({
                     model: modelName,
                     messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
-                    stream: true
+                    stream: true,
+                    stream_options: { include_usage: true }
                 })
             });
 
             const finalReader = finalResponse.body.getReader();
+            let toolFirstTokenLatency = null;
+            let toolLastUsage = null;
+            let toolLastModel = modelName;
             while (true) {
                 const { done, value } = await finalReader.read();
                 if (done) break;
@@ -325,14 +409,24 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                         try {
                             const parsed = JSON.parse(dataStr);
                             const delta = parsed.choices?.[0]?.delta;
-                            if (delta?.content) event.reply('stream-chunk', { chatId, content: delta.content });
+                            if (parsed.model) toolLastModel = parsed.model;
+                            if (parsed.usage && parsed.usage.total_tokens != null) toolLastUsage = parsed.usage;
+                            if (delta?.content) {
+                                if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
+                                event.reply('stream-chunk', { chatId, content: delta.content });
+                            }
                         } catch (e) { }
                     }
                 }
             }
+            firstTokenLatency = toolFirstTokenLatency;
+            lastUsage = toolLastUsage;
+            lastModel = toolLastModel;
         }
 
-        event.reply('stream-end', { chatId });
+        const endTime = new Date();
+        const timeStr = String(endTime.getHours()).padStart(2, '0') + ':' + String(endTime.getMinutes()).padStart(2, '0');
+        event.reply('stream-end', { chatId, usage: lastUsage, model: lastModel, firstTokenLatency, time: timeStr });
     } catch (error) {
         event.reply('stream-error', { chatId, error: error.message });
     }

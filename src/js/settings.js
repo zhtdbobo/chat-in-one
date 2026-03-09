@@ -101,18 +101,28 @@ function renderProviderDetail() {
         </div>
         <div class="form-group">
             <label>API Endpoint</label>
-            <input type="url" class="prov-endpoint" value="${provider.endpoint || ''}" placeholder="https://api.openai.com/v1">
+            <input type="url" class="prov-endpoint" value="${provider.endpoint || ''}" placeholder="例如: https://api.openai.com/v1 或 https://coding.dashscope.aliyuncs.com/v1">
         </div>
         
         <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <label style="margin:0">可见模型列表</label>
                 <div style="display:flex; gap:8px;">
+                    <button type="button" class="btn btn-ghost btn-sm" id="test-connection-btn">
+                        <i class="ph ph-plug"></i> 测试连接
+                    </button>
                     <button type="button" class="btn btn-ghost btn-sm" id="fetch-models-btn">
                         <i class="ph ph-arrows-counter-clockwise"></i> 获取模型
                     </button>
                 </div>
             </div>
+            <div class="provider-model-tools">
+                <input type="text" class="prov-manual-model" placeholder="手动新增模型 ID（用于不支持 /models 的协议）">
+                <button type="button" class="btn btn-ghost btn-sm" id="add-manual-model-btn">
+                    <i class="ph ph-plus"></i> 新增模型
+                </button>
+            </div>
+            <div class="provider-test-result" id="provider-test-result" style="display:none"></div>
             <div class="multi-select-models" id="models-checklist">
                 <!-- Checklist will be here -->
             </div>
@@ -125,7 +135,7 @@ function renderProviderDetail() {
         const allModels = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
         const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
         
-        checklist.innerHTML = allModels.length === 0 ? '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。请点击获取。</div>' : '';
+        checklist.innerHTML = allModels.length === 0 ? '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。可点击“获取模型”或使用上方输入框手动新增。</div>' : '';
 
         allModels.forEach(m => {
             const isVisible = visibleModels.includes(m);
@@ -207,6 +217,163 @@ function renderProviderDetail() {
             }
         }
     };
+
+    function showTestModelPicker(models, onPick) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay model-selection-overlay';
+
+        const panel = document.createElement('div');
+        panel.className = 'model-selection-panel';
+
+        panel.innerHTML = `
+            <button class="btn btn-ghost btn-sm model-panel-close" title="关闭">
+                <i class="ph ph-x"></i>
+            </button>
+            <div style="font-weight:600; margin-bottom:10px;">选择要测试的模型</div>
+            <input class="model-search-input" placeholder="搜索模型..." />
+            <div class="model-selection-list"></div>
+        `;
+
+        const close = () => modal.remove();
+        panel.querySelector('.model-panel-close').addEventListener('click', close);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) close();
+        });
+
+        const searchInput = panel.querySelector('.model-search-input');
+        const listEl = panel.querySelector('.model-selection-list');
+
+        const renderList = () => {
+            const q = (searchInput.value || '').toLowerCase();
+            const filtered = (models || []).filter(m => (m || '').toLowerCase().includes(q));
+            listEl.innerHTML = '';
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:8px;">没有匹配的模型</div>';
+                return;
+            }
+            filtered.forEach((m) => {
+                const item = document.createElement('div');
+                item.className = 'model-selection-item';
+                item.style.cursor = 'pointer';
+                item.innerHTML = `<span class="model-name">${m}</span><span style="font-size:12px; color:var(--text-muted);">点击测试</span>`;
+                item.addEventListener('click', () => {
+                    close();
+                    onPick(m);
+                });
+                listEl.appendChild(item);
+            });
+        };
+
+        searchInput.addEventListener('input', renderList);
+        renderList();
+
+        modal.appendChild(panel);
+        document.body.appendChild(modal);
+        setTimeout(() => searchInput.focus(), 0);
+    }
+
+    // Manual add model (for endpoints that don't support /models)
+    const addManualBtn = container.querySelector('#add-manual-model-btn');
+    if (addManualBtn) {
+        addManualBtn.onclick = () => {
+            saveCurrentProviderData();
+            const input = container.querySelector('.prov-manual-model');
+            const modelId = (input?.value || '').trim();
+            if (!modelId) {
+                showNotification("请输入模型 ID", "error");
+                return;
+            }
+
+            const all = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            if (!all.includes(modelId)) all.push(modelId);
+            provider.allModels = all.join(', ');
+
+            const visible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            if (!visible.includes(modelId)) visible.push(modelId);
+            provider.visibleModels = visible.join(', ');
+
+            if (input) input.value = '';
+            renderProviderDetail();
+            renderProvidersSidebar();
+            showNotification(`已新增模型：${modelId}`, "success");
+        };
+    }
+
+    // Test connection (OpenAI-compatible POST /chat/completions)
+    const testBtn = container.querySelector('#test-connection-btn');
+    if (testBtn) {
+        testBtn.onclick = async () => {
+            saveCurrentProviderData();
+
+            const resultEl = container.querySelector('#provider-test-result');
+            const manualModel = (container.querySelector('.prov-manual-model')?.value || '').trim();
+
+            const visible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            const all = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            if (!provider.endpoint) { showNotification("请先填写Endpoint", "error"); return; }
+            if (!provider.apiKey) { showNotification("请先填写API Key", "error"); return; }
+
+            const runTest = async (modelToTest) => {
+                if (!modelToTest) return;
+                try {
+                    testBtn.disabled = true;
+                    testBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> 测试中...';
+                    if (resultEl) {
+                        resultEl.style.display = 'block';
+                        resultEl.className = 'provider-test-result';
+                        resultEl.textContent = `请求中... (model=${modelToTest})`;
+                    }
+
+                    const res = await window.api.testProviderConnection({
+                        endpoint: provider.endpoint,
+                        apiKey: provider.apiKey,
+                        modelName: modelToTest
+                    });
+
+                    if (res?.ok) {
+                        const tokens = res.usage?.total_tokens ?? res.usage?.completion_tokens ?? res.usage?.output_tokens ?? '—';
+                        const line = `OK · latency=${res.latencyMs}ms · model=${res.model || modelToTest} · tokens=${tokens}`;
+                        if (resultEl) {
+                            resultEl.className = 'provider-test-result ok';
+                            resultEl.textContent = line;
+                        }
+                        showNotification("连接成功：" + line, "success");
+                    } else {
+                        const errLine = `FAIL · latency=${res?.latencyMs ?? '—'}ms · ${res?.status ? 'HTTP ' + res.status + ' · ' : ''}${res?.error || 'Unknown error'}`;
+                        if (resultEl) {
+                            resultEl.className = 'provider-test-result fail';
+                            resultEl.textContent = errLine;
+                        }
+                        showNotification("连接失败：" + errLine, "error");
+                    }
+                } catch (e) {
+                    if (resultEl) {
+                        resultEl.style.display = 'block';
+                        resultEl.className = 'provider-test-result fail';
+                        resultEl.textContent = 'FAIL · ' + (e.message || String(e));
+                    }
+                    showNotification("连接失败: " + (e.message || String(e)), "error");
+                } finally {
+                    testBtn.disabled = false;
+                    testBtn.innerHTML = '<i class="ph ph-plug"></i> 测试连接';
+                }
+            };
+
+            // Build picker models list: prefer visibleModels, fallback to allModels
+            let candidates = [...(visible.length ? visible : all)];
+            if (manualModel && !candidates.includes(manualModel)) candidates.unshift(manualModel);
+            candidates = candidates.filter(Boolean);
+
+            if (candidates.length === 0) {
+                const modelToTest = (prompt("请输入要测试的模型 ID（例如：MiniMax-M2.5）") || '').trim();
+                if (!modelToTest) return;
+                await runTest(modelToTest);
+                return;
+            }
+
+            showTestModelPicker(candidates, runTest);
+        };
+    }
 }
 
 function closeSettings() {

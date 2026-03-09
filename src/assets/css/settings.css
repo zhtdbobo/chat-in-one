@@ -353,6 +353,42 @@
     user-select: none;
 }
 
+.provider-model-tools {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.provider-model-tools input {
+    flex: 1;
+}
+
+.provider-test-result {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface-elevated);
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.provider-test-result.ok {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.08);
+    color: #10b981;
+}
+
+.provider-test-result.fail {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+}
+
 .btn-danger:hover {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;

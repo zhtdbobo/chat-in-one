@@ -178,6 +178,9 @@ function renderMessages(messages) {
         messageContainer.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightElement(block);
         });
+        if (typeof attachCodeBlockCopyButtons === 'function') {
+            attachCodeBlockCopyButtons(messageContainer);
+        }
         scrollToBottom();
     }
 }
@@ -211,13 +214,15 @@ function renderMessageItem(role, content) {
         }
     }
 
-    const dataRaw = content.content !== undefined ? content.content : content;
-    const dataReasoning = content.reasoning_content || '';
+    const dataRaw = content?.content !== undefined ? content.content : content;
+    const dataReasoning = content?.reasoning_content || '';
 
     wrapper.innerHTML = `
         <div class="avatar">${icon}</div>
-        <div class="message-content" data-raw="${encodeURIComponent(dataRaw)}" data-reasoning="${encodeURIComponent(dataReasoning)}">
-            ${htmlContent || '<div class="markdown-body"></div>'}
+        <div class="message-content">
+            <div class="message-scroll">
+                ${htmlContent || '<div class="markdown-body"></div>'}
+            </div>
             ${(role === 'assistant' || role === 'user') ? `
                 <div class="message-actions">
                     <button class="message-action-btn copy-btn" title="复制内容">
@@ -230,7 +235,14 @@ function renderMessageItem(role, content) {
 
     if (role === 'assistant' || role === 'user') {
         const copyBtn = wrapper.querySelector('.copy-btn');
-        copyBtn.addEventListener('click', () => copyToClipboard(dataRaw, copyBtn));
+        const messageContentEl = wrapper.querySelector('.message-content');
+        copyBtn.addEventListener('click', () => copyToClipboard(messageContentEl?.dataset?.raw || '', copyBtn));
+    }
+
+    const messageContentEl = wrapper.querySelector('.message-content');
+    if (messageContentEl) {
+        messageContentEl.dataset.raw = dataRaw ?? '';
+        messageContentEl.dataset.reasoning = dataReasoning ?? '';
     }
 
     messageContainer.appendChild(wrapper);
