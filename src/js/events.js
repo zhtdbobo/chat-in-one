@@ -22,6 +22,10 @@ function setupEvents() {
     cancelSettingsBtn.addEventListener('click', closeSettings);
     settingsForm.addEventListener('submit', handleSettingsSave);
 
+    // About modal interactions
+    aboutBtn.addEventListener('click', openAbout);
+    closeAboutBtn.addEventListener('click', closeAbout);
+
     // Chat actions
     newChatBtn.addEventListener('click', createNewChat);
 

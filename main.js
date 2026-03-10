@@ -1,6 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 
+function sendUpdateStatus(payload) {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) win.webContents.send('update-status', payload);
+}
+
 // Ignore SSL errors (e.g. net_error -100) on startup for proxy or local environments
 app.commandLine.appendSwitch('ignore-certificate-errors');
 
@@ -117,6 +122,54 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit();
+});
+
+// App version (from Electron / package used at build)
+ipcMain.handle('get-app-version', () => app.getVersion());
+
+// Auto-update (only when packaged)
+let autoUpdater = null;
+if (app.isPackaged) {
+    try {
+        const { autoUpdater: updater } = require('electron-updater');
+        autoUpdater = updater;
+        autoUpdater.autoDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+
+        autoUpdater.on('update-available', (info) => {
+            sendUpdateStatus({ type: 'available', version: info.version, releaseNotes: info.releaseNotes });
+        });
+        autoUpdater.on('update-not-available', () => {
+            sendUpdateStatus({ type: 'not-available' });
+        });
+        autoUpdater.on('update-downloaded', (info) => {
+            sendUpdateStatus({ type: 'downloaded', version: info.version });
+        });
+        autoUpdater.on('download-progress', (progress) => {
+            sendUpdateStatus({ type: 'progress', percent: progress.percent });
+        });
+        autoUpdater.on('error', (err) => {
+            sendUpdateStatus({ type: 'error', message: err.message || String(err) });
+        });
+    } catch (e) {
+        console.warn('electron-updater not available:', e.message);
+    }
+}
+
+ipcMain.handle('check-for-updates', async () => {
+    if (!autoUpdater) return { ok: false, reason: 'unavailable' };
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return { ok: true, update: result?.updateInfo ? { version: result.updateInfo.version } : null };
+    } catch (e) {
+        sendUpdateStatus({ type: 'error', message: e.message || String(e) });
+        return { ok: false, reason: e.message || String(e) };
+    }
+});
+
+ipcMain.handle('install-update', () => {
+    if (!autoUpdater) return;
+    autoUpdater.quitAndInstall(false, true);
 });
 
 // Titlebar update handler

@@ -16,12 +16,17 @@ const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
 const settingsBtn = document.getElementById('settings-btn');
+const aboutBtn = document.getElementById('about-btn');
 
 // Settings Modal
 const settingsModal = document.getElementById('settings-modal');
 const settingsForm = document.getElementById('settings-form');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+
+// About Modal
+const aboutModal = document.getElementById('about-modal');
+const closeAboutBtn = document.getElementById('close-about-btn');
 
 // Status badging & controls
 const currentChatTitle = document.getElementById('current-chat-title');

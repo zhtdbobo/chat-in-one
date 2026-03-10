@@ -80,6 +80,9 @@
                 <button id="settings-btn" class="btn btn-ghost btn-block text-left">
                     <i class="ph ph-gear"></i> 设置
                 </button>
+                <button id="about-btn" class="btn btn-ghost btn-block text-left">
+                    <i class="ph ph-info"></i> 关于
+                </button>
             </div>
         </aside>
 
@@ -295,9 +298,49 @@
         </div>
     </div>
 
+    <!-- About Full-Page Overlay -->
+    <div class="about-page" id="about-modal" style="display: none;">
+        <div class="about-page-header">
+            <div class="about-page-title">
+                <i class="ph ph-info"></i>
+                <h2>关于 chat-in-one</h2>
+            </div>
+            <button class="btn btn-icon btn-ghost" id="close-about-btn" title="关闭">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <div class="about-page-body">
+            <div class="about-content">
+                <div class="about-logo"><i class="ph ph-robot"></i></div>
+                <h1 class="about-app-name">chat-in-one</h1>
+                <p class="about-version" id="about-version">版本 --</p>
+                <p class="about-desc">一款基于 Electron 的 AI 对话客户端，支持多模型服务商、MCP 工具与自定义技能。</p>
+                <div class="about-update-section">
+                    <button type="button" id="check-update-btn" class="btn btn-ghost about-update-btn">
+                        <i class="ph ph-arrow-clockwise"></i> 检查更新
+                    </button>
+                    <p id="update-status" class="about-update-status"></p>
+                    <button type="button" id="install-update-btn" class="btn btn-primary" style="display: none;">
+                        <i class="ph ph-download-simple"></i> 立即重启并安装
+                    </button>
+                </div>
+                <div class="about-links">
+                    <a href="https://github.com/zhtdbobo/chat-in-one" target="_blank" rel="noopener" class="about-link">
+                        <i class="ph ph-github-logo"></i> GitHub
+                    </a>
+                    <a href="https://github.com/zhtdbobo/chat-in-one/issues" target="_blank" rel="noopener" class="about-link">
+                        <i class="ph ph-chat-circle"></i> 反馈与建议
+                    </a>
+                </div>
+                <p class="about-license">© chat-in-one Dev Team · ISC License</p>
+            </div>
+        </div>
+    </div>
+
     <script src="src/js/utils.js"></script>
     <script src="src/js/state.js"></script>
     <script src="src/js/init.js"></script>
+    <script src="src/js/about.js"></script>
     <script src="src/js/events.js"></script>
     <script src="src/js/ui.js"></script>
     <script src="src/js/settings.js"></script>

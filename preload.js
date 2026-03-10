@@ -1,6 +1,16 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+    // App info & update
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    installUpdate: () => ipcRenderer.invoke('install-update'),
+    onUpdateStatus: (callback) => {
+        const fn = (e, data) => callback(data);
+        ipcRenderer.on('update-status', fn);
+        return () => ipcRenderer.removeListener('update-status', fn);
+    },
+
     // Settings API
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

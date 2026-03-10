@@ -23,11 +23,19 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "electron-store": "^10.0.0"
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.9"
   },
   "build": {
     "appId": "com.chatinone.app",
     "productName": "chat-in-one",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zhtdbobo",
+        "repo": "chat-in-one"
+      }
+    ],
     "directories": {
       "output": "dist"
     },

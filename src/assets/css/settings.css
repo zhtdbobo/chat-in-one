@@ -52,6 +52,164 @@
     gap: 8px;
 }
 
+/* =============================================
+   About Full-Page Layout
+   ============================================= */
+.about-page {
+    position: fixed;
+    top: 35px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-base);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.18s ease;
+    -webkit-app-region: no-drag;
+}
+
+.about-page-header {
+    height: 60px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.about-page-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-primary);
+}
+
+.about-page-title i {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.about-page-title h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.about-page-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.about-content {
+    text-align: center;
+    max-width: 420px;
+}
+
+.about-logo {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 16px;
+    border-radius: 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: var(--text-secondary);
+}
+
+.about-app-name {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    color: var(--text-primary);
+}
+
+.about-version {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+}
+
+.about-desc {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+}
+
+.about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.about-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.about-link:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-default);
+}
+
+.about-link i {
+    font-size: 16px;
+}
+
+.about-update-section {
+    margin-bottom: 24px;
+}
+
+.about-update-btn {
+    margin-bottom: 8px;
+}
+
+.about-update-status {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+    min-height: 1.2em;
+}
+
+.about-update-status.checking {
+    color: var(--text-secondary);
+}
+
+.about-update-status.new-version {
+    color: var(--text-primary);
+}
+
+.about-update-status.error {
+    color: var(--color-error, #c53030);
+}
+
+.about-license {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
 /* Body: nav + panel */
 .settings-page-body {
     display: flex;
