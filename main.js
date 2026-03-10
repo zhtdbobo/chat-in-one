@@ -164,11 +164,14 @@ if (app.isPackaged) {
 ipcMain.handle('check-for-updates', async () => {
     if (!autoUpdater) return { ok: false, reason: 'unavailable' };
     try {
-        const result = await autoUpdater.checkForUpdates();
-        return { ok: true, update: result?.updateInfo ? { version: result.updateInfo.version } : null };
+        await autoUpdater.checkForUpdates();
+        // 由于 autoUpdater.checkForUpdates() 不返回结果，而是通过事件通知
+        // 我们只需要确认调用成功，具体的更新状态会通过 'update-status' 事件发送
+        return { ok: true, message: '检查更新已启动' };
     } catch (e) {
-        sendUpdateStatus({ type: 'error', message: e.message || String(e) });
-        return { ok: false, reason: e.message || String(e) };
+        const errorMessage = e.message || String(e);
+        sendUpdateStatus({ type: 'error', message: errorMessage });
+        return { ok: false, reason: errorMessage };
     }
 });
 

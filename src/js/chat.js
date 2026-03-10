@@ -53,7 +53,17 @@ function switchChat(chatId) {
 
     if (chat) {
         currentChatTitle.textContent = chat.title;
-        renderMessages(chat.messages);
+        
+        // 添加过渡效果
+        messageContainer.style.opacity = '0';
+        messageContainer.style.transform = 'translateY(10px)';
+        messageContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        
+        setTimeout(() => {
+            renderMessages(chat.messages);
+            messageContainer.style.opacity = '1';
+            messageContainer.style.transform = 'translateY(0)';
+        }, 100);
 
         // Backward compatibility for old model names without provider id
         if (chat.model && !chat.model.includes('|')) {
@@ -182,15 +192,18 @@ function saveChats() {
 // Messaging Logics
 // -----------------------------------------
 function renderMessages(messages) {
-    messageContainer.innerHTML = '';
-
+    // 创建临时容器来构建新内容
+    const tempContainer = document.createElement('div');
+    tempContainer.className = messageContainer.className;
+    tempContainer.style.opacity = '0';
+    
     const companionsPanel = document.getElementById('companions-panel');
 
     if (messages.length === 0) {
         updateWelcomeScreen();
         renderSkillsBar(); // Ensure bar is updated for new chat
         welcomeScreen.style.display = 'flex';
-        messageContainer.appendChild(welcomeScreen);
+        tempContainer.appendChild(welcomeScreen.cloneNode(true));
         // Show companions panel on new/empty chat if enabled in settings
         if (companionsPanel) {
             companionsPanel.style.display = (state.settings.showCompanionsInNewChat !== false) ? '' : 'none';
@@ -200,18 +213,28 @@ function renderMessages(messages) {
         // Hide companions panel when there are messages
         if (companionsPanel) companionsPanel.style.display = 'none';
         messages.forEach(msg => {
-            renderMessageItem(msg.role, msg.content);
+            const messageItem = renderMessageItem(msg.role, msg.content);
+            if (messageItem) {
+                tempContainer.appendChild(messageItem);
+            }
         });
 
         // Format syntax highlighting manually on full render
-        messageContainer.querySelectorAll('pre code').forEach((block) => {
+        tempContainer.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightElement(block);
         });
         if (typeof attachCodeBlockCopyButtons === 'function') {
-            attachCodeBlockCopyButtons(messageContainer);
+            attachCodeBlockCopyButtons(tempContainer);
         }
-        scrollToBottom();
     }
+    
+    // 一次性替换内容
+    messageContainer.innerHTML = tempContainer.innerHTML;
+    messageContainer.style.opacity = '1';
+    messageContainer.style.transition = 'opacity 0.3s ease';
+    
+    // 滚动到底部
+    scrollToBottom();
 }
 
 function renderMessageItem(role, content) {
@@ -274,7 +297,6 @@ function renderMessageItem(role, content) {
         messageContentEl.dataset.reasoning = dataReasoning ?? '';
     }
 
-    messageContainer.appendChild(wrapper);
     return wrapper;
 }
 
