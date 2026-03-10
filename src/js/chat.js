@@ -25,8 +25,10 @@ function createNewChat() {
         title: "新对话",
         model: defaultModel,
         messages: [],
-        skillId: state.activeSkillId || null // 开启新对话时继承当前选中的搭档
+        skillId: null // 默认新对话不使用搭档
     };
+
+    state.activeSkillId = null; // 同时也重置全局激活的搭档状态
 
     state.chats.unshift(newChat); // Add to top
     state.isNewFreshChat = true;

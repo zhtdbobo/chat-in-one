@@ -161,117 +161,7 @@
                 </div>
             </div>
 
-            <!-- Settings Modal (centered, covers chat area only) -->
-            <div class="settings-page" id="settings-modal" style="display: none;">
-                <div class="settings-page-header">
-                    <div class="settings-page-title">
-                        <i class="ph ph-gear"></i>
-                        <h2>设置</h2>
-                    </div>
-                    <div class="settings-page-actions">
-                        <button type="button" class="btn btn-ghost" id="cancel-settings-btn">取消</button>
-                        <button type="submit" form="settings-form" class="btn btn-primary" id="save-settings-btn">
-                            <i class="ph ph-floppy-disk"></i> 保存并应用
-                        </button>
-                        <button class="btn btn-icon btn-ghost" id="close-settings-btn" title="关闭">
-                            <i class="ph ph-x"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="settings-page-body">
-                    <div class="settings-nav">
-                        <div class="settings-tab active" data-tab="tab-general">
-                            <i class="ph ph-sliders"></i>
-                            <span>常规设置</span>
-                        </div>
-                        <div class="settings-tab" data-tab="tab-providers">
-                            <i class="ph ph-cloud"></i>
-                            <span>模型服务商</span>
-                        </div>
-                        <div class="settings-tab" data-tab="tab-mcp">
-                            <i class="ph ph-cube"></i>
-                            <span>MCP 服务器</span>
-                        </div>
-                    </div>
-
-                    <div class="settings-panel">
-                        <form id="settings-form">
-
-                            <!-- General Tab -->
-                            <div id="tab-general" class="tab-pane active">
-                                <div class="settings-section-title">常规设置</div>
-                                <div class="form-group">
-                                    <label for="system-prompt">全局系统角色设定 (System Prompt)</label>
-                                    <textarea id="system-prompt" rows="5" placeholder="你是一个智能、高效且有帮助的助理。"></textarea>
-                                </div>
-                                <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                                    <input type="checkbox" id="enable-thinking" checked
-                                        style="width: 16px; height: 16px; flex-shrink: 0;">
-                                    <label for="enable-thinking" style="margin-bottom: 0; cursor: pointer;">
-                                        显示模型的思考过程
-                                        <span
-                                            style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">针对支持
-                                            reasoning 的模型（如 DeepSeek-R1）有效</span>
-                                    </label>
-                                </div>
-                                <div class="form-group"
-                                    style="display: flex; align-items: center; gap: 10px; margin-top: 12px;">
-                                    <input type="checkbox" id="enable-search"
-                                        style="width: 16px; height: 16px; flex-shrink: 0;">
-                                    <label for="enable-search" style="margin-bottom: 0; cursor: pointer;">
-                                        默认开启联网搜索
-                                        <span
-                                            style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">开启后，模型将尝试通过搜索获取最新信息（需模型或插件支持）</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Providers Tab -->
-                            <div id="tab-providers" class="tab-pane">
-                                <div class="providers-master-detail">
-                                    <div class="providers-sidebar">
-                                        <div class="sidebar-header-row">
-                                            <span>服务商列表</span>
-                                            <button type="button" id="add-provider-btn"
-                                                class="btn btn-icon btn-ghost btn-sm" title="添加服务商">
-                                                <i class="ph ph-plus"></i>
-                                            </button>
-                                        </div>
-                                        <div id="providers-list-menu">
-                                            <!-- List of providers will be injected here -->
-                                        </div>
-                                    </div>
-                                    <div class="provider-detail-view" id="provider-detail-container">
-                                        <div class="empty-state">
-                                            <i class="ph ph-selection-plus"></i>
-                                            <p>请从左侧选择一个服务商，或点击添加按钮</p>
-                                        </div>
-                                        <!-- Selected provider settings will be rendered here -->
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- MCP Tab -->
-                            <div id="tab-mcp" class="tab-pane">
-                                <div class="settings-section-title">MCP (Model Context Protocol) 配置</div>
-                                <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">
-                                    配置 MCP 服务器以为模型提供额外的工具能力（如实时搜索、文件处理等）。
-                                </p>
-                                <div id="mcp-servers-container">
-                                    <!-- MCP servers will be listed here -->
-                                </div>
-                                <button type="button" id="add-mcp-server-btn" class="btn btn-ghost"
-                                    style="margin-top: 12px;">
-                                    <i class="ph ph-plus"></i> 添加 MCP 服务器
-                                </button>
-                            </div>
-
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Companions Manager (covers chat area only) -->
+            <!-- My Partners (Covers chat area only) -->
             <div class="companions-page" id="companions-modal" style="display: none;">
                 <div class="companions-page-header">
                     <div class="companions-page-title">
@@ -302,7 +192,7 @@
                 </div>
             </div>
 
-            <!-- About Overlay (covers chat area only) -->
+            <!-- About Overlay (Covers chat area only) -->
             <div class="about-page" id="about-modal" style="display: none;">
                 <div class="about-page-header">
                     <div class="about-page-title">
@@ -344,6 +234,118 @@
                 </div>
             </div>
         </main>
+
+        <!-- Full-Page Modals (moved outside chat-area to cover entire app-container) -->
+        <div class="settings-page" id="settings-modal" style="display: none;">
+            <div class="settings-page-header">
+                <div class="settings-page-title">
+                    <i class="ph ph-gear"></i>
+                    <h2>设置</h2>
+                </div>
+                <div class="settings-page-actions">
+                    <button type="button" class="btn btn-ghost" id="cancel-settings-btn">取消</button>
+                    <button type="submit" form="settings-form" class="btn btn-primary" id="save-settings-btn">
+                        <i class="ph ph-floppy-disk"></i> 保存并应用
+                    </button>
+                    <button class="btn btn-icon btn-ghost" id="close-settings-btn" title="关闭">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-page-body">
+                <div class="settings-nav">
+                    <div class="settings-tab active" data-tab="tab-general">
+                        <i class="ph ph-sliders"></i>
+                        <span>常规设置</span>
+                    </div>
+                    <div class="settings-tab" data-tab="tab-providers">
+                        <i class="ph ph-cloud"></i>
+                        <span>模型服务商</span>
+                    </div>
+                    <div class="settings-tab" data-tab="tab-mcp">
+                        <i class="ph ph-cube"></i>
+                        <span>MCP 服务器</span>
+                    </div>
+                </div>
+
+                <div class="settings-panel">
+                    <form id="settings-form">
+
+                        <!-- General Tab -->
+                        <div id="tab-general" class="tab-pane active">
+                            <div class="settings-section-title">常规设置</div>
+                            <div class="form-group">
+                                <label for="system-prompt">全局系统角色设定 (System Prompt)</label>
+                                <textarea id="system-prompt" rows="5" placeholder="你是一个智能、高效且有帮助的助理。"></textarea>
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="enable-thinking" checked
+                                    style="width: 16px; height: 16px; flex-shrink: 0;">
+                                <label for="enable-thinking" style="margin-bottom: 0; cursor: pointer;">
+                                    显示模型的思考过程
+                                    <span
+                                        style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">针对支持
+                                        reasoning 的模型（如 DeepSeek-R1）有效</span>
+                                </label>
+                            </div>
+                            <div class="form-group"
+                                style="display: flex; align-items: center; gap: 10px; margin-top: 12px;">
+                                <input type="checkbox" id="enable-search"
+                                    style="width: 16px; height: 16px; flex-shrink: 0;">
+                                <label for="enable-search" style="margin-bottom: 0; cursor: pointer;">
+                                    默认开启联网搜索
+                                    <span
+                                        style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">开启后，模型将尝试通过搜索获取最新信息（需模型或插件支持）</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Providers Tab -->
+                        <div id="tab-providers" class="tab-pane">
+                            <div class="providers-master-detail">
+                                <div class="providers-sidebar">
+                                    <div class="sidebar-header-row">
+                                        <span>服务商列表</span>
+                                        <button type="button" id="add-provider-btn"
+                                            class="btn btn-icon btn-ghost btn-sm" title="添加服务商">
+                                            <i class="ph ph-plus"></i>
+                                        </button>
+                                    </div>
+                                    <div id="providers-list-menu">
+                                        <!-- List of providers will be injected here -->
+                                    </div>
+                                </div>
+                                <div class="provider-detail-view" id="provider-detail-container">
+                                    <div class="empty-state">
+                                        <i class="ph ph-selection-plus"></i>
+                                        <p>请从左侧选择一个服务商，或点击添加按钮</p>
+                                    </div>
+                                    <!-- Selected provider settings will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+                        <!-- MCP Tab -->
+                        <div id="tab-mcp" class="tab-pane">
+                            <div class="settings-section-title">MCP (Model Context Protocol) 配置</div>
+                            <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 16px;">
+                                配置 MCP 服务器以为模型提供额外的工具能力（如实时搜索、文件处理等）。
+                            </p>
+                            <div id="mcp-servers-container">
+                                <!-- MCP servers will be listed here -->
+                            </div>
+                            <button type="button" id="add-mcp-server-btn" class="btn btn-ghost"
+                                style="margin-top: 12px;">
+                                <i class="ph ph-plus"></i> 添加 MCP 服务器
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+
+
     </div>
 
     <script src="src/js/utils.js"></script>

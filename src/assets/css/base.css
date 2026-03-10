@@ -44,6 +44,7 @@ body {
     /* Subtract titlebar height */
     margin-top: 35px;
     /* Push content below titlebar */
+    position: relative;
 }
 
 /* Base Styles */
