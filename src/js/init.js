@@ -41,12 +41,10 @@ async function initApp() {
         state.settings.enableThinking = true;
     }
 
-    // 初始化默认搭档如果你还没有定义过
     if (!state.settings.skills || state.settings.skills.length === 0) {
-        if (typeof getDefaultSkills === 'function') {
-            state.settings.skills = getDefaultSkills();
-            window.api.saveSettings(state.settings);
-        }
+        const { defaultSkills } = getAllSkills();
+        state.settings.skills = defaultSkills;
+        window.api.saveSettings(state.settings);
     }
 
     updateThinkingBtnState();
