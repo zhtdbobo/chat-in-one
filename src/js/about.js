@@ -92,9 +92,9 @@ async function checkForUpdates() {
         const result = await window.api.checkForUpdates();
         if (result && result.ok === false && result.reason === 'unavailable') {
             setUpdateStatus('当前环境不支持自动更新（仅正式版可用）', false);
-        } else if (result && result.ok && !result.update) {
-            setUpdateStatus('当前已是最新版本', false);
         }
+        // 注意：无需在这里处理 result.ok 的情况。
+        // 因为 handleUpdateStatus 事件监听器会自动接收来自主进程的 'available' 或 'not-available' 反馈。
     } catch (e) {
         setUpdateStatus('检查失败：' + (e && e.message ? e.message : '未知错误'), true);
     }

@@ -54,13 +54,14 @@ function switchChat(chatId) {
     if (chat) {
         currentChatTitle.textContent = chat.title;
 
-        // 使用 CSS 类来控制动画，更平滑且避免 style 冲突
+        // 切换对话时，先切断滚动，避免瞬间跳跃
         messageContainer.classList.add('switching');
 
         setTimeout(() => {
             renderMessages(chat.messages);
             messageContainer.classList.remove('switching');
-        }, 80);
+            scrollToBottom();
+        }, 50);
 
         // Backward compatibility for old model names without provider id
         if (chat.model && !chat.model.includes('|')) {
@@ -189,20 +190,16 @@ function saveChats() {
 // Messaging Logics
 // -----------------------------------------
 function renderMessages(messages) {
-    // 采用 DocumentFragment 提升渲染性能并保留事件监听器
+    if (!messagesList) return;
+
     const fragment = document.createDocumentFragment();
     const companionsPanel = document.getElementById('companions-panel');
-
-    // 只有在没有消息的新对话中才显示增强欢迎页
     const isNewFresh = (messages.length === 0);
 
     if (isNewFresh) {
         updateWelcomeScreen();
         renderSkillsBar();
         welcomeScreen.style.display = 'flex';
-        // Note: we don't clone welcomeScreen, we just move it into fragment
-        fragment.appendChild(welcomeScreen);
-
         if (companionsPanel) {
             companionsPanel.style.display = (state.settings.showCompanionsInNewChat !== false) ? '' : 'none';
         }
@@ -218,24 +215,22 @@ function renderMessages(messages) {
         });
     }
 
-    // 一次性渲染，注意保留 welcomeScreen 的 DOM 引用，或者通过 clear + append
-    messageContainer.innerHTML = '';
-    // 如果不是 new fresh, welcomeScreen 也要挂在 DOM 里（虽然隐藏），否则下次 renderMessages 会找不到它（如果是全局变量还好，但保持在 DOM 里更规范）
-    if (!isNewFresh) {
-        messageContainer.appendChild(welcomeScreen);
-    }
-    messageContainer.appendChild(fragment);
+    // 核心改进：只清空消息列表，而不是整个消息容器
+    messagesList.innerHTML = '';
+    messagesList.appendChild(fragment);
 
     // 手动触发代码高亮
-    messageContainer.querySelectorAll('pre code').forEach((block) => {
+    messagesList.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
     });
 
     if (typeof attachCodeBlockCopyButtons === 'function') {
-        attachCodeBlockCopyButtons(messageContainer);
+        attachCodeBlockCopyButtons(messagesList);
     }
 
-    setTimeout(scrollToBottom, 20);
+    requestAnimationFrame(() => {
+        scrollToBottom();
+    });
 }
 
 function renderMessageItem(role, content) {

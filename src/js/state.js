@@ -17,6 +17,7 @@ let state = {
 // DOM Elements
 const chatListEl = document.getElementById('chat-list');
 const messageContainer = document.getElementById('message-container');
+const messagesList = document.getElementById('messages-list'); // 新增：专门存放消息的容器
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
 const newChatBtn = document.getElementById('new-chat-btn');

@@ -128,12 +128,11 @@ body.light-theme .companions-panel-list .companion-item {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.3s ease;
 }
 
 .message-container.switching {
     opacity: 0;
-    transform: translateY(10px);
     transition: none;
 }
 
@@ -188,6 +187,8 @@ body.light-theme .companions-panel-list .companion-item {
     width: 100%;
     animation: slideUp 0.3s ease-out;
     flex-shrink: 0;
+    /* Ensure fixed baseline during layout shifts */
+    left: 0;
 }
 
 .message.user {
