@@ -4,6 +4,7 @@
 // Chat Management Logics
 // -----------------------------------------
 function createNewChat() {
+    closeAllModals();
     if (state.isStreaming) return;
 
     // Get default model from last used or first provider
@@ -23,7 +24,8 @@ function createNewChat() {
         id: generateId(),
         title: "新对话",
         model: defaultModel,
-        messages: []
+        messages: [],
+        skillId: state.activeSkillId || null // 开启新对话时继承当前选中的搭档
     };
 
     state.chats.unshift(newChat); // Add to top
@@ -35,6 +37,7 @@ function createNewChat() {
 }
 
 function switchChat(chatId) {
+    closeAllModals();
     if (state.isStreaming) return;
 
     // Only keep flag if we are switching to the chat we just created
@@ -66,6 +69,12 @@ function switchChat(chatId) {
 
         }
 
+        // 同步当前激活的搭档
+        state.activeSkillId = chat.skillId || null;
+        if (typeof renderCompanionsList === 'function') {
+            renderCompanionsList();
+        }
+
         // Sync model dropdown
         renderSearchableModelSelect();
     }
@@ -84,9 +93,19 @@ function renderChatList() {
         const div = document.createElement('div');
         div.className = `chat-item ${chat.id === state.currentChatId ? 'active' : ''}`;
 
+        // 获取图标信息
+        let iconHtml = '<i class="ph ph-chat-circle"></i>';
+        if (chat.skillId && typeof getCompanionIconInfo === 'function') {
+            const skill = (state.settings.skills || []).find(s => s.id === chat.skillId);
+            if (skill) {
+                const info = getCompanionIconInfo(skill.name);
+                iconHtml = `<i class="ph-fill ${info.icon}" style="color: ${info.color}"></i>`;
+            }
+        }
+
         div.innerHTML = `
             <input type="checkbox" class="chat-item-checkbox" data-id="${chat.id}">
-            <i class="ph ph-chat-circle"></i>
+            ${iconHtml}
             <span class="chat-item-title">${chat.title}</span>
             <div class="chat-actions">
                 <button class="more-btn" title="更多操作"><i class="ph ph-dots-three-outline"></i></button>
@@ -159,17 +178,19 @@ function saveChats() {
 function renderMessages(messages) {
     messageContainer.innerHTML = '';
 
-    const skillSection = document.querySelector('.skills-section');
+    const companionsPanel = document.getElementById('companions-panel');
 
     if (messages.length === 0) {
         updateWelcomeScreen();
         renderSkillsBar(); // Ensure bar is updated for new chat
-        if (skillSection) skillSection.style.display = 'block';
         welcomeScreen.style.display = 'flex';
         messageContainer.appendChild(welcomeScreen);
+        // Show companions panel on new/empty chat
+        if (companionsPanel) companionsPanel.style.display = '';
     } else {
         welcomeScreen.style.display = 'none';
-        if (skillSection) skillSection.style.display = 'none';
+        // Hide companions panel when there are messages
+        if (companionsPanel) companionsPanel.style.display = 'none';
         messages.forEach(msg => {
             renderMessageItem(msg.role, msg.content);
         });
@@ -294,6 +315,8 @@ function sendMessage() {
 
     // Hide welcome elements once first message is sent
     if (welcomeScreen) welcomeScreen.style.display = 'none';
+    const companionsPanel = document.getElementById('companions-panel');
+    if (companionsPanel) companionsPanel.style.display = 'none';
     const skillSection = document.querySelector('.skills-section');
     if (skillSection) skillSection.style.display = 'none';
     state.isNewFreshChat = false;
@@ -308,6 +331,7 @@ function sendMessage() {
 
     // Skill Override
     if (state.activeSkillId) {
+        chat.skillId = state.activeSkillId; // 把搭档关联到当前对话
         const skill = (state.settings.skills || []).find(s => s.id === state.activeSkillId);
         if (skill && skill.prompt) {
             finalSystemPrompt = skill.prompt;

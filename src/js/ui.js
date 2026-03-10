@@ -179,12 +179,12 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
     panel.className = 'model-selection-panel';
 
     let searchQuery = '';
-    
+
     const updateModelsList = () => {
         const query = searchQuery.toLowerCase();
         const filtered = fetchedModels.filter(m => m.toLowerCase().includes(query));
         const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-        
+
         modelsList.innerHTML = '';
         filtered.forEach(model => {
             const isVisible = visibleModels.includes(model);
@@ -196,13 +196,13 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
                     <i class="ph ${isVisible ? 'ph-eye' : 'ph-eye-slash'}"></i>
                 </button>
             `;
-            
+
             item.querySelector('button').addEventListener('click', (e) => {
                 e.stopPropagation();
                 const button = e.target.closest('button');
                 const modelName = button.dataset.model;
                 const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-                
+
                 if (currentVisible.includes(modelName)) {
                     const idx = currentVisible.indexOf(modelName);
                     currentVisible.splice(idx, 1);
@@ -217,14 +217,14 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
                     button.classList.add('btn-primary');
                     item.classList.add('selected');
                 }
-                
+
                 provider.visibleModels = currentVisible.join(', ');
                 onModelsUpdate();
             });
-            
+
             modelsList.appendChild(item);
         });
-        
+
         if (filtered.length === 0) {
             modelsList.innerHTML = '<div class="empty-search-result">未找到匹配的模型</div>';
         }
@@ -264,7 +264,7 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
 
     // Cleanup - sync data when closing
     const originalRemove = modal.remove.bind(modal);
-    modal.remove = function() {
+    modal.remove = function () {
         onModelsUpdate();
         originalRemove();
     };
@@ -286,13 +286,13 @@ function showConfirmDialog(message, onConfirm, onCancel) {
             <button class="btn btn-danger btn-sm" id="confirm-ok">删除</button>
         </div>
     `;
-    
+
     document.body.appendChild(dialog);
-    
+
     const cancelBtn = dialog.querySelector('#confirm-cancel');
     const okBtn = dialog.querySelector('#confirm-ok');
     let isHandled = false;
-    
+
     const cleanup = () => {
         if (isHandled) return;
         isHandled = true;
@@ -303,14 +303,30 @@ function showConfirmDialog(message, onConfirm, onCancel) {
             }
         }, 300);
     };
-    
+
     cancelBtn.addEventListener('click', () => {
         cleanup();
         if (onCancel) onCancel();
     });
-    
+
     okBtn.addEventListener('click', () => {
         cleanup();
         if (onConfirm) onConfirm();
+    });
+}
+
+/**
+ * 互斥关闭所有覆盖层弹窗，确保侧边栏功能切换流畅
+ */
+function closeAllModals() {
+    if (typeof closeSettings === 'function') closeSettings();
+    if (typeof closeAbout === 'function') closeAbout();
+    if (typeof closeCompanionsManager === 'function') closeCompanionsManager();
+
+    // 同时也通过 DOM 强制清理 (以防万一)
+    const modals = ['settings-modal', 'about-modal', 'companions-modal'];
+    modals.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
     });
 }

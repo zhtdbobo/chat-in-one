@@ -11,10 +11,13 @@ function initMCPSettings() {
     renderMCPServers();
 }
 
-document.getElementById('add-mcp-server-btn').onclick = () => {
-    tempMCPServers.push({ id: generateId(), name: '', command: '', args: '', env: '' });
-    renderMCPServers();
-};
+const addMcpBtn = document.getElementById('add-mcp-server-btn');
+if (addMcpBtn) {
+    addMcpBtn.onclick = () => {
+        tempMCPServers.push({ id: generateId(), name: '', command: '', args: '', env: '' });
+        renderMCPServers();
+    };
+}
 
 function renderMCPServers() {
     const container = document.getElementById('mcp-servers-container');

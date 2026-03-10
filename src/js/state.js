@@ -17,6 +17,7 @@ const sendBtn = document.getElementById('send-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const aboutBtn = document.getElementById('about-btn');
+const companionsBtn = document.getElementById('companions-btn');
 
 // Settings Modal
 const settingsModal = document.getElementById('settings-modal');
@@ -27,6 +28,13 @@ const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
 // About Modal
 const aboutModal = document.getElementById('about-modal');
 const closeAboutBtn = document.getElementById('close-about-btn');
+
+// Companions Modal
+const companionsModal = document.getElementById('companions-modal');
+const closeCompanionsBtn = document.getElementById('close-companions-btn');
+const cancelCompanionsBtn = document.getElementById('cancel-companions-btn');
+const saveCompanionsBtn = document.getElementById('save-companions-btn');
+const addCompanionBtn = document.getElementById('add-companion-btn');
 
 // Status badging & controls
 const currentChatTitle = document.getElementById('current-chat-title');

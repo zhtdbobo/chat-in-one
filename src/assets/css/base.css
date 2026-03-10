@@ -10,8 +10,9 @@ body {
     color: var(--text-primary);
     overflow: hidden;
     height: 100vh;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 15px;
+    /* 从 14px 调大 */
+    line-height: 1.6;
 }
 
 /* Electron Titlebar Drag Region */
@@ -65,10 +66,13 @@ textarea {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 10px 18px;
+    /* 稍微增加内边距 */
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
     font-weight: 500;
+    font-size: 15px;
+    /* 从 默认 调大 */
     cursor: pointer;
     transition: all var(--transition);
     -webkit-app-region: no-drag;

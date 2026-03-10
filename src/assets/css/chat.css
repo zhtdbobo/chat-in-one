@@ -8,6 +8,89 @@
     min-width: 0;
 }
 
+/* Companions panel (horizontal bar above input) */
+.companions-panel {
+    padding: 6px 24px 2px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    background-color: transparent;
+    overflow: hidden;
+}
+
+.companions-panel-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-behavior: smooth;
+}
+
+.companions-panel-list::-webkit-scrollbar {
+    height: 4px;
+}
+
+.companions-panel-list::-webkit-scrollbar-thumb {
+    background-color: var(--border-subtle);
+    border-radius: 4px;
+}
+
+.companions-panel-list .companion-item {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+    font-size: 13px;
+    white-space: nowrap;
+    transition: background-color var(--transition), color var(--transition), border-color var(--transition);
+    -webkit-app-region: no-drag;
+}
+
+body.light-theme .companions-panel-list .companion-item {
+    background: rgba(241, 245, 249, 0.9);
+}
+
+.companions-panel-list .companion-item:hover {
+    background-color: var(--bg-surface-elevated);
+    color: var(--text-primary);
+    border-color: var(--border-default);
+}
+
+.companions-panel-list .companion-item.active {
+    background-color: var(--brand-alpha);
+    border-color: var(--border-focus);
+    color: var(--bg-primary);
+    font-weight: 500;
+}
+
+.companions-panel-list .companion-item i {
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.companions-panel-list .companion-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.companions-panel-list .companion-name {
+    font-size: 13px;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.companions-panel-list .companion-desc {
+    display: none;
+}
+
 .chat-header {
     height: 60px;
     padding: 0 24px;

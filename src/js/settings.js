@@ -11,15 +11,22 @@ let currentProviderIndex = -1;
 const providerDetailUiState = {};
 
 function openSettings() {
+    closeAllModals();
+
     tempProviders = JSON.parse(JSON.stringify(state.settings.providers || []));
     currentProviderIndex = tempProviders.length > 0 ? 0 : -1;
 
-    document.getElementById('system-prompt').value = state.settings.systemPrompt || '';
-    document.getElementById('enable-thinking').checked = state.settings.enableThinking !== false;
-    document.getElementById('enable-search').checked = !!state.settings.enableSearch;
+    const systemPromptEl = document.getElementById('system-prompt');
+    const enableThinkingEl = document.getElementById('enable-thinking');
+    const enableSearchEl = document.getElementById('enable-search');
 
-    initMCPSettings();
-    initSkillsSettings();
+    if (systemPromptEl) systemPromptEl.value = state.settings.systemPrompt || '';
+    if (enableThinkingEl) enableThinkingEl.checked = state.settings.enableThinking !== false;
+    if (enableSearchEl) enableSearchEl.checked = !!state.settings.enableSearch;
+
+    if (typeof initMCPSettings === 'function') {
+        initMCPSettings();
+    }
 
     renderProvidersSidebar();
     renderProviderDetail();
@@ -28,7 +35,7 @@ function openSettings() {
     document.querySelectorAll('.settings-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
     document.querySelectorAll('.tab-pane').forEach((p, i) => p.classList.toggle('active', i === 0));
 
-    settingsModal.style.display = 'flex';
+    if (settingsModal) settingsModal.style.display = 'flex';
 }
 
 function renderProvidersSidebar() {
@@ -213,20 +220,20 @@ function renderProviderDetail() {
             const data = await req.json();
             if (data && data.data) {
                 const ids = data.data.map(m => m.id).filter(id => id);
-                
+
                 // Store all models in allModels
                 provider.allModels = ids.join(', ');
                 // Initialize visibleModels as empty (user needs to manually enable)
                 if (!provider.visibleModels) {
                     provider.visibleModels = '';
                 }
-                
+
                 // Show model selection panel
                 showModelSelectionPanel(ids, provider, () => {
                     renderProviderDetail();
                     renderProvidersSidebar();
                 });
-                
+
                 showNotification(`成功获取 ${ids.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
             }
 
@@ -407,7 +414,6 @@ async function handleSettingsSave(e) {
     if (e) e.preventDefault();
     saveCurrentProviderData();
     saveCurrentMCPServerData();
-    saveCurrentSkillData();
 
     // Use spread to preserve all existing settings (like lastUsedModel, theme, etc.)
     const newSettings = {
@@ -416,8 +422,7 @@ async function handleSettingsSave(e) {
         enableThinking: document.getElementById('enable-thinking').checked,
         enableSearch: document.getElementById('enable-search').checked,
         providers: tempProviders,
-        mcpServers: tempMCPServers,
-        skills: tempSkills
+        mcpServers: tempMCPServers
     };
 
     state.settings = newSettings;

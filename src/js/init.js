@@ -41,6 +41,14 @@ async function initApp() {
         state.settings.enableThinking = true;
     }
 
+    // 初始化默认搭档如果你还没有定义过
+    if (!state.settings.skills || state.settings.skills.length === 0) {
+        if (typeof getDefaultSkills === 'function') {
+            state.settings.skills = getDefaultSkills();
+            window.api.saveSettings(state.settings);
+        }
+    }
+
     updateThinkingBtnState();
     updateSearchBtnState();
     renderMcpSelectionDropdown();
@@ -65,20 +73,47 @@ async function initApp() {
 function updateWelcomeScreen() {
     if (!welcomeScreen) return;
 
-    // Check if at least one provider has an endpoint and API key
+    // 获取当前对话
+    const chat = state.chats.find(c => c.id === state.currentChatId);
+    // 只有在没有消息的新对话中才显示增强欢迎页
+    const isNewFresh = !chat || (chat.messages.length === 0);
+
+    if (!isNewFresh) {
+        welcomeScreen.style.display = 'none';
+        return;
+    }
+
+    welcomeScreen.style.display = 'flex';
+
+    // 如果选了搭档
+    if (state.activeSkillId) {
+        const skill = (state.settings.skills || []).find(s => s.id === state.activeSkillId);
+        if (skill) {
+            const info = typeof getCompanionIconInfo === 'function' ? getCompanionIconInfo(skill.name) : { icon: 'ph-robot', color: 'var(--brand-color)' };
+
+            welcomeScreen.innerHTML = `
+                <div class="logo-circle" style="background: ${info.color}15; border: 2px solid ${info.color}">
+                    <i class="ph-fill ${info.icon}" style="color: ${info.color}; font-size: 40px;"></i>
+                </div>
+                <h1 style="color: ${info.color}">${skill.name}</h1>
+                <p style="font-weight: 500; opacity: 0.9;">${skill.desc || '已就绪'}</p>
+                <div class="prompt-preview" style="margin-top: 20px; padding: 16px; background: var(--bg-surface-elevated); border-radius: 12px; border: 1px solid var(--border-subtle); max-width: 80%; width: 400px; text-align: left;">
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; font-style: italic;">"${skill.prompt}"</div>
+                </div>
+            `;
+            return;
+        }
+    }
+
+    // 默认欢迎状态
     const providers = state.settings.providers || [];
     const isConfigured = providers.some(p => p.endpoint && p.apiKey);
 
-    const h1 = welcomeScreen.querySelector('h1');
-    const p = welcomeScreen.querySelector('p');
-
-    if (isConfigured) {
-        h1.textContent = '准备就绪';
-        p.textContent = '开启您的 AI 之旅，发送第一条消息吧！';
-    } else {
-        h1.textContent = '您好，我是您的 AI 助理';
-        p.textContent = '请点击左下角「设置」配置 API 以开始使用。';
-    }
+    welcomeScreen.innerHTML = `
+        <div class="logo-circle"><i class="ph ph-robot"></i></div>
+        <h1>${isConfigured ? '准备就绪' : '您好，我是您的 AI 助理'}</h1>
+        <p>${isConfigured ? '开启您的 AI 之旅，发送第一条消息吧！' : '请点击左下角「设置」配置 API 以开始使用。'}</p>
+    `;
 }
 
 function applyTheme(theme) {

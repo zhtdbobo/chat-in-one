@@ -2,14 +2,10 @@
    Settings Full-Page Layout
    ============================================= */
 .settings-page {
-    position: fixed;
-    top: 35px;
-    /* below titlebar */
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: absolute;
+    inset: 0;
     background-color: var(--bg-base);
-    z-index: 10000;
+    z-index: 1000;
     display: flex;
     flex-direction: column;
     animation: fadeIn 0.18s ease;
@@ -56,13 +52,10 @@
    About Full-Page Layout
    ============================================= */
 .about-page {
-    position: fixed;
-    top: 35px;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: absolute;
+    inset: 0;
     background-color: var(--bg-base);
-    z-index: 10000;
+    z-index: 1000;
     display: flex;
     flex-direction: column;
     animation: fadeIn 0.18s ease;
@@ -210,7 +203,82 @@
     margin: 0;
 }
 
+/* =============================================
+   Companions Manager Layout
+   ============================================= */
+.companions-page {
+    position: absolute;
+    inset: 0;
+    background-color: var(--bg-base);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.18s ease;
+    -webkit-app-region: no-drag;
+}
+
+.companions-page-header {
+    height: 60px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.companions-page-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-primary);
+}
+
+.companions-page-title i {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.companions-page-title h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.companions-page-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Body: nav + panel */
+.companions-page-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.companions-scroll-container {
+    padding: 24px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    /* Important for flex-child scrolling */
+}
+
+/* Custom scrollbar for better look */
+.companions-scroll-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.companions-scroll-container::-webkit-scrollbar-thumb {
+    background-color: var(--border-subtle);
+    border-radius: 10px;
+}
+
 .settings-page-body {
     display: flex;
     flex: 1;
@@ -558,13 +626,21 @@
 
 /* Skill Items in Settings */
 .skill-item {
-    background: var(--bg-surface-elevated);
+    background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 12px;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
     position: relative;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
+
+.skill-item:hover {
+    border-color: var(--border-focus);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
 
 .skill-header {
     display: flex;

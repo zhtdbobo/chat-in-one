@@ -26,6 +26,13 @@ function setupEvents() {
     aboutBtn.addEventListener('click', openAbout);
     closeAboutBtn.addEventListener('click', closeAbout);
 
+    // Companions modal interactions
+    companionsBtn.addEventListener('click', openCompanionsManager);
+    closeCompanionsBtn.addEventListener('click', closeCompanionsManager);
+    cancelCompanionsBtn.addEventListener('click', closeCompanionsManager);
+    saveCompanionsBtn.addEventListener('click', saveCompanionsManager);
+    addCompanionBtn.addEventListener('click', addCompanion);
+
     // Chat actions
     newChatBtn.addEventListener('click', createNewChat);
 
