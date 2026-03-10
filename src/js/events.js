@@ -28,10 +28,8 @@ function setupEvents() {
 
     // Companions modal interactions
     companionsBtn.addEventListener('click', openCompanionsManager);
-    closeCompanionsBtn.addEventListener('click', closeCompanionsManager);
-    cancelCompanionsBtn.addEventListener('click', closeCompanionsManager);
-    saveCompanionsBtn.addEventListener('click', saveCompanionsManager);
-    addCompanionBtn.addEventListener('click', addCompanion);
+    if (closeCompanionsBtn) closeCompanionsBtn.addEventListener('click', closeCompanionsManager);
+    if (addCompanionBtn) addCompanionBtn.addEventListener('click', addCompanion);
 
     // Chat actions
     newChatBtn.addEventListener('click', createNewChat);

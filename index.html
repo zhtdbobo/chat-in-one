@@ -161,18 +161,13 @@
                 </div>
             </div>
 
-            <!-- My Partners (Covers chat area only) -->
+            <!-- My Partners (Full Page Modal) -->
             <div class="companions-page" id="companions-modal" style="display: none;">
                 <div class="companions-page-header">
                     <div class="companions-page-title">
-                        <i class="ph ph-users"></i>
                         <h2>我的搭档</h2>
                     </div>
                     <div class="companions-page-actions">
-                        <button type="button" class="btn btn-ghost" id="cancel-companions-btn">取消</button>
-                        <button type="button" class="btn btn-primary" id="save-companions-btn">
-                            <i class="ph ph-floppy-disk"></i> 保存
-                        </button>
                         <button class="btn btn-icon btn-ghost" id="close-companions-btn" title="关闭">
                             <i class="ph ph-x"></i>
                         </button>
@@ -180,14 +175,40 @@
                 </div>
                 <div class="companions-page-body">
                     <div class="companions-scroll-container">
-                        <div
-                            style="display:flex; align-items:center; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
-                            <div style="color: var(--text-muted); font-size: 12px;">可编辑内置搭档，也可以新建自定义搭档。</div>
-                            <button type="button" id="add-companion-btn" class="btn btn-ghost">
-                                <i class="ph ph-plus"></i> 新建搭档
-                            </button>
-                        </div>
-                        <div id="companions-container"></div>
+                        <!-- Settings Section -->
+                        <section class="companions-section">
+                            <h3 class="section-title">设置</h3>
+                            <div class="setting-item-row">
+                                <div class="setting-label">
+                                    <span>在新对话中显示我的搭档</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="show-companions-new-chat-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </section>
+
+                        <!-- My Companions Section -->
+                        <section class="companions-section">
+                            <div class="section-header">
+                                <h3 class="section-title">我的搭档</h3>
+                                <button type="button" id="add-companion-btn" class="btn btn-subtle">
+                                    <i class="ph ph-plus"></i> 创建新的AI搭档
+                                </button>
+                            </div>
+                            <div class="companions-grid" id="my-companions-container">
+                                <!-- User created or used companions here -->
+                            </div>
+                        </section>
+
+                        <!-- Featured Section -->
+                        <section class="companions-section">
+                            <h3 class="section-title">内置推荐库</h3>
+                            <div class="companions-grid" id="featured-companions-container">
+                                <!-- Default companions here -->
+                            </div>
+                        </section>
                     </div>
                 </div>
             </div>

@@ -187,8 +187,10 @@ function renderMessages(messages) {
         renderSkillsBar(); // Ensure bar is updated for new chat
         welcomeScreen.style.display = 'flex';
         messageContainer.appendChild(welcomeScreen);
-        // Show companions panel on new/empty chat
-        if (companionsPanel) companionsPanel.style.display = '';
+        // Show companions panel on new/empty chat if enabled in settings
+        if (companionsPanel) {
+            companionsPanel.style.display = (state.settings.showCompanionsInNewChat !== false) ? '' : 'none';
+        }
     } else {
         welcomeScreen.style.display = 'none';
         // Hide companions panel when there are messages

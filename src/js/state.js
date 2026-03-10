@@ -32,8 +32,6 @@ const closeAboutBtn = document.getElementById('close-about-btn');
 // Companions Modal
 const companionsModal = document.getElementById('companions-modal');
 const closeCompanionsBtn = document.getElementById('close-companions-btn');
-const cancelCompanionsBtn = document.getElementById('cancel-companions-btn');
-const saveCompanionsBtn = document.getElementById('save-companions-btn');
 const addCompanionBtn = document.getElementById('add-companion-btn');
 
 // Status badging & controls

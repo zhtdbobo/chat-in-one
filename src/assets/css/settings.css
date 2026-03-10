@@ -624,60 +624,226 @@
     color: #ef4444;
 }
 
-/* Skill Items in Settings */
-.skill-item {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    padding: 20px;
-    margin-bottom: 20px;
-    position: relative;
-    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+/* =============================================
+   Companions Redesign (Premium Look)
+   ============================================= */
+.companions-section {
+    margin-bottom: 32px;
 }
 
-.skill-item:hover {
-    border-color: var(--border-focus);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+.companions-section .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    padding-left: 4px;
 }
 
-
-.skill-header {
+.companions-section .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 16px;
+    padding-left: 4px;
+}
+
+.companions-section .section-header .section-title {
+    margin-bottom: 0;
+}
+
+.setting-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
     margin-bottom: 12px;
+    transition: all var(--transition);
 }
 
-.skill-header h4 {
-    margin: 0;
+.setting-item-row:hover {
+    border-color: var(--border-focus);
+}
+
+.setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.setting-label span {
     font-size: 14px;
+    font-weight: 500;
     color: var(--text-primary);
 }
 
-.skill-form {
+.setting-label .description {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Companions Grid */
+.companions-grid {
     display: grid;
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
 }
 
-.skill-form textarea {
-    width: 100%;
-    min-height: 80px;
-    resize: vertical;
-    padding: 8px;
-    border-radius: 4px;
+/* Companion Card V2 */
+.companion-card-v2 {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    background: var(--bg-base);
-    color: var(--text-primary);
-    font-size: 13px;
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
 }
 
-.skill-form input {
-    width: 100%;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-subtle);
+.companion-card-v2:hover {
+    border-color: var(--border-focus);
+    background: var(--bg-surface-elevated);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.companion-card-v2 .card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     background: var(--bg-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.companion-card-v2:hover .card-icon {
+    transform: scale(1.1);
+}
+
+.companion-card-v2 .card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.companion-card-v2 .card-name {
+    font-size: 15px;
+    font-weight: 600;
     color: var(--text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.companion-card-v2 .card-desc {
     font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.companion-card-v2 .card-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    background: var(--bg-surface-elevated);
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.companion-card-v2:hover .card-actions {
+    opacity: 1;
+}
+
+/* Switch Component */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-subtle);
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked+.slider {
+    background-color: var(--bg-primary);
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px var(--bg-primary);
+}
+
+input:checked+.slider:before {
+    transform: translateX(18px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.btn-subtle {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--bg-primary);
+    font-size: 12px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all var(--transition);
+}
+
+.btn-subtle:hover {
+    background: rgba(59, 130, 246, 0.15);
+    transform: translateY(-1px);
 }
