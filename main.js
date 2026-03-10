@@ -286,9 +286,11 @@ const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 
 let mcpClients = [];
+let toolNameToServerMap = new Map();
 
 async function getMcpTools(servers) {
     const allTools = [];
+    toolNameToServerMap.clear();
     for (const server of servers) {
         if (!server.command) continue;
         try {
@@ -300,6 +302,9 @@ async function getMcpTools(servers) {
             await client.connect(transport);
             const tools = await client.listTools();
             allTools.push(...tools.tools.map(t => ({ ...t, serverId: server.id })));
+            for (const t of tools.tools) {
+                toolNameToServerMap.set(t.name, server.id);
+            }
             mcpClients.push({ id: server.id, client, transport });
         } catch (e) {
             console.error(`Failed to connect to MCP server ${server.name}:`, e);
@@ -420,7 +425,8 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             event.reply('stream-chunk', { chatId, content: "\n\n*正在调用工具...*\n" });
             const toolResults = [];
             for (const tc of toolCalls) {
-                const clientObj = mcpClients.find(c => true); // In a real app, map tool name to server
+                const serverId = toolNameToServerMap.get(tc.name);
+                const clientObj = mcpClients.find(c => c.id === serverId);
                 if (clientObj) {
                     try {
                         const result = await clientObj.client.callTool({
@@ -435,6 +441,8 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     } catch (e) {
                         toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Error: ${e.message}` });
                     }
+                } else {
+                    toolResults.push({ role: "tool", tool_call_id: tc.id, content: `Error: 未找到工具 ${tc.name} 对应的 MCP 服务器` });
                 }
             }
 

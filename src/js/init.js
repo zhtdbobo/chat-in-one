@@ -56,6 +56,7 @@ async function initApp() {
 
     // 2. Setup UI events
     setupEvents();
+    initChatMenuCloseHandler();
 
     // Render loaded data
     updateBadge();

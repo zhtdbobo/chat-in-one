@@ -108,7 +108,7 @@ function renderChatList() {
         div.innerHTML = `
             <input type="checkbox" class="chat-item-checkbox" data-id="${chat.id}">
             ${iconHtml}
-            <span class="chat-item-title">${chat.title}</span>
+            <span class="chat-item-title">${escapeHtml(chat.title)}</span>
             <div class="chat-actions">
                 <button class="more-btn" title="更多操作"><i class="ph ph-dots-three-outline"></i></button>
                 <div class="chat-actions-menu">
@@ -147,11 +147,15 @@ function renderChatList() {
 
         chatListEl.appendChild(div);
     });
+}
 
-    // Close menus when clicking outside
+let chatMenuCloseHandlerInitialized = false;
+function initChatMenuCloseHandler() {
+    if (chatMenuCloseHandlerInitialized) return;
+    chatMenuCloseHandlerInitialized = true;
     document.addEventListener('click', () => {
         document.querySelectorAll('.chat-actions-menu.show').forEach(m => m.classList.remove('show'));
-    }, { once: true });
+    });
 }
 
 async function copyToClipboard(text, btn) {

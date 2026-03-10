@@ -2,11 +2,16 @@
 
 // Initial app state
 let state = {
-    settings: {}, // will hold endpoint, apiKey, modelName, systemPrompt
-    chats: [],    // Array of { id, title, messages: [] }
+    settings: {},
+    chats: [],
     currentChatId: null,
     isStreaming: false,
-    currentStreamDiv: null
+    currentStreamDiv: null,
+    isExportMode: false,
+    activeSkillId: null,
+    enabledMcpServerIds: [],
+    _newlyCreatedId: null,
+    isNewFreshChat: false
 };
 
 // DOM Elements
