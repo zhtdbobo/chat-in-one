@@ -1,6 +1,6 @@
 {
   "name": "chat-in-one",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "clean": "rd /s /q dist",
     "prebuild": "npm run clean",
     "dist": "electron-builder --win",
+    "publish": "electron-builder --win --publish always",
     "pack": "electron-builder --win --dir"
   },
   "keywords": [
@@ -33,6 +34,7 @@
   "build": {
     "appId": "com.chatinone.app",
     "productName": "chat-in-one",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "publish": [
       {
         "provider": "github",

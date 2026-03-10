@@ -1,6 +1,8 @@
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
     background-color: var(--bg-surface);
     border-right: 1px solid var(--border-subtle);
     display: flex;

@@ -141,6 +141,7 @@ function setupEvents() {
         state.isStreaming = true;
         sendBtn.disabled = true;
         const div = renderMessageItem('assistant', '');
+        messageContainer.appendChild(div);
         state.currentStreamDiv = div.querySelector('.message-content');
         scrollToBottom();
     });

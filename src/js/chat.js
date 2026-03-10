@@ -53,17 +53,14 @@ function switchChat(chatId) {
 
     if (chat) {
         currentChatTitle.textContent = chat.title;
-        
-        // 添加过渡效果
-        messageContainer.style.opacity = '0';
-        messageContainer.style.transform = 'translateY(10px)';
-        messageContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-        
+
+        // 使用 CSS 类来控制动画，更平滑且避免 style 冲突
+        messageContainer.classList.add('switching');
+
         setTimeout(() => {
             renderMessages(chat.messages);
-            messageContainer.style.opacity = '1';
-            messageContainer.style.transform = 'translateY(0)';
-        }, 100);
+            messageContainer.classList.remove('switching');
+        }, 80);
 
         // Backward compatibility for old model names without provider id
         if (chat.model && !chat.model.includes('|')) {
@@ -192,49 +189,53 @@ function saveChats() {
 // Messaging Logics
 // -----------------------------------------
 function renderMessages(messages) {
-    // 创建临时容器来构建新内容
-    const tempContainer = document.createElement('div');
-    tempContainer.className = messageContainer.className;
-    tempContainer.style.opacity = '0';
-    
+    // 采用 DocumentFragment 提升渲染性能并保留事件监听器
+    const fragment = document.createDocumentFragment();
     const companionsPanel = document.getElementById('companions-panel');
 
-    if (messages.length === 0) {
+    // 只有在没有消息的新对话中才显示增强欢迎页
+    const isNewFresh = (messages.length === 0);
+
+    if (isNewFresh) {
         updateWelcomeScreen();
-        renderSkillsBar(); // Ensure bar is updated for new chat
+        renderSkillsBar();
         welcomeScreen.style.display = 'flex';
-        tempContainer.appendChild(welcomeScreen.cloneNode(true));
-        // Show companions panel on new/empty chat if enabled in settings
+        // Note: we don't clone welcomeScreen, we just move it into fragment
+        fragment.appendChild(welcomeScreen);
+
         if (companionsPanel) {
             companionsPanel.style.display = (state.settings.showCompanionsInNewChat !== false) ? '' : 'none';
         }
     } else {
         welcomeScreen.style.display = 'none';
-        // Hide companions panel when there are messages
         if (companionsPanel) companionsPanel.style.display = 'none';
+
         messages.forEach(msg => {
             const messageItem = renderMessageItem(msg.role, msg.content);
             if (messageItem) {
-                tempContainer.appendChild(messageItem);
+                fragment.appendChild(messageItem);
             }
         });
-
-        // Format syntax highlighting manually on full render
-        tempContainer.querySelectorAll('pre code').forEach((block) => {
-            hljs.highlightElement(block);
-        });
-        if (typeof attachCodeBlockCopyButtons === 'function') {
-            attachCodeBlockCopyButtons(tempContainer);
-        }
     }
-    
-    // 一次性替换内容
-    messageContainer.innerHTML = tempContainer.innerHTML;
-    messageContainer.style.opacity = '1';
-    messageContainer.style.transition = 'opacity 0.3s ease';
-    
-    // 滚动到底部
-    scrollToBottom();
+
+    // 一次性渲染，注意保留 welcomeScreen 的 DOM 引用，或者通过 clear + append
+    messageContainer.innerHTML = '';
+    // 如果不是 new fresh, welcomeScreen 也要挂在 DOM 里（虽然隐藏），否则下次 renderMessages 会找不到它（如果是全局变量还好，但保持在 DOM 里更规范）
+    if (!isNewFresh) {
+        messageContainer.appendChild(welcomeScreen);
+    }
+    messageContainer.appendChild(fragment);
+
+    // 手动触发代码高亮
+    messageContainer.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+    });
+
+    if (typeof attachCodeBlockCopyButtons === 'function') {
+        attachCodeBlockCopyButtons(messageContainer);
+    }
+
+    setTimeout(scrollToBottom, 20);
 }
 
 function renderMessageItem(role, content) {
@@ -341,7 +342,8 @@ function sendMessage() {
 
     // Process User Message
     chat.messages.push({ role: 'user', content: text });
-    renderMessageItem('user', { content: text });
+    const userMsgEl = renderMessageItem('user', { content: text });
+    messageContainer.appendChild(userMsgEl);
 
     // Hide welcome elements once first message is sent
     if (welcomeScreen) welcomeScreen.style.display = 'none';

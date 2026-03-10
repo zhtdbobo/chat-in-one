@@ -128,6 +128,13 @@ body.light-theme .companions-panel-list .companion-item {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.message-container.switching {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: none;
 }
 
 .message-container::-webkit-scrollbar {
@@ -180,10 +187,16 @@ body.light-theme .companions-panel-list .companion-item {
     margin: 0 auto;
     width: 100%;
     animation: slideUp 0.3s ease-out;
+    flex-shrink: 0;
 }
 
 .message.user {
     flex-direction: row-reverse;
+    margin-right: auto;
+}
+
+.message.assistant {
+    margin-left: auto;
 }
 
 .avatar {
