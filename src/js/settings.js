@@ -11,7 +11,7 @@ let currentProviderIndex = -1;
 const providerDetailUiState = {};
 
 function openSettings() {
-    closeAllModals();
+    if (typeof closeAllModals === 'function') closeAllModals();
 
     tempProviders = JSON.parse(JSON.stringify(state.settings.providers || []));
     currentProviderIndex = tempProviders.length > 0 ? 0 : -1;
@@ -395,7 +395,10 @@ function renderProviderDetail() {
             candidates = candidates.filter(Boolean);
 
             if (candidates.length === 0) {
-                const modelToTest = (prompt("请输入要测试的模型 ID（例如：MiniMax-M2.5）") || '').trim();
+                const modelToTest = await showInputDialog({
+                    title: '测试模型',
+                    placeholder: '请输入要测试的模型 ID（例如：MiniMax-M2.5）'
+                });
                 if (!modelToTest) return;
                 await runTest(modelToTest);
                 return;

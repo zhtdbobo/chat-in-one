@@ -3,7 +3,7 @@
 let updateStatusUnsubscribe = null;
 
 async function openAbout() {
-    closeAllModals();
+    if (typeof closeAllModals === 'function') closeAllModals();
     const versionEl = document.getElementById('about-version');
     if (versionEl && window.api && window.api.getAppVersion) {
         try {

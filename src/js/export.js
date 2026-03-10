@@ -114,7 +114,7 @@ function importChats(e) {
         // Reset file input
         e.target.value = '';
     };
-    reader.readText(file);
+    reader.readAsText(file);
 }
 
 function exportSingleChat(chatId) {

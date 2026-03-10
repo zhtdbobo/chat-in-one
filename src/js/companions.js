@@ -1,29 +1,8 @@
 // companions.js - Companion manager (skills editor) modal
-
-function getAllSkills() {
-    const defaultSkills = [
-        { id: 'f-1', name: '做图表', desc: '根据数据生成各类精美图表', prompt: '你是一个图表专家。请根据用户提供的数据，生成 Mermaid 代码或建议最适合的图表类型。', isBuiltIn: true },
-        { id: 'f-2', name: 'Artifact Preview', desc: '实时预览代码与设计稿', prompt: '你是一个前端预览助手。请以代码块的形式输出代码，并描述其功能。', isBuiltIn: true },
-        { id: 'f-3', name: '翻译助手', desc: '支持多国语言互译与地道表达', prompt: '你是一个资深翻译家。请将用户输入的内容翻译成地道的语言。', isBuiltIn: true },
-        { id: 'f-4', name: '软件工程师', desc: '代码编写、重构与架构建议', prompt: '你是一个全栈软件工程师。请协助我进行代码开发和架构设计。', isBuiltIn: true },
-        { id: 'f-5', name: '夸夸机', desc: '提供情绪价值，全方位赞美', prompt: '你是一个超级夸夸大王。请根据用户的情况，给出非常诚恳且夸张的赞美。', isBuiltIn: true },
-        { id: 'f-6', name: '夸夸机2.0', desc: '更高阶的共情与赞美技巧', prompt: '你是一个资深心理辅导师。请提供深刻的共情和温暖的赞美。', isBuiltIn: true },
-        { id: 'f-7', name: '正则表达式', desc: '生成、解释与测试正则', prompt: '你是一个正则表达式专家。', isBuiltIn: true },
-        { id: 'f-8', name: '起名先生', desc: '宝宝起名、品牌起名与寓意解析', prompt: '你是一个国学起名大师。', isBuiltIn: true },
-        { id: 'f-9', name: '命理大师', desc: '八字排盘、运势分析与建议', prompt: '你是一个周易命理大师。', isBuiltIn: true },
-        { id: 'f-10', name: '学英语', desc: '单词背诵、语法解析与口语练习', prompt: '你是一个英语老师。', isBuiltIn: true },
-        { id: 'f-11', name: 'Midjourney Prompt', desc: '生成高质量的绘图提示词', prompt: '你是一个 AI 艺术创作专家。', isBuiltIn: true },
-        { id: 'f-12', name: 'DBA', desc: '数据库设计、SQL 优化与排障', prompt: '你是一个资深数据库管理员。', isBuiltIn: true },
-        { id: 'f-13', name: 'IT专家', desc: '电脑故障排除、系统优化与软件推荐', prompt: '你是一个全能 IT 支持工程师。', isBuiltIn: true },
-        { id: 'f-14', name: '格言警句', desc: '每日一签，提供精神食粮', prompt: '你是一个博学、深邃的哲学家。', isBuiltIn: true }
-    ];
-
-    const userSkills = state.settings.skills || [];
-    return { defaultSkills, userSkills };
-}
+// Note: Built-in skills list is now defined in skills.js as getAllCompanions() to avoid duplication
 
 function openCompanionsManager() {
-    closeAllModals();
+    if (typeof closeAllModals === 'function') closeAllModals();
     renderCompanionsManager();
     const modal = document.getElementById('companions-modal');
     if (modal) modal.style.display = 'flex';
@@ -44,24 +23,39 @@ function closeCompanionsManager() {
     if (modal) modal.style.display = 'none';
 }
 
-function addCompanion() {
-    const name = prompt('请输入新搭档的名称：');
-    if (!name) return;
+async function addCompanion() {
+    try {
+        const result = await showCompanionDialog({
+            title: '创建新搭档',
+            name: '',
+            prompt: '你是一个有用的助理。'
+        });
+        if (!result) return;
 
-    const newComp = {
-        id: generateId(),
-        name: name,
-        desc: '自定义搭档',
-        prompt: '你是一个有用的助理。'
-    };
+        const newComp = {
+            id: generateId(),
+            name: result.name,
+            desc: '自定义搭档',
+            prompt: result.prompt || '你是一个有用的助理。'
+        };
 
-    if (!state.settings.skills) state.settings.skills = [];
-    state.settings.skills.push(newComp);
+        if (!state.settings.skills) state.settings.skills = [];
+        state.settings.skills.push(newComp);
 
-    saveSettingsSilently().then(() => {
+        await saveSettingsSilently();
         renderCompanionsManager();
         if (typeof renderCompanionsList === 'function') renderCompanionsList();
-    });
+        if (typeof showNotification === 'function') {
+            showNotification('搭档创建成功', 'success');
+        }
+    } catch (err) {
+        console.error('Error in addCompanion:', err);
+        if (typeof showNotification === 'function') {
+            showNotification('创建搭档失败：' + err.message, 'error');
+        } else {
+            alert('创建搭档失败：' + err.message);
+        }
+    }
 }
 
 function renderCompanionsManager() {
@@ -69,20 +63,17 @@ function renderCompanionsManager() {
     if (!myContainer) return;
 
     myContainer.innerHTML = '';
-    
-    const { defaultSkills, userSkills } = getAllSkills();
-    
-    const allSkills = [];
-    
-    userSkills.forEach((c, idx) => {
-        allSkills.push({ ...c, _isUserCreated: true, _userIndex: idx });
-    });
-    
-    const userNames = new Set(userSkills.map(s => s.name));
-    defaultSkills.forEach(ds => {
-        if (!userNames.has(ds.name)) {
-            allSkills.push({ ...ds, _isUserCreated: false });
-        }
+
+    // 使用 skills.js 中的 getAllCompanions 获取所有搭档（内置 + 用户自定义）
+    const allCompanions = typeof getAllCompanions === 'function' ? getAllCompanions() : [];
+    const userSkills = state.settings.skills || [];
+    const userSkillIds = new Set(userSkills.map(s => s.id));
+
+    // 标记哪些是用户创建的
+    const allSkills = allCompanions.map((c, idx) => {
+        const isUserCreated = userSkillIds.has(c.id);
+        const userIndex = isUserCreated ? userSkills.findIndex(s => s.id === c.id) : -1;
+        return { ...c, _isUserCreated: isUserCreated, _userIndex: userIndex >= 0 ? userIndex : undefined };
     });
 
     if (allSkills.length === 0) {
@@ -149,28 +140,29 @@ function createCompanionCard(c, isUserCreated, index) {
     return card;
 }
 
-function editCompanion(index) {
+async function editCompanion(index) {
     const c = state.settings.skills[index];
-    const newName = prompt('修改搭档名称：', c.name);
-    if (newName === null) return;
 
-    const newDesc = prompt('修改简短描述：', c.desc);
-    if (newDesc === null) return;
-
-    const newPrompt = prompt('修改系统提示词 (Prompt)：', c.prompt);
-    if (newPrompt === null) return;
+    const result = await showCompanionDialog({
+        title: '编辑搭档',
+        name: c.name,
+        prompt: c.prompt,
+        isEdit: true
+    });
+    if (!result) return;
 
     state.settings.skills[index] = {
         ...c,
-        name: newName || '未命名',
-        desc: newDesc || '',
-        prompt: newPrompt || ''
+        name: result.name,
+        prompt: result.prompt
     };
 
-    saveSettingsSilently().then(() => {
-        renderCompanionsManager();
-        if (typeof renderCompanionsList === 'function') renderCompanionsList();
-    });
+    await saveSettingsSilently();
+    renderCompanionsManager();
+    if (typeof renderCompanionsList === 'function') renderCompanionsList();
+    if (typeof showNotification === 'function') {
+        showNotification('搭档修改成功', 'success');
+    }
 }
 
 async function saveSettingsSilently() {

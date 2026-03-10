@@ -4,7 +4,7 @@
 // Chat Management Logics
 // -----------------------------------------
 function createNewChat() {
-    closeAllModals();
+    if (typeof closeAllModals === 'function') closeAllModals();
     if (state.isStreaming) return;
 
     // Get default model from last used or first provider
@@ -39,7 +39,7 @@ function createNewChat() {
 }
 
 function switchChat(chatId) {
-    closeAllModals();
+    if (typeof closeAllModals === 'function') closeAllModals();
     if (state.isStreaming) return;
 
     // Only keep flag if we are switching to the chat we just created
@@ -54,14 +54,28 @@ function switchChat(chatId) {
     if (chat) {
         currentChatTitle.textContent = chat.title;
 
-        // 切换对话时，先切断滚动，避免瞬间跳跃
+        // 切换对话时，先隐藏容器并禁用消息动画，避免闪烁
         messageContainer.classList.add('switching');
+        messageContainer.classList.add('no-animation');
 
-        setTimeout(() => {
+        // 使用 rAF 确保 switching class 已被应用（容器已隐藏），再渲染消息
+        requestAnimationFrame(() => {
             renderMessages(chat.messages);
-            messageContainer.classList.remove('switching');
             scrollToBottom();
-        }, 50);
+
+            // 等待 DOM 布局完成后再显示（双 rAF 确保浏览器已完成 layout + paint）
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    // 先移除 switching 显示容器（no-animation 仍然保持，确保没有过渡动画）
+                    messageContainer.classList.remove('switching');
+
+                    // 再使用一帧延迟后移除 no-animation，恢复后续新消息的动画
+                    requestAnimationFrame(() => {
+                        messageContainer.classList.remove('no-animation');
+                    });
+                });
+            });
+        });
 
         // Backward compatibility for old model names without provider id
         if (chat.model && !chat.model.includes('|')) {
@@ -338,7 +352,11 @@ function sendMessage() {
     // Process User Message
     chat.messages.push({ role: 'user', content: text });
     const userMsgEl = renderMessageItem('user', { content: text });
-    messageContainer.appendChild(userMsgEl);
+    if (messagesList) {
+        messagesList.appendChild(userMsgEl);
+    } else {
+        messageContainer.appendChild(userMsgEl);
+    }
 
     // Hide welcome elements once first message is sent
     if (welcomeScreen) welcomeScreen.style.display = 'none';
@@ -389,8 +407,4 @@ function scrollToBottom() {
     messageContainer.scrollTop = messageContainer.scrollHeight;
 }
 
-// Textarea auto-resize
-messageInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
-});
+// Textarea auto-resize - moved to setupEvents() in events.js

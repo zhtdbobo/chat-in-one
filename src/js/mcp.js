@@ -11,13 +11,7 @@ function initMCPSettings() {
     renderMCPServers();
 }
 
-const addMcpBtn = document.getElementById('add-mcp-server-btn');
-if (addMcpBtn) {
-    addMcpBtn.onclick = () => {
-        tempMCPServers.push({ id: generateId(), name: '', command: '', args: '', env: '' });
-        renderMCPServers();
-    };
-}
+// Note: addMcpBtn event binding moved to setupEvents() in events.js to avoid duplicate bindings
 
 function renderMCPServers() {
     const container = document.getElementById('mcp-servers-container');

@@ -86,7 +86,9 @@ function updateWelcomeScreen() {
 
     // 如果选了搭档
     if (state.activeSkillId) {
-        const skill = (state.settings.skills || []).find(s => s.id === state.activeSkillId);
+        // 从所有搭档（内置 + 用户自定义）中查找
+        const allCompanions = typeof getAllCompanions === 'function' ? getAllCompanions() : [];
+        const skill = allCompanions.find(s => s.id === state.activeSkillId);
         if (skill) {
             const info = typeof getCompanionIconInfo === 'function' ? getCompanionIconInfo(skill.name) : { icon: 'ph-robot', color: 'var(--brand-color)' };
 

@@ -441,15 +441,15 @@
 /* Model Selection Panel */
 .modal-overlay {
     position: fixed;
-    top: 0;
+    top: 35px;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - 35px);
     background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10002;
+    z-index: 100;
 }
 
 .model-selection-overlay {
@@ -582,10 +582,10 @@
     gap: 12px;
     max-width: 450px;
     -webkit-app-region: no-drag;
-    animation: slideUp 0.3s ease-out;
+    animation: slideUpToast 0.3s ease-out;
 }
 
-@keyframes slideUp {
+@keyframes slideUpToast {
     from {
         transform: translateX(-50%) translateY(100px);
         opacity: 0;

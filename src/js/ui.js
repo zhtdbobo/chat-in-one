@@ -315,6 +315,160 @@ function showConfirmDialog(message, onConfirm, onCancel) {
     });
 }
 
+// -----------------------------------------
+// Custom Input Dialog (replaces prompt() for Electron)
+// -----------------------------------------
+function showInputDialog(options) {
+    return new Promise((resolve) => {
+        const { title = '请输入', placeholder = '', defaultValue = '', multiline = false } = options;
+
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.style.zIndex = '10003';
+
+        const panel = document.createElement('div');
+        panel.className = 'model-selection-panel';
+        panel.style.maxWidth = '400px';
+        panel.style.width = '90%';
+
+        panel.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${title}</div>
+            ${multiline
+                ? `<textarea class="model-search-input" placeholder="${placeholder}" rows="5" style="resize: vertical; min-height: 100px;">${defaultValue}</textarea>`
+                : `<input type="text" class="model-search-input" placeholder="${placeholder}" value="${defaultValue}">`
+            }
+            <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;">
+                <button class="btn btn-ghost btn-sm" id="input-dialog-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="input-dialog-ok">确定</button>
+            </div>
+        `;
+
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        const inputEl = panel.querySelector(multiline ? 'textarea' : 'input');
+        const cancelBtn = panel.querySelector('#input-dialog-cancel');
+        const okBtn = panel.querySelector('#input-dialog-ok');
+
+        // Focus input
+        setTimeout(() => inputEl.focus(), 0);
+
+        // Handle enter key for single line input
+        if (!multiline) {
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    okBtn.click();
+                }
+            });
+        }
+
+        const cleanup = () => {
+            overlay.remove();
+        };
+
+        cancelBtn.addEventListener('click', () => {
+            cleanup();
+            resolve(null);
+        });
+
+        okBtn.addEventListener('click', () => {
+            const value = inputEl.value.trim();
+            cleanup();
+            resolve(value || null);
+        });
+
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                cleanup();
+                resolve(null);
+            }
+        });
+    });
+}
+
+// Multi-field input dialog for creating/editing companions
+function showCompanionDialog(options) {
+    return new Promise((resolve) => {
+        const { title = '创建搭档', name = '', prompt: promptText = '', isEdit = false } = options;
+
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.style.zIndex = '10003';
+
+        const panel = document.createElement('div');
+        panel.className = 'model-selection-panel';
+        panel.style.maxWidth = '480px';
+        panel.style.width = '90%';
+
+        panel.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${title}</div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">名称</label>
+                <input type="text" id="companion-name-input" class="model-search-input" placeholder="请输入搭档名称" value="${escapeHtml(name)}">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">系统提示词 (Prompt)</label>
+                <textarea id="companion-prompt-input" class="model-search-input" placeholder="请输入系统提示词，定义搭档的行为和角色" rows="4" style="resize: vertical; min-height: 80px;">${escapeHtml(promptText)}</textarea>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="btn btn-ghost btn-sm" id="companion-dialog-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="companion-dialog-ok">${isEdit ? '保存' : '创建'}</button>
+            </div>
+        `;
+
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+
+        const nameInput = panel.querySelector('#companion-name-input');
+        const promptInput = panel.querySelector('#companion-prompt-input');
+        const cancelBtn = panel.querySelector('#companion-dialog-cancel');
+        const okBtn = panel.querySelector('#companion-dialog-ok');
+
+        // Focus name input
+        setTimeout(() => nameInput.focus(), 0);
+
+        // Handle enter key in name input to move to prompt
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                promptInput.focus();
+            }
+        });
+
+        const cleanup = () => {
+            overlay.remove();
+        };
+
+        cancelBtn.addEventListener('click', () => {
+            cleanup();
+            resolve(null);
+        });
+
+        okBtn.addEventListener('click', () => {
+            const nameValue = nameInput.value.trim();
+            const promptValue = promptInput.value.trim();
+            if (!nameValue) {
+                showNotification('请输入搭档名称', 'error');
+                return;
+            }
+            cleanup();
+            resolve({ name: nameValue, prompt: promptValue });
+        });
+
+        // Close on overlay click
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                cleanup();
+                resolve(null);
+            }
+        });
+    });
+}
+
 /**
  * 互斥关闭所有覆盖层弹窗，确保侧边栏功能切换流畅
  */

@@ -29,7 +29,12 @@ function setupEvents() {
     // Companions modal interactions
     companionsBtn.addEventListener('click', openCompanionsManager);
     if (closeCompanionsBtn) closeCompanionsBtn.addEventListener('click', closeCompanionsManager);
-    if (addCompanionBtn) addCompanionBtn.addEventListener('click', addCompanion);
+
+    // Add companion button - re-query to ensure element is found
+    const addCompanionBtnEl = document.getElementById('add-companion-btn');
+    if (addCompanionBtnEl) {
+        addCompanionBtnEl.addEventListener('click', addCompanion);
+    }
 
     // Chat actions
     newChatBtn.addEventListener('click', createNewChat);
@@ -112,6 +117,12 @@ function setupEvents() {
         }
     });
 
+    // Textarea auto-resize
+    messageInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
     // Toggle thinking process
     if (toggleThinkingBtn) {
         toggleThinkingBtn.addEventListener('click', () => {
@@ -136,12 +147,27 @@ function setupEvents() {
         });
     }
 
+    // MCP Add Server Button (moved from mcp.js to avoid duplicate bindings)
+    const addMcpBtn = document.getElementById('add-mcp-server-btn');
+    if (addMcpBtn) {
+        addMcpBtn.addEventListener('click', () => {
+            if (typeof tempMCPServers !== 'undefined') {
+                tempMCPServers.push({ id: generateId(), name: '', command: '', args: '', env: '' });
+                if (typeof renderMCPServers === 'function') renderMCPServers();
+            }
+        });
+    }
+
     // Stream IPC Listeners
     window.api.onStreamStart((data) => {
         state.isStreaming = true;
         sendBtn.disabled = true;
         const div = renderMessageItem('assistant', '');
-        messageContainer.appendChild(div);
+        if (messagesList) {
+            messagesList.appendChild(div);
+        } else {
+            messageContainer.appendChild(div);
+        }
         state.currentStreamDiv = div.querySelector('.message-content');
         scrollToBottom();
     });

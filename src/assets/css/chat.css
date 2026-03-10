@@ -123,17 +123,37 @@ body.light-theme .companions-panel-list .companion-item {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 24px;
+    padding: 24px 24px 0 24px;
+    /* Move bottom padding to the list */
     scroll-behavior: smooth;
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+#messages-list {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    transition: opacity 0.3s ease;
+    min-height: 100%;
+    padding-bottom: 24px;
+    /* Ensure space at bottom */
 }
 
 .message-container.switching {
     opacity: 0;
-    transition: none;
+    visibility: hidden;
+}
+
+/* 切换过程中禁用过渡，避免闪烁 */
+.message-container.switching,
+.message-container.no-animation {
+    transition: none !important;
+}
+
+/* 切换聊天时禁用消息的 slideUp 入场动画，防止闪烁 */
+.message-container.no-animation .message {
+    animation: none !important;
 }
 
 .message-container::-webkit-scrollbar {
@@ -182,22 +202,23 @@ body.light-theme .companions-panel-list .companion-item {
 .message {
     display: flex;
     gap: 16px;
-    max-width: 800px;
-    margin: 0 auto;
     width: 100%;
     animation: slideUp 0.3s ease-out;
     flex-shrink: 0;
-    /* Ensure fixed baseline during layout shifts */
-    left: 0;
+    position: relative;
+    box-sizing: border-box;
 }
 
 .message.user {
     flex-direction: row-reverse;
-    margin-right: auto;
+    justify-content: flex-start;
+    /* Right aligned in row-reverse */
 }
 
 .message.assistant {
-    margin-left: auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    /* Left aligned */
 }
 
 .avatar {
@@ -233,7 +254,8 @@ body.light-theme .companions-panel-list .companion-item {
     font-size: 14px;
     line-height: 1.6;
     color: var(--text-primary);
-    max-width: calc(100% - 50px);
+    max-width: 85%;
+    width: fit-content;
     word-break: break-word;
     position: relative;
     min-width: 0;
