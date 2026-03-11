@@ -1,6 +1,6 @@
 {
   "name": "chat-in-one",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
@@ -38,11 +38,6 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "zhtdbobo",
-        "repo": "chat-in-one"
-      },
-      {
-        "provider": "gitee",
         "owner": "zhtdbobo",
         "repo": "chat-in-one"
       }
