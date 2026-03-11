@@ -7,6 +7,13 @@ function createNewChat() {
     if (typeof closeAllModals === 'function') closeAllModals();
     if (state.isStreaming) return;
 
+    // Clear attachments preview and message input
+    const attachmentsPreview = document.getElementById('attachments-preview');
+    const attachmentsList = document.getElementById('attachments-list');
+    if (attachmentsPreview) attachmentsPreview.style.display = 'none';
+    if (attachmentsList) attachmentsList.innerHTML = '';
+    if (messageInput) messageInput.value = '';
+
     // Get default model from last used or first provider
     let defaultModel = state.settings.lastUsedModel || '';
     if (!defaultModel) {
@@ -41,6 +48,13 @@ function createNewChat() {
 function switchChat(chatId) {
     if (typeof closeAllModals === 'function') closeAllModals();
     if (state.isStreaming) return;
+
+    // Clear attachments preview and message input
+    const attachmentsPreview = document.getElementById('attachments-preview');
+    const attachmentsList = document.getElementById('attachments-list');
+    if (attachmentsPreview) attachmentsPreview.style.display = 'none';
+    if (attachmentsList) attachmentsList.innerHTML = '';
+    if (messageInput) messageInput.value = '';
 
     // Only keep flag if we are switching to the chat we just created
     if (state._newlyCreatedId !== chatId) {
@@ -120,7 +134,8 @@ function renderChatList() {
         // 获取图标信息
         let iconHtml = '<i class="ph ph-chat-circle"></i>';
         if (chat.skillId && typeof getCompanionIconInfo === 'function') {
-            const skill = (state.settings.skills || []).find(s => s.id === chat.skillId);
+            const allCompanions = getAllCompanions();
+            const skill = allCompanions.find(s => s.id === chat.skillId);
             if (skill) {
                 const info = getCompanionIconInfo(skill.name);
                 iconHtml = `<i class="ph-fill ${info.icon}" style="color: ${info.color}"></i>`;
@@ -222,7 +237,7 @@ function renderMessages(messages) {
         if (companionsPanel) companionsPanel.style.display = 'none';
 
         messages.forEach(msg => {
-            const messageItem = renderMessageItem(msg.role, msg.content);
+            const messageItem = renderMessageItem(msg.role, msg);
             if (messageItem) {
                 fragment.appendChild(messageItem);
             }
@@ -273,6 +288,35 @@ function renderMessageItem(role, content) {
         }
         if (rawContent) {
             htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+        }
+        
+        // Add attachments
+        const attachments = typeof content === 'object' && content.attachments ? content.attachments : [];
+        if (attachments.length > 0) {
+            htmlContent += '<div class="attachments-container" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">';
+            attachments.forEach(attachment => {
+                const isImage = attachment.type.startsWith('image/');
+                if (isImage) {
+                    htmlContent += `
+                        <div style="position: relative; width: 80px; height: 80px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle);">
+                            <img src="${attachment.data}" style="width: 100%; height: 100%; object-fit: cover;">
+                            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.6); color: white; font-size: 10px; padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${attachment.name}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    htmlContent += `
+                        <div style="position: relative; width: 80px; height: 80px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); background: var(--bg-surface-elevated); display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <i class="ph ph-file" style="font-size: 24px; color: var(--text-muted);"></i>
+                            <div style="font-size: 10px; color: var(--text-secondary); text-align: center; padding: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 90%;">
+                                ${attachment.name}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            htmlContent += '</div>';
         }
     }
 
@@ -347,11 +391,42 @@ function sendMessage() {
     }
 
     const text = messageInput.value.trim();
-    if (!text) return;
+    
+    // Get attachments
+    const attachmentsList = document.getElementById('attachments-list');
+    const attachments = [];
+    
+    if (attachmentsList) {
+        const attachmentItems = attachmentsList.querySelectorAll('[data-file-name]');
+        attachmentItems.forEach(item => {
+            attachments.push({
+                name: item.dataset.fileName,
+                type: item.dataset.fileType,
+                size: parseInt(item.dataset.fileSize),
+                data: item.dataset.fileData
+            });
+        });
+    }
+    
+    if (!text && attachments.length === 0) return;
 
     // Process User Message
-    chat.messages.push({ role: 'user', content: text });
-    const userMsgEl = renderMessageItem('user', { content: text });
+    let messageContent;
+    if (attachments.length > 0) {
+        // For messages with attachments
+        messageContent = {
+            content: text,
+            attachments: attachments
+        };
+    } else {
+        // For plain text messages, use object format to match assistant messages
+        messageContent = {
+            content: text
+        };
+    }
+    
+    chat.messages.push({ role: 'user', content: messageContent });
+    const userMsgEl = renderMessageItem('user', messageContent);
     if (messagesList) {
         messagesList.appendChild(userMsgEl);
     } else {
@@ -372,12 +447,18 @@ function sendMessage() {
 
     saveChats();
 
-    let finalSystemPrompt = state.settings.systemPrompt || '';
+    // Get conversation-specific settings
+    let finalSystemPrompt = chat.systemPrompt || state.settings.systemPrompt || '';
+    const temperature = chat.temperature || 0.7;
+    const topP = chat.topP || 1;
+    const maxOutputTokens = chat.maxOutputTokens || 2000;
+    const streamOutput = chat.streamOutput !== false;
 
     // Skill Override
     if (state.activeSkillId) {
         chat.skillId = state.activeSkillId; // 把搭档关联到当前对话
-        const skill = (state.settings.skills || []).find(s => s.id === state.activeSkillId);
+        const allCompanions = getAllCompanions();
+        const skill = allCompanions.find(s => s.id === state.activeSkillId);
         if (skill && skill.prompt) {
             finalSystemPrompt = skill.prompt;
         }
@@ -387,16 +468,116 @@ function sendMessage() {
         finalSystemPrompt += "\n\n[System Nudge: Web Search is ENABLED. Please use your online search capabilities or tools to provide the most up-to-date information if the user's request requires it. If you don't have direct tools, acknowledge the current date and provide the best available knowledge.]";
     }
 
+    // Apply max message count if set
+    let messagesToSend = chat.messages;
+    if (chat.maxMessageCount && chat.maxMessageCount < 15) {
+        messagesToSend = messagesToSend.slice(-chat.maxMessageCount);
+    }
+    
+    // Prepare messages for model - include attachments for models that support them
+    const messagesForModel = messagesToSend.map(msg => {
+        try {
+            if (typeof msg.content === 'object' && msg.content !== null) {
+                // For user messages with attachments or assistant messages with reasoning
+                if (msg.content.content !== undefined) {
+                    // Check if there are attachments
+                    if (msg.content.attachments && msg.content.attachments.length > 0) {
+                        // For messages with attachments, create a content array that includes both text and attachments
+                        const contentArray = [];
+                        
+                        // Add text content if it exists
+                        if (msg.content.content) {
+                            contentArray.push({
+                                type: "text",
+                                text: msg.content.content
+                            });
+                        }
+                        
+                        // Add attachments
+                        msg.content.attachments.forEach(attachment => {
+                            contentArray.push({
+                                type: "image",
+                                source: {
+                                    type: "base64",
+                                    media_type: attachment.type,
+                                    data: attachment.data.split(',')[1] // Remove data URL prefix
+                                }
+                            });
+                        });
+                        
+                        return {
+                            role: msg.role,
+                            content: contentArray
+                        };
+                    } else {
+                        // For messages without attachments
+                        return {
+                            role: msg.role,
+                            content: msg.content.content
+                        };
+                    }
+                } else if (msg.content.reasoning_content !== undefined) {
+                    // For assistant messages with reasoning
+                    return {
+                        role: msg.role,
+                        content: msg.content.content || ''
+                    };
+                }
+                // Fallback for any other object format
+                return {
+                    role: msg.role,
+                    content: JSON.stringify(msg.content)
+                };
+            } else if (typeof msg.content === 'string') {
+                // For plain text messages
+                return msg;
+            } else {
+                // Fallback for any other type
+                return {
+                    role: msg.role,
+                    content: String(msg.content)
+                };
+            }
+        } catch (error) {
+            console.error('Error processing message:', error);
+            // Fallback to avoid breaking the entire process
+            return {
+                role: msg.role,
+                content: 'Error processing message'
+            };
+        }
+    });
+
+    // Check if model supports attachments
+    const supportsAttachments = true; // Assume all models support attachments for now
+    
+    if (!supportsAttachments && attachments.length > 0) {
+        showNotification('当前模型不支持文件上传', 'warning');
+    }
+    
+    // Clear attachments after sending
+    if (attachmentsList) {
+        attachmentsList.innerHTML = '';
+        const attachmentsPreview = document.getElementById('attachments-preview');
+        if (attachmentsPreview) {
+            attachmentsPreview.style.display = 'none';
+        }
+    }
+
     // Dispatch to Electron Main Process
     window.api.sendMessageStream({
         endpoint: provider.endpoint,
         apiKey: provider.apiKey,
         modelName: modelName,
         systemPrompt: finalSystemPrompt,
-        messages: chat.messages,
+        messages: messagesForModel,
         chatId: chat.id,
         enableThinking: state.settings.enableThinking !== false,
         enableSearch: !!state.settings.enableSearch,
+        temperature: temperature,
+        top_p: topP,
+        max_tokens: maxOutputTokens,
+        stream: streamOutput,
         mcpServers: (state.settings.mcpServers || []).filter(s =>
             (state.enabledMcpServerIds || []).includes(s.id)
         )

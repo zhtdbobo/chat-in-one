@@ -429,9 +429,11 @@ async function handleSettingsSave(e) {
     };
 
     state.settings = newSettings;
-    updateThinkingBtnState();
     updateSearchBtnState();
     await window.api.saveSettings(newSettings);
     updateBadge();
+    if (typeof renderSearchableModelSelect === 'function') {
+        renderSearchableModelSelect();
+    }
     closeSettings();
 }

@@ -44,13 +44,26 @@
     margin-bottom: 8px;
 }
 
+.send-stop-container {
+    position: relative;
+    width: 32px;
+    height: 32px;
+}
+
+.send-stop-container button {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
 #message-input {
     flex: 1;
     background: transparent;
     border: none;
     color: var(--text-primary);
-    font-size: 16px;
-    /* 从 15px 调大 */
+    font-size: 14px;
     resize: none;
     max-height: 200px;
     min-height: 24px;
@@ -78,9 +91,8 @@
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    width: 32px;
-    /* 从 28px 调大 */
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -90,8 +102,7 @@
 }
 
 .tool-btn i {
-    font-size: 20px;
-    /* 显式设置图标大小 */
+    font-size: 16px;
 }
 
 .tool-btn:hover {
@@ -162,4 +173,23 @@
 #message-input {
     position: relative;
     -webkit-app-region: no-drag;
+}
+
+.btn-stop {
+    background-color: #ef4444;
+    color: white;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+}
+
+.btn-stop:hover {
+    background-color: #dc2626;
+    transform: scale(1.05);
 }

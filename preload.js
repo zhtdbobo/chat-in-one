@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
 
     // Stream Chat API
     sendMessageStream: (requestData) => ipcRenderer.send('send-message-stream', requestData),
+    stopStream: () => ipcRenderer.invoke('stop-stream'),
     updateTitlebarTheme: (theme) => ipcRenderer.send('update-titlebar-theme', theme),
 
     // Listeners

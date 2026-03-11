@@ -123,19 +123,19 @@ body.light-theme .companions-panel-list .companion-item {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 24px 24px 0 24px;
-    /* Move bottom padding to the list */
+    padding: 24px;
     scroll-behavior: smooth;
     visibility: visible;
     opacity: 1;
     transition: opacity 0.25s ease, visibility 0.25s ease;
+    box-sizing: border-box;
 }
 
 #messages-list {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    min-height: 100%;
+    min-height: 0;
     padding-bottom: 24px;
     /* Ensure space at bottom */
 }
@@ -170,7 +170,7 @@ body.light-theme .companions-panel-list .companion-item {
 }
 
 .welcome-screen {
-    height: 100%;
+    min-height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -178,6 +178,8 @@ body.light-theme .companions-panel-list .companion-item {
     color: var(--text-secondary);
     text-align: center;
     animation: fadeIn 0.5s ease-out;
+    box-sizing: border-box;
+    padding: 24px;
 }
 
 .welcome-screen h1 {
@@ -330,9 +332,7 @@ body.light-theme .companions-panel-list .companion-item {
 
 /* Thinking Block */
 .thinking-block {
-    margin-bottom: 12px;
-    border-left: 3px solid var(--border-subtle);
-    padding-left: 12px;
+    margin-bottom: 16px;
     color: var(--text-muted);
     font-size: 13px;
 }
@@ -353,10 +353,42 @@ body.light-theme .companions-panel-list .companion-item {
 }
 
 .thinking-content {
-    padding: 4px 0 12px 0;
     white-space: pre-wrap;
     font-family: inherit;
     line-height: 1.5;
+    color: var(--text-secondary);
+    font-size: 13px;
+    background-color: var(--bg-surface-elevated);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-top: 8px;
+    border: 1px solid var(--border-subtle);
+}
+
+.thinking-content p {
+    margin: 8px 0;
+}
+
+.thinking-content ul,
+.thinking-content ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.thinking-content li {
+    margin: 4px 0;
+}
+
+.thinking-content h1,
+.thinking-content h2,
+.thinking-content h3,
+.thinking-content h4,
+.thinking-content h5,
+.thinking-content h6 {
+    margin: 12px 0 8px 0;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 14px;
 }
 
 /* Message Meta (word count, tokens, latency, model, time) */

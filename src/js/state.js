@@ -20,6 +20,7 @@ const messageContainer = document.getElementById('message-container');
 const messagesList = document.getElementById('messages-list'); // 新增：专门存放消息的容器
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
+const stopBtn = document.getElementById('stop-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const aboutBtn = document.getElementById('about-btn');
@@ -30,6 +31,13 @@ const settingsModal = document.getElementById('settings-modal');
 const settingsForm = document.getElementById('settings-form');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
 const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+
+// Conversation Settings Modal
+const conversationSettingsModal = document.getElementById('conversation-settings-modal');
+const closeConversationSettingsBtn = document.getElementById('close-conversation-settings-btn');
+const cancelConversationSettingsBtn = document.getElementById('cancel-conversation-settings-btn');
+const saveConversationSettingsBtn = document.getElementById('save-conversation-settings-btn');
+const conversationSettingsBtn = document.getElementById('conversation-settings-btn');
 
 // About Modal
 const aboutModal = document.getElementById('about-modal');
@@ -44,4 +52,3 @@ const addCompanionBtn = document.getElementById('add-companion-btn');
 const currentChatTitle = document.getElementById('current-chat-title');
 const welcomeScreen = document.getElementById('welcome-screen');
 const toggleSearchBtn = document.getElementById('toggle-search-btn');
-const toggleThinkingBtn = document.getElementById('toggle-thinking-btn');
