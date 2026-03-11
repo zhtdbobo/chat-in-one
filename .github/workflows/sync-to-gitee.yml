@@ -1,0 +1,23 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ '*' ]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Sync to Gitee
+        uses: wearerequired/git-mirror-action@master
+        with:
+          source-repo: "git@github.com:${{ github.repository }}.git"
+          destination-repo: "git@gitee.com:${{ github.repository_owner }}/${{ github.event.repository.name }}.git"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}

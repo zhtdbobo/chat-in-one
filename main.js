@@ -141,6 +141,67 @@ if (app.isPackaged) {
         autoUpdater.autoDownload = true;
         autoUpdater.autoInstallOnAppQuit = true;
 
+        // 检测网络环境，优先使用 Gitee 源（国内用户）
+        const https = require('https');
+        function isCNNetwork() {
+            return new Promise((resolve) => {
+                // 测试连接 Gitee 和 GitHub 的响应时间
+                const testSites = [
+                    { name: 'gitee', url: 'https://gitee.com' },
+                    { name: 'github', url: 'https://github.com' }
+                ];
+                let completed = 0;
+                const results = {};
+
+                testSites.forEach(site => {
+                    const startTime = Date.now();
+                    https.get(site.url, { timeout: 3000 }, (res) => {
+                        results[site.name] = Date.now() - startTime;
+                        completed++;
+                        if (completed === testSites.length) {
+                            // 如果 Gitee 响应时间更短，或者 GitHub 超时，使用 Gitee
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    }).on('error', () => {
+                        results[site.name] = Infinity;
+                        completed++;
+                        if (completed === testSites.length) {
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    }).setTimeout(3000, function() {
+                        results[site.name] = Infinity;
+                        completed++;
+                        if (completed === testSites.length) {
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    });
+                });
+            });
+        }
+
+        // 设置更新源
+        async function setupUpdateSource() {
+            try {
+                const isCN = await isCNNetwork();
+                if (isCN) {
+                    // 优先使用 Gitee 源
+                    autoUpdater.setFeedURL({
+                        provider: 'gitee',
+                        owner: 'zhtdbobo',
+                        repo: 'chat-in-one'
+                    });
+                    console.log('Using Gitee update source for CN network');
+                }
+                // 否则使用默认的 GitHub 源
+            } catch (e) {
+                console.warn('Failed to detect network:', e.message);
+                // 失败时使用默认源
+            }
+        }
+
+        // 初始化时设置更新源
+        setupUpdateSource();
+
         autoUpdater.on('update-available', (info) => {
             sendUpdateStatus({ type: 'available', version: info.version, releaseNotes: info.releaseNotes });
         });
@@ -164,6 +225,52 @@ if (app.isPackaged) {
 ipcMain.handle('check-for-updates', async () => {
     if (!autoUpdater) return { ok: false, reason: 'unavailable' };
     try {
+        // 每次检查更新前，重新检测网络环境并设置更新源
+        const https = require('https');
+        function isCNNetwork() {
+            return new Promise((resolve) => {
+                const testSites = [
+                    { name: 'gitee', url: 'https://gitee.com' },
+                    { name: 'github', url: 'https://github.com' }
+                ];
+                let completed = 0;
+                const results = {};
+
+                testSites.forEach(site => {
+                    const startTime = Date.now();
+                    https.get(site.url, { timeout: 3000 }, (res) => {
+                        results[site.name] = Date.now() - startTime;
+                        completed++;
+                        if (completed === testSites.length) {
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    }).on('error', () => {
+                        results[site.name] = Infinity;
+                        completed++;
+                        if (completed === testSites.length) {
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    }).setTimeout(3000, function() {
+                        results[site.name] = Infinity;
+                        completed++;
+                        if (completed === testSites.length) {
+                            resolve(!results.github || (results.gitee && results.gitee < results.github));
+                        }
+                    });
+                });
+            });
+        }
+
+        const isCN = await isCNNetwork();
+        if (isCN) {
+            autoUpdater.setFeedURL({
+                provider: 'gitee',
+                owner: 'zhtdbobo',
+                repo: 'chat-in-one'
+            });
+            console.log('Using Gitee update source for CN network');
+        }
+
         await autoUpdater.checkForUpdates();
         // 由于 autoUpdater.checkForUpdates() 不返回结果，而是通过事件通知
         // 我们只需要确认调用成功，具体的更新状态会通过 'update-status' 事件发送

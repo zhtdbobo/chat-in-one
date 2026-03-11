@@ -40,6 +40,11 @@
         "provider": "github",
         "owner": "zhtdbobo",
         "repo": "chat-in-one"
+      },
+      {
+        "provider": "gitee",
+        "owner": "zhtdbobo",
+        "repo": "chat-in-one"
       }
     ],
     "directories": {
