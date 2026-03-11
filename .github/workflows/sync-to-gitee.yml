@@ -19,5 +19,5 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
         with:
-          source-repo: "git@github.com:zhtdbobo/chat-in-one.git"
-          destination-repo: "git@gitee.com:JaridLi/chat-in-one.git"
+          source-repo: "git@github.com:${{ github.repository_owner }}/${{ github.event.repository.name }}.git"
+          destination-repo: "git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git"
