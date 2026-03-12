@@ -274,8 +274,8 @@ if (app.isPackaged) {
             }
         }
 
-        // 初始化时设置更新源
-        setupUpdateSource();
+        // 注意：不要在启动时主动联网探测，避免离线环境打开时产生额外网络请求/日志。
+        // 更新源会在用户点击「检查更新」时再检测并设置（见 check-for-updates handler）。
 
         autoUpdater.on('update-available', (info) => {
             sendUpdateStatus({ type: 'available', version: info.version, releaseNotes: info.releaseNotes });

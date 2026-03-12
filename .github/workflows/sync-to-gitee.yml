@@ -38,17 +38,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Create Release on Gitee
-        id: create_release
-        run: |
-          RESPONSE=$(curl -s -X POST "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases" \
-            -d access_token=${{ secrets.GITEE_TOKEN }} \
-            -d tag_name=${{ github.event.release.tag_name }} \
-            -d name="${{ github.event.release.name }}" \
-            -d body="${{ github.event.release.body }}")
-
-          echo "$RESPONSE"
-
       - name: Download GitHub Release Assets
         run: |
           mkdir assets
@@ -56,11 +45,17 @@ jobs:
             wget -P assets $url
           done
 
-      - name: Upload Assets to Gitee
-        run: |
-          for file in assets/*; do
-            curl -X POST \
-              -F "access_token=${{ secrets.GITEE_TOKEN }}" \
-              -F "file=@$file" \
-              "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/${{ github.event.release.tag_name }}/assets"
-          done
+      - name: Create/Update Gitee Release and Upload Assets
+        uses: nicennnnnnnlee/action-gitee-release@master
+        with:
+          gitee_action: create_release
+          gitee_owner: ${{ secrets.GITEE_USER }}
+          gitee_repo: ${{ github.event.repository.name }}
+          gitee_token: ${{ secrets.GITEE_TOKEN }}
+          gitee_tag_name: ${{ github.event.release.tag_name }}
+          gitee_release_name: ${{ github.event.release.name }}
+          gitee_release_body: ${{ github.event.release.body }}
+          gitee_target_commitish: master
+          gitee_upload_retry_times: 3
+          gitee_files: |
+            assets/*
