@@ -1,17 +1,5 @@
 // ui.js - UI update functions
 
-function updateThinkingBtnState() {
-    if (toggleThinkingBtn) {
-        if (state.settings.enableThinking !== false) {
-            toggleThinkingBtn.classList.add('active');
-            toggleThinkingBtn.title = '思考过程已开启';
-        } else {
-            toggleThinkingBtn.classList.remove('active');
-            toggleThinkingBtn.title = '思考过程已关闭';
-        }
-    }
-}
-
 function updateSearchBtnState() {
     if (toggleSearchBtn) {
         if (state.settings.enableSearch) {
@@ -179,6 +167,8 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
     panel.className = 'model-selection-panel';
 
     let searchQuery = '';
+    const modelsList = document.createElement('div');
+    modelsList.className = 'model-selection-list';
 
     const updateModelsList = () => {
         const query = searchQuery.toLowerCase();
@@ -238,9 +228,6 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
         searchQuery = e.target.value;
         updateModelsList();
     });
-
-    const modelsList = document.createElement('div');
-    modelsList.className = 'model-selection-list';
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'btn btn-ghost btn-sm model-panel-close';

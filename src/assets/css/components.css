@@ -112,13 +112,15 @@
 }
 
 /* MCP Dropdown and Status */
-.mcp-dropdown-wrapper {
+.mcp-dropdown-wrapper,
+.add-dropdown-wrapper {
     position: relative;
     display: flex;
     align-items: center;
 }
 
-.mcp-dropdown {
+.mcp-dropdown,
+.add-dropdown {
     position: absolute;
     bottom: calc(100% + 12px);
     left: 0;
@@ -126,7 +128,7 @@
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
-    min-width: 220px;
+    min-width: 180px;
     display: none;
     z-index: 1005;
     flex-direction: column;
@@ -134,11 +136,13 @@
     animation: slideUp 0.15s ease-out;
 }
 
-.mcp-dropdown.show {
+.mcp-dropdown.show,
+.add-dropdown.show {
     display: flex;
 }
 
-.mcp-dropdown-header {
+.mcp-dropdown-header,
+.add-dropdown-header {
     padding: 10px 14px;
     font-size: 11px;
     font-weight: 600;
@@ -179,10 +183,34 @@
 .mcp-item label {
     flex: 1;
     font-size: 13.5px;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     cursor: pointer;
-    margin: 0;
-    user-select: none;
+}
+
+.add-dropdown-list {
+    padding: 6px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.add-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    text-align: left;
+    font-size: 13px;
+    width: 100%;
+}
+
+.add-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .mcp-status-dot {
@@ -449,7 +477,203 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
+    z-index: 1001;
+}
+
+/* Conversation Settings Modal */
+.conversation-settings-modal {
+    position: fixed;
+    top: 35px;
+    left: 0;
+    width: 100%;
+    height: calc(100% - 35px);
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.conversation-settings-content {
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-subtle);
+    -webkit-app-region: no-drag;
+}
+
+.conversation-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.conversation-settings-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.conversation-settings-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.settings-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    background: #3b82f6;
+    border-radius: 50%;
+    margin: 0 auto 24px;
+    color: white;
+    font-size: 40px;
+}
+
+.conversation-settings-body .form-group {
+    margin-bottom: 20px;
+}
+
+.conversation-settings-body .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.conversation-settings-body .form-group input,
+.conversation-settings-body .form-group textarea {
+    width: 100%;
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 10px 14px;
+    outline: none;
+    transition: all var(--transition);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.conversation-settings-body .form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.conversation-settings-body .form-group input:focus,
+.conversation-settings-body .form-group textarea:focus {
+    border-color: var(--border-focus);
+    background-color: var(--bg-surface);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.specific-model-settings {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.specific-model-settings .settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.specific-model-settings .settings-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.setting-item {
+    margin-bottom: 20px;
+}
+
+.setting-item label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.setting-item label i {
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: help;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    background: var(--border-subtle);
+    border-radius: 3px;
+    outline: none;
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--bg-primary);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.slider-container input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--bg-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.slider-container span {
+    min-width: 80px;
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.conversation-settings-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
 }
 
 .model-selection-overlay {

@@ -66,6 +66,7 @@ function renderMCPServers() {
 // -----------------------------------------
 function renderMcpSelectionDropdown() {
     const list = document.getElementById('mcp-checkbox-list');
+    if (!list) return;
     const servers = state.settings.mcpServers || [];
 
     if (servers.length === 0) {

@@ -40,14 +40,17 @@ async function initApp() {
     if (state.settings.enableThinking === undefined) {
         state.settings.enableThinking = true;
     }
+    
+    if (state.settings.showCompanionsInNewChat === undefined) {
+        state.settings.showCompanionsInNewChat = true;
+    }
 
     if (!state.settings.skills || state.settings.skills.length === 0) {
-        const { defaultSkills } = getAllSkills();
-        state.settings.skills = defaultSkills;
+        // 初始化默认技能
+        state.settings.skills = [];
         window.api.saveSettings(state.settings);
     }
 
-    updateThinkingBtnState();
     updateSearchBtnState();
     renderMcpSelectionDropdown();
     renderSkillsBar();
@@ -65,7 +68,8 @@ async function initApp() {
     if (state.chats.length > 0) {
         switchChat(state.chats[0].id);
     } else {
-        updateWelcomeScreen();
+        // Create a new chat when no chats exist
+        createNewChat();
     }
 }
 

@@ -1,23 +1,66 @@
-name: Sync to Gitee
+name: Sync GitHub to Gitee
 
 on:
   push:
-    branches: [ master ]
-    tags: [ '*' ]
+    branches: ["**"]
+    tags: ["*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
-  sync:
+  mirror:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Sync to Gitee
-        uses: wearerequired/git-mirror-action@v1
+
+      - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
-        with:
-          source-repo: "git@github.com:${{ github.repository_owner }}/${{ github.event.repository.name }}.git"
-          destination-repo: "git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git"
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan gitee.com >> ~/.ssh/known_hosts
+
+      - name: Push to Gitee
+        run: |
+          git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
+          git push gitee --all
+          git push gitee --tags
+
+  release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create Release on Gitee
+        id: create_release
+        run: |
+          RESPONSE=$(curl -s -X POST "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases" \
+            -d access_token=${{ secrets.GITEE_TOKEN }} \
+            -d tag_name=${{ github.event.release.tag_name }} \
+            -d name="${{ github.event.release.name }}" \
+            -d body="${{ github.event.release.body }}")
+
+          echo "$RESPONSE"
+
+      - name: Download GitHub Release Assets
+        run: |
+          mkdir assets
+          for url in $(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[].browser_download_url'); do
+            wget -P assets $url
+          done
+
+      - name: Upload Assets to Gitee
+        run: |
+          for file in assets/*; do
+            curl -X POST \
+              -F "access_token=${{ secrets.GITEE_TOKEN }}" \
+              -F "file=@$file" \
+              "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/${{ github.event.release.tag_name }}/assets"
+          done

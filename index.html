@@ -36,7 +36,7 @@
             <div class="sidebar-header">
                 <button id="new-chat-btn" class="btn btn-primary btn-block" title="新对话 (Ctrl+N)"
                     style="margin-bottom: 8px;">
-                    <i class="ph ph-plus-circle"></i> 新的对话
+                    <i class="ph ph-plus-circle"></i> 新对话
                 </button>
                 <div id="sidebar-actions-default" style="display: flex; gap: 8px;">
                     <button id="export-chats-btn" class="btn btn-ghost"
@@ -119,20 +119,52 @@
 
 
                     <!-- Row 1: Input and Send -->
-                    <div class="input-row-main">
-                        <textarea id="message-input" placeholder="输入消息，或 Shift + Enter 换行..." rows="1"
-                            autofocus></textarea>
-                        <button id="send-btn" class="btn btn-icon btn-send" title="发送 (Enter)">
-                            <i class="ph-fill ph-paper-plane-right"></i>
-                        </button>
+                    <div class="input-row-main" style="position: relative;">
+                        <div style="position: relative; flex: 1;">
+                            <!-- Attachments Preview Area inside input -->
+                            <div id="attachments-preview" class="attachments-preview" style="display: none; padding: 8px; margin-bottom: 8px;">
+                                <div class="attachments-list" id="attachments-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+                            </div>
+                            <textarea id="message-input" placeholder="输入消息，或 Shift + Enter 换行..." rows="1"
+                                autofocus style="width: 100%; padding-right: 80px;"></textarea>
+                        </div>
+                        <div class="send-stop-container">
+                            <button id="send-btn" class="btn btn-icon btn-send" title="发送 (Enter)">
+                                <i class="ph-fill ph-paper-plane-right"></i>
+                            </button>
+                            <button id="stop-btn" class="btn btn-icon btn-stop" title="停止" style="display: none;">
+                                <i class="ph-fill ph-stop-circle"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Row 2: Tools and Model Selection -->
                     <div class="input-row-tools">
                         <div class="tools-left">
-                            <button id="toggle-thinking-btn" class="tool-btn" title="显示/隐藏思考过程"><i
-                                    class="ph ph-brain"></i></button>
-                            <button class="tool-btn" title="上传图片"><i class="ph ph-image-square"></i></button>
+
+                            <div class="add-dropdown-wrapper" style="position: relative;">
+                                <button id="add-btn" class="tool-btn" title="添加内容">
+                                    <i class="ph ph-plus"></i>
+                                </button>
+                                <div id="add-dropdown" class="add-dropdown">
+                                    <div class="add-dropdown-header">添加内容</div>
+                                    <div class="add-dropdown-list">
+                                        <button class="add-dropdown-item" title="添加图片">
+                                            <i class="ph ph-image-square"></i> 图片
+                                        </button>
+                                        <button class="add-dropdown-item" title="添加文件">
+                                            <i class="ph ph-file"></i> 文件
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Hidden file inputs for image and file uploads -->
+                                <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
+                                <input type="file" id="file-upload-input" style="display: none;">
+                            </div>
+                            
+
+                            <button id="toggle-search-btn" class="tool-btn" title="联网搜索"><i
+                                    class="ph ph-globe"></i></button>
                             <div class="mcp-dropdown-wrapper">
                                 <button id="mcp-dropdown-btn" class="tool-btn" title="MCP 工具盒">
                                     <i class="ph ph-command"></i>
@@ -144,9 +176,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <button id="toggle-search-btn" class="tool-btn" title="联网搜索"><i
-                                    class="ph ph-globe"></i></button>
                             <button class="tool-btn" title="集成知识库"><i class="ph ph-books"></i></button>
+                            <button id="conversation-settings-btn" class="tool-btn" title="对话设置"><i class="ph ph-sliders"></i></button>
                         </div>
                         <div class="tools-right">
                             <select id="current-model-select" title="切换模型">
@@ -201,6 +232,78 @@
                                 <!-- User created or used companions here -->
                             </div>
                         </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conversation Settings Modal -->
+            <div class="conversation-settings-modal" id="conversation-settings-modal" style="display: none;">
+                <div class="conversation-settings-content">
+                    <div class="conversation-settings-header">
+                        <h2>对话设置</h2>
+                        <button class="btn btn-icon btn-ghost" id="close-conversation-settings-btn" title="关闭">
+                            <i class="ph ph-x"></i>
+                        </button>
+                    </div>
+                    <div class="conversation-settings-body">
+                        <div class="settings-icon">
+                            <i class="ph ph-robot"></i>
+                        </div>
+                        <div class="form-group">
+                            <label for="conversation-name">对话名称</label>
+                            <input type="text" id="conversation-name" placeholder="未命名">
+                        </div>
+                        <div class="form-group">
+                            <label for="conversation-prompt">系统提示词</label>
+                            <textarea id="conversation-prompt" rows="4" placeholder="你是一个有帮助的助手。"></textarea>
+                        </div>
+                        <div class="specific-model-settings">
+                            <div class="settings-header">
+                                <h3>模型参数设置</h3>
+                                <button class="btn btn-ghost btn-sm" id="reset-model-settings-btn">重置</button>
+                            </div>
+                            <div class="setting-item">
+                                <label for="max-message-count">上下文消息数量 <i class="ph ph-info" title="设置上下文窗口中的最大消息数量"></i></label>
+                                <div class="slider-container">
+                                    <input type="range" id="max-message-count" min="1" max="15" value="15">
+                                    <span id="max-message-count-value">无限制</span>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <label for="temperature">温度 <i class="ph ph-info" title="控制生成文本的随机性，值越高越随机"></i></label>
+                                <div class="slider-container">
+                                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                                    <span id="temperature-value">0.7</span>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <label for="top-p">Top P <i class="ph ph-info" title="控制词汇分布的广度，值越低越集中"></i></label>
+                                <div class="slider-container">
+                                    <input type="range" id="top-p" min="0" max="1" step="0.1" value="1">
+                                    <span id="top-p-value">1.0</span>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <label for="max-output-tokens">最大输出 Token <i class="ph ph-info" title="设置生成文本的最大 token 数"></i></label>
+                                <div class="slider-container">
+                                    <input type="range" id="max-output-tokens" min="100" max="4000" step="100" value="2000">
+                                    <span id="max-output-tokens-value">2000</span>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <label for="stream-output">流式输出 <i class="ph ph-info" title="是否启用流式输出"></i></label>
+                                <div class="toggle-container">
+                                    <label class="switch">
+                                        <input type="checkbox" id="stream-output" checked>
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="conversation-settings-footer">
+                        <button class="btn btn-ghost" id="cancel-conversation-settings-btn">取消</button>
+                        <button class="btn btn-primary" id="save-conversation-settings-btn">保存</button>
                     </div>
                 </div>
             </div>
@@ -366,12 +469,12 @@
     <script src="src/js/init.js"></script>
     <script src="src/js/about.js"></script>
     <script src="src/js/companions.js"></script>
+    <script src="src/js/skills.js"></script>
     <script src="src/js/events.js"></script>
     <script src="src/js/ui.js"></script>
     <script src="src/js/settings.js"></script>
     <script src="src/js/chat.js"></script>
     <script src="src/js/mcp.js"></script>
-    <script src="src/js/skills.js"></script>
     <script src="src/js/export.js"></script>
     <script src="renderer.js"></script>
 </body>

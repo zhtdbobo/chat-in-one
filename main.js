@@ -472,6 +472,7 @@ const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio
 
 let mcpClients = [];
 let toolNameToServerMap = new Map();
+let currentStreamController = null;
 
 async function getMcpTools(servers) {
     const allTools = [];
@@ -499,12 +500,15 @@ async function getMcpTools(servers) {
 }
 
 ipcMain.on('send-message-stream', async (event, requestData) => {
-    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, mcpServers } = requestData;
+    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers } = requestData;
 
     try {
         // Cleanup old clients
         for (const c of mcpClients) await c.transport.close();
         mcpClients = [];
+
+        // Create AbortController for this stream
+        currentStreamController = new AbortController();
 
         let tools = [];
         if (mcpServers && mcpServers.length > 0) {
@@ -521,8 +525,11 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         const body = {
             model: modelName,
             messages: apiMessages,
-            stream: true,
+            stream: stream !== false,
             stream_options: { include_usage: true },
+            temperature: temperature || 0.7,
+            top_p: top_p || 1,
+            max_tokens: max_tokens || 2000,
             ...(enableThinking !== undefined ? { include_reasoning: enableThinking } : {}),
             ...(enableSearch !== undefined ? { web_search: enableSearch, search: enableSearch, enable_search: enableSearch } : {})
         };
@@ -546,7 +553,8 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: currentStreamController.signal
         });
 
         if (!response.ok) {
@@ -680,5 +688,17 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         event.reply('stream-end', { chatId, usage: lastUsage, model: lastModel, firstTokenLatency, time: timeStr });
     } catch (error) {
         event.reply('stream-error', { chatId, error: error.message });
+    } finally {
+        // Cleanup controller
+        currentStreamController = null;
     }
+});
+
+// Stop stream handler
+ipcMain.handle('stop-stream', () => {
+    if (currentStreamController) {
+        currentStreamController.abort();
+        currentStreamController = null;
+    }
+    return true;
 });
