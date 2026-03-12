@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('node:path');
+const fs = require('fs');
 
 function sendUpdateStatus(payload) {
     const win = BrowserWindow.getAllWindows()[0];
@@ -9,11 +10,26 @@ function sendUpdateStatus(payload) {
 // Ignore SSL errors (e.g. net_error -100) on startup for proxy or local environments
 app.commandLine.appendSwitch('ignore-certificate-errors');
 
+// Work around Windows cache permission issues (0x5).
+// Force Chromium cache directories to a writable userData subfolder.
+try {
+    const userDataPath = app.getPath('userData');
+    const cacheDir = path.join(userDataPath, 'Cache');
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+    app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
+    app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+} catch (e) {
+    // If this fails, Electron will fall back to its default behavior.
+}
+
 // We will use electron-store or a simpler file-based store if store fails
 let store;
 
+let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+
 // Simple fallback JSON store in user paths if electron-store is not available during dev
-const fs = require('fs');
 class SimpleStore {
     constructor(opts) {
         const userDataPath = app.getPath('userData');
@@ -93,7 +109,7 @@ async function initStore() {
 
 
 function createWindow() {
-    const mainWindow = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 1000,
         height: 700,
         titleBarStyle: 'hidden',
@@ -114,11 +130,65 @@ function createWindow() {
 
     // Open DevTools in dev mode
     // mainWindow.webContents.openDevTools();
+
+    mainWindow.on('close', (e) => {
+        // Clicking the window X should hide to tray, not quit.
+        if (!isQuitting) {
+            e.preventDefault();
+            mainWindow.hide();
+        }
+    });
+}
+
+function getTrayIcon() {
+    // Prefer .ico on Windows; fall back to a small empty image if missing.
+    const icoPath = path.join(__dirname, 'src', 'assets', 'icon.ico');
+    try {
+        return nativeImage.createFromPath(icoPath);
+    } catch (e) {
+        return nativeImage.createEmpty();
+    }
+}
+
+function createTray() {
+    if (tray) return;
+    tray = new Tray(getTrayIcon());
+    tray.setToolTip('chat-in-one');
+
+    const showMainWindow = () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    };
+
+    const toggleWindow = () => {
+        if (!mainWindow) return;
+        if (mainWindow.isVisible()) mainWindow.hide();
+        else showMainWindow();
+    };
+
+    tray.on('click', toggleWindow);
+
+    const contextMenu = Menu.buildFromTemplate([
+        { label: '显示', click: showMainWindow },
+        { label: '隐藏', click: () => mainWindow?.hide() },
+        { type: 'separator' },
+        {
+            label: '退出',
+            click: () => {
+                isQuitting = true;
+                app.quit();
+            }
+        }
+    ]);
+    tray.setContextMenu(contextMenu);
 }
 
 app.whenReady().then(async () => {
     await initStore();
     createWindow();
+    createTray();
 
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -126,7 +196,12 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', function () {
-    if (process.platform !== 'darwin') app.quit();
+    // Keep app running in tray on Windows/Linux. Quit only via tray "退出".
+    if (process.platform === 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+    isQuitting = true;
 });
 
 // App version (from Electron / package used at build)
