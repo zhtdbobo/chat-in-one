@@ -3,7 +3,7 @@ name: Sync GitHub to Gitee
 on:
   push:
     branches: ["**"]
-    tags: ["*"]
+    # 注意：不监听 tags，避免与 release 事件重复触发
   release:
     types: [published]
   workflow_dispatch:

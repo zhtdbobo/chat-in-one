@@ -221,25 +221,47 @@ function isCNNetwork() {
         ];
         let completed = 0;
         const results = {};
+        let resolved = false;
+
+        // 整体超时保护
+        const overallTimeout = setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                resolve(true); // 超时默认使用 Gitee
+            }
+        }, 5000);
 
         testSites.forEach(site => {
             const startTime = Date.now();
-            https.get(site.url, { timeout: 3000 }, (res) => {
+            const req = https.get(site.url, { timeout: 3000 }, (res) => {
+                if (resolved) return;
                 results[site.name] = Date.now() - startTime;
                 completed++;
                 if (completed === testSites.length) {
+                    clearTimeout(overallTimeout);
+                    resolved = true;
                     resolve(!results.github || (results.gitee && results.gitee < results.github));
                 }
-            }).on('error', () => {
+            }).on('error', (err) => {
+                if (resolved) return;
+                console.warn(`Network test failed for ${site.name}:`, err.message);
                 results[site.name] = Infinity;
                 completed++;
                 if (completed === testSites.length) {
+                    clearTimeout(overallTimeout);
+                    resolved = true;
                     resolve(!results.github || (results.gitee && results.gitee < results.github));
                 }
-            }).setTimeout(3000, function () {
+            });
+            
+            req.setTimeout(3000, function () {
+                if (resolved) return;
+                req.destroy();
                 results[site.name] = Infinity;
                 completed++;
                 if (completed === testSites.length) {
+                    clearTimeout(overallTimeout);
+                    resolved = true;
                     resolve(!results.github || (results.gitee && results.gitee < results.github));
                 }
             });
@@ -298,8 +320,15 @@ if (app.isPackaged) {
 ipcMain.handle('check-for-updates', async () => {
     if (!autoUpdater) return { ok: false, reason: 'unavailable' };
     try {
-        // 检测网络环境，决定使用 GitHub 还是 Gitee
-        const isCN = await isCNNetwork();
+        let isCN = false;
+        try {
+            // 检测网络环境，决定使用 GitHub 还是 Gitee
+            isCN = await isCNNetwork();
+        } catch (networkErr) {
+            console.warn('Network detection failed:', networkErr.message);
+            // 网络检测失败时默认使用 GitHub
+            isCN = false;
+        }
         
         if (isCN) {
             // 使用 Gitee 源
@@ -388,7 +417,7 @@ ipcMain.handle('check-for-updates', async () => {
             }
         }
         
-        // 使用 GitHub 源（默认）
+        // 使用 GitHub 源（默认或回退）
         if (updateSource === 'github') {
             console.log('Using GitHub update source');
             // 使用 package.json 中配置的 publish 设置
