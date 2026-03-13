@@ -110,7 +110,11 @@ function renderProviderDetail() {
         </div>
         <div class="form-group">
             <label>API Endpoint</label>
-            <input type="url" class="prov-endpoint" value="${provider.endpoint || ''}" placeholder="例如: https://api.openai.com/v1 或 https://coding.dashscope.aliyuncs.com/v1">
+            <input
+                type="url"
+                class="prov-endpoint"
+                value="${provider.endpoint || ''}"
+                placeholder="例如: https://api.openai.com/v1 或 https://dashscope.aliyuncs.com/v1">
         </div>
         
         <div class="form-group">
@@ -201,11 +205,11 @@ function renderProviderDetail() {
         });
     };
 
-    container.querySelector('#fetch-models-btn').onclick = async () => {
+        container.querySelector('#fetch-models-btn').onclick = async () => {
         // IMPORTANT: Save current inputs to tempProviders before fetching and re-rendering
         saveCurrentProviderData();
 
-        const url = provider.endpoint;
+        const url = (provider.endpoint || '').trim();
         const key = provider.apiKey;
         if (!url) { showNotification("请先填写Endpoint", "error"); return; }
 
@@ -214,28 +218,58 @@ function renderProviderDetail() {
             btn.disabled = true;
             btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> 请求中...';
 
-            const fetchPath = url.endsWith('/') ? url + 'models' : url + '/models';
-            const req = await fetch(fetchPath, { headers: { 'Authorization': 'Bearer ' + key } });
-            if (!req.ok) throw new Error("HTTP " + req.status);
-            const data = await req.json();
-            if (data && data.data) {
-                const ids = data.data.map(m => m.id).filter(id => id);
+            // 统一使用「短链接 Endpoint」，自动拼接常见 /v1/models 变体
+            const base = url.replace(/\/+$/, '');
+            const lower = base.toLowerCase();
+            const candidates = [];
 
-                // Store all models in allModels
-                provider.allModels = ids.join(', ');
-                // Initialize visibleModels as empty (user needs to manually enable)
-                if (!provider.visibleModels) {
-                    provider.visibleModels = '';
-                }
-
-                // Show model selection panel
-                showModelSelectionPanel(ids, provider, () => {
-                    renderProviderDetail();
-                    renderProvidersSidebar();
-                });
-
-                showNotification(`成功获取 ${ids.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
+            // 如果用户已经带了 /v1，则优先尝试 /v1/models，其次 /models
+            if (lower.endsWith('/v1')) {
+                candidates.push(base + '/models');
+                candidates.push(base.replace(/\/v1$/i, '') + '/v1/models');
+            } else {
+                // 根域名形式: https://api.openai.com 或兼容 DashScope 等
+                candidates.push(base + '/v1/models');
+                candidates.push(base + '/models');
             }
+
+            let lastError = null;
+            let data = null;
+
+            for (const fetchPath of Array.from(new Set(candidates))) {
+                try {
+                    const req = await fetch(fetchPath, { headers: { 'Authorization': 'Bearer ' + key } });
+                    if (!req.ok) {
+                        lastError = new Error("HTTP " + req.status + " @ " + fetchPath);
+                        continue;
+                    }
+                    data = await req.json();
+                    break;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            if (!data || !data.data) {
+                throw lastError || new Error("未能从任何候选地址获取模型列表");
+            }
+
+            const ids = data.data.map(m => m.id).filter(id => id);
+
+            // Store all models in allModels
+            provider.allModels = ids.join(', ');
+            // Initialize visibleModels as empty (user needs to manually enable)
+            if (!provider.visibleModels) {
+                provider.visibleModels = '';
+            }
+
+            // Show model selection panel
+            showModelSelectionPanel(ids, provider, () => {
+                renderProviderDetail();
+                renderProvidersSidebar();
+            });
+
+            showNotification(`成功获取 ${ids.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
 
         } catch (e) {
             showNotification("获取失败: " + e.message, "error");

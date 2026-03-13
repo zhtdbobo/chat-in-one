@@ -546,17 +546,8 @@ function finalizeStream(chatId, meta) {
             chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning } });
 
             // Auto generate title for first message
-            if (chat.messages.length === 2) {
-                let titleSource = chat.messages[0].content;
-                // Handle message content as object
-                if (typeof titleSource === 'object' && titleSource.content) {
-                    titleSource = titleSource.content;
-                }
-                // If still not a string, use placeholder
-                if (typeof titleSource !== 'string') {
-                    titleSource = '附件消息';
-                }
-                chat.title = titleSource.substring(0, 15) + (titleSource.length > 15 ? '...' : '');
+            if (chat.messages.length === 2 && chat.title === "新对话") {
+                chat.title = generateTitleFromContent(chat.messages[0].content);
                 renderChatList();
             }
             saveChats();

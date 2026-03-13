@@ -41,6 +41,71 @@ async function copyText(text, btn) {
     }
 }
 
+/**
+ * Generate a title from message content
+ * @param {string|object} content - Message content
+ * @param {number} maxLength - Maximum title length (default: 15)
+ * @returns {string} Generated title
+ */
+function generateTitleFromContent(content, maxLength = 15) {
+    let titleSource = content;
+    
+    // Handle message content as object
+    if (typeof titleSource === 'object' && titleSource.content) {
+        titleSource = titleSource.content;
+    }
+    
+    // If still not a string, use placeholder
+    if (typeof titleSource !== 'string') {
+        // Check if there are attachments
+        if (content && typeof content === 'object' && content.attachments && content.attachments.length > 0) {
+            titleSource = '附件消息';
+        } else {
+            titleSource = '无标题';
+        }
+    }
+    
+    let titleText = '';
+    if (titleSource.length > maxLength) {
+        // Count characters for better truncation, especially for Chinese
+        let charCount = 0;
+        for (let i = 0; i < titleSource.length; i++) {
+            const char = titleSource.charAt(i);
+            // Check if it's a Chinese character or other full-width char
+            const isFullWidth = /[\u4e00-\u9fa5]/.test(char);
+            charCount += isFullWidth ? 1 : 0.5; // Full-width chars count as 1, half-width as 0.5
+            
+            if (charCount >= maxLength) {
+                titleText = titleSource.substring(0, i) + '...';
+                break;
+            }
+        }
+        if (!titleText) titleText = titleSource.substring(0, maxLength * 2) + '...';
+    } else {
+        titleText = titleSource;
+    }
+    
+    // Remove markdown formatting and extra whitespace
+    titleText = titleText.replace(/[#*`\[\]]/g, '').trim();
+    if (!titleText) titleText = '无标题';
+    
+    return titleText;
+}
+
+/**
+ * Escape HTML special characters to prevent XSS
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string
+ */
+function escapeHtml(str) {
+    return String(str || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
 function attachCodeBlockCopyButtons(root) {
     if (!root) return;
 

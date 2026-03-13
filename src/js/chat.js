@@ -237,9 +237,17 @@ function renderMessages(messages) {
         if (companionsPanel) companionsPanel.style.display = 'none';
 
         messages.forEach(msg => {
-            const messageItem = renderMessageItem(msg.role, msg);
-            if (messageItem) {
-                fragment.appendChild(messageItem);
+            try {
+                // msg 常见形态：
+                // - { role, content: string|object }
+                // - 早期版本可能直接是字符串/对象（无 role）
+                const role = msg && typeof msg === 'object' && msg.role ? msg.role : 'assistant';
+                const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
+
+                const messageItem = renderMessageItem(role, payload);
+                if (messageItem) fragment.appendChild(messageItem);
+            } catch (e) {
+                console.error('Failed to render message item:', e, msg);
             }
         });
     }
@@ -248,10 +256,16 @@ function renderMessages(messages) {
     messagesList.innerHTML = '';
     messagesList.appendChild(fragment);
 
-    // 手动触发代码高亮
-    messagesList.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
-    });
+    // 手动触发代码高亮（仅当 hljs 可用时，避免在缺少高亮库时导致整段渲染失败）
+    if (typeof hljs !== 'undefined' && typeof hljs.highlightElement === 'function') {
+        messagesList.querySelectorAll('pre code').forEach((block) => {
+            try {
+                hljs.highlightElement(block);
+            } catch (e) {
+                console.error('Highlight error:', e);
+            }
+        });
+    }
 
     if (typeof attachCodeBlockCopyButtons === 'function') {
         attachCodeBlockCopyButtons(messagesList);
@@ -260,6 +274,16 @@ function renderMessages(messages) {
     requestAnimationFrame(() => {
         scrollToBottom();
     });
+}
+
+function renderMarkdownSafe(text) {
+    const raw = typeof text === 'string' ? text : String(text ?? '');
+    try {
+        return DOMPurify.sanitize(marked.parse(raw));
+    } catch (e) {
+        console.error('Markdown render error, fallback to plain text:', e);
+        return `<pre class="markdown-body">${escapeHtml(raw)}</pre>`;
+    }
 }
 
 function renderMessageItem(role, content) {
@@ -273,25 +297,26 @@ function renderMessageItem(role, content) {
 
     let htmlContent = '';
     if (role === 'system') {
-        htmlContent = `<div class="markdown-body">${content}</div>`;
+        htmlContent = `<div class="markdown-body">${escapeHtml(typeof content === 'string' ? content : String(content ?? ''))}</div>`;
     } else if (role === 'assistant' || role === 'user') {
-        const rawContent = content.content !== undefined ? content.content : content;
-        const rawReasoning = content.reasoning_content || '';
+        // Backward-compatible: allow both string content and object payloads
+        const rawContent = (content && typeof content === 'object' && content.content !== undefined) ? content.content : content;
+        const rawReasoning = (content && typeof content === 'object' && content.reasoning_content) ? content.reasoning_content : '';
 
         if (rawReasoning && state.settings.enableThinking !== false) {
             htmlContent += `
                 <details class="thinking-block">
                     <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning))}</div>
+                    <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
                 </details>
             `;
         }
-        if (rawContent) {
-            htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+        if (rawContent != null && rawContent !== '') {
+            htmlContent += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
         }
 
         // Add attachments
-        const attachments = typeof content === 'object' && content.attachments ? content.attachments : [];
+        const attachments = (content && typeof content === 'object' && content.attachments) ? content.attachments : [];
         if (attachments.length > 0) {
             htmlContent += '<div class="attachments-container" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">';
             attachments.forEach(attachment => {
@@ -320,8 +345,8 @@ function renderMessageItem(role, content) {
         }
     }
 
-    const dataRaw = content?.content !== undefined ? content.content : content;
-    const dataReasoning = content?.reasoning_content || '';
+    const dataRaw = (content && typeof content === 'object' && content.content !== undefined) ? content.content : content;
+    const dataReasoning = (content && typeof content === 'object' && content.reasoning_content) ? content.reasoning_content : '';
 
     wrapper.innerHTML = `
         <div class="avatar">${icon}</div>
@@ -444,6 +469,13 @@ function sendMessage() {
     messageInput.value = '';
     messageInput.style.height = 'auto'; // reset textarea height
     scrollToBottom();
+
+    // Try to generate title after first user message
+    if (chat.messages.length === 1 && chat.title === "新对话") {
+        chat.title = generateTitleFromContent(messageContent);
+        currentChatTitle.textContent = chat.title;
+        renderChatList();
+    }
 
     saveChats();
 

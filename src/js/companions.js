@@ -171,12 +171,5 @@ async function saveSettingsSilently() {
     }
 }
 
-function escapeHtml(str) {
-    return String(str || '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-}
+// escapeHtml function is now defined in utils.js
 

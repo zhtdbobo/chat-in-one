@@ -396,6 +396,92 @@ ipcMain.handle('save-chats', (event, chats) => {
     return true;
 });
 
+// Build a list of possible chat completion URLs for a "short" endpoint
+function buildChatCompletionCandidates(ep) {
+    const trimmed = String(ep || '').trim();
+    if (!trimmed) return [];
+    const lower = trimmed.toLowerCase();
+
+    const base = trimmed.replace(/\/+$/, '');
+    const candidates = [];
+
+    // 1) 如果用户已经填了完整路径，先尝试这个长 URL
+    if (lower.includes('/chat/completions') || lower.includes('/completions') || lower.includes('/complete')) {
+        candidates.push(trimmed);
+        // 再从短地址推导一轮候选
+        try {
+            const u = new URL(trimmed);
+            const origin = u.origin;
+            const path = u.pathname || '';
+            const hasV1 = path.includes('/v1/');
+            const shortBases = hasV1 ? [origin + '/v1', origin] : [origin, origin + '/v1'];
+            for (const b of shortBases) {
+                const sb = b.replace(/\/+$/, '');
+                candidates.push(
+                    `${sb}/chat/completions`,
+                    `${sb}/completions`,
+                    `${sb}/complete`
+                );
+            }
+        } catch (e) {
+            // 非标准 URL 时退回通用逻辑
+        }
+    } else {
+        // 2) 纯短 endpoint：按常见组合生成候选
+        if (base.endsWith('/v1')) {
+            candidates.push(
+                `${base}/chat/completions`,
+                `${base}/completions`,
+                `${base}/complete`
+            );
+        } else {
+            candidates.push(
+                `${base}/v1/chat/completions`,
+                `${base}/chat/completions`,
+                `${base}/v1/completions`,
+                `${base}/completions`,
+                `${base}/v1/complete`,
+                `${base}/complete`
+            );
+        }
+    }
+
+    // 去重
+    return Array.from(new Set(candidates));
+}
+
+// Try multiple possible URLs until one responds (2xx or meaningful 4xx), for chat completions
+async function fetchChatCompletionWithFallback(endpoint, options, controller) {
+    const candidates = buildChatCompletionCandidates(endpoint);
+    if (candidates.length === 0) {
+        throw new Error('Invalid endpoint');
+    }
+
+    let lastError = null;
+    for (const url of candidates) {
+        try {
+            const resp = await fetch(url, {
+                ...(options || {}),
+                signal: controller?.signal
+            });
+
+            // If 2xx, or a non-404 error (e.g. 401/400 from API), treat as final
+            if (resp.ok || resp.status !== 404) {
+                return { response: resp, url };
+            }
+
+            lastError = new Error(`HTTP ${resp.status} at ${url}`);
+        } catch (e) {
+            lastError = e;
+            // If aborted, stop immediately
+            if (controller?.signal?.aborted) {
+                throw e;
+            }
+        }
+    }
+    throw lastError || new Error('No valid chat completion URL found');
+}
+
 // Connection test (for providers that may not support /models)
 ipcMain.handle('test-provider-connection', async (event, payload) => {
     const { endpoint, apiKey, modelName } = payload || {};
@@ -403,29 +489,30 @@ ipcMain.handle('test-provider-connection', async (event, payload) => {
     if (!apiKey) return { ok: false, error: 'Missing apiKey' };
     if (!modelName) return { ok: false, error: 'Missing modelName' };
 
-    const fetchPath = endpoint.endsWith('/') ? `${endpoint}chat/completions` : `${endpoint}/chat/completions`;
-
     const controller = new AbortController();
     const timeoutMs = 12000;
     const t = setTimeout(() => controller.abort(), timeoutMs);
 
     const start = Date.now();
     try {
-        const resp = await fetch(fetchPath, {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+        const { response: resp, url: usedUrl } = await fetchChatCompletionWithFallback(
+            endpoint,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    stream: false,
+                    temperature: 0,
+                    max_tokens: 1,
+                    messages: [{ role: 'user', content: 'ping' }]
+                })
             },
-            body: JSON.stringify({
-                model: modelName,
-                stream: false,
-                temperature: 0,
-                max_tokens: 1,
-                messages: [{ role: 'user', content: 'ping' }]
-            })
-        });
+            controller
+        );
 
         const latencyMs = Date.now() - start;
         const text = await resp.text();
@@ -435,7 +522,8 @@ ipcMain.handle('test-provider-connection', async (event, payload) => {
                 ok: false,
                 status: resp.status,
                 latencyMs,
-                error: text ? text.slice(0, 500) : `HTTP ${resp.status}`
+                error: text ? text.slice(0, 500) : `HTTP ${resp.status}`,
+                url: usedUrl
             };
         }
 
@@ -451,7 +539,8 @@ ipcMain.handle('test-provider-connection', async (event, payload) => {
             latencyMs,
             model: usedModel,
             usage,
-            sample: content ? String(content).slice(0, 200) : ''
+                sample: content ? String(content).slice(0, 200) : '',
+                url: usedUrl
         };
     } catch (err) {
         const latencyMs = Date.now() - start;
@@ -520,8 +609,6 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             ...messages.map(m => ({ role: m.role, content: m.content }))
         ];
 
-        const fetchPath = endpoint.endsWith('/') ? `${endpoint}chat/completions` : `${endpoint}/chat/completions`;
-
         const body = {
             model: modelName,
             messages: apiMessages,
@@ -547,19 +634,22 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         }
 
         const streamStartTime = Date.now();
-        const response = await fetch(fetchPath, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+        const { response, url: usedUrl } = await fetchChatCompletionWithFallback(
+            endpoint,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(body)
             },
-            body: JSON.stringify(body),
-            signal: currentStreamController.signal
-        });
+            currentStreamController
+        );
 
         if (!response.ok) {
             const errStr = await response.text();
-            event.reply('stream-error', { chatId, error: `API Error: ${response.status} - ${errStr}` });
+            event.reply('stream-error', { chatId, error: `API Error: ${response.status} - ${errStr}`, url: usedUrl });
             return;
         }
 
@@ -667,18 +757,22 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                 }
             }
 
-            // Send tool results back to LLM for final answer
+            // Send tool results back to LLM for final answer（沿用相同 endpoint 及回退机制）
             const toolStreamStart = Date.now();
-            const finalResponse = await fetch(fetchPath, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({
-                    model: modelName,
-                    messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
-                    stream: true,
-                    stream_options: { include_usage: true }
-                })
-            });
+            const { response: finalResponse } = await fetchChatCompletionWithFallback(
+                endpoint,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: modelName,
+                        messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
+                        stream: true,
+                        stream_options: { include_usage: true }
+                    })
+                },
+                currentStreamController
+            );
 
             const finalReader = finalResponse.body.getReader();
             let toolFirstTokenLatency = null;
