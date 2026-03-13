@@ -172,8 +172,17 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
 
     const updateModelsList = () => {
         const query = searchQuery.toLowerCase();
-        const filtered = fetchedModels.filter(m => m.toLowerCase().includes(query));
         const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
+        
+        // 排序：已启用的模型放在最上面
+        let filtered = fetchedModels.filter(m => m.toLowerCase().includes(query));
+        filtered.sort((a, b) => {
+            const aVisible = visibleModels.includes(a);
+            const bVisible = visibleModels.includes(b);
+            if (aVisible && !bVisible) return -1;
+            if (!aVisible && bVisible) return 1;
+            return a.localeCompare(b);
+        });
 
         modelsList.innerHTML = '';
         filtered.forEach(model => {

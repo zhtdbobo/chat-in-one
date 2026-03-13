@@ -250,11 +250,26 @@ function renderProviderDetail() {
                 }
             }
 
-            if (!data || !data.data) {
-                throw lastError || new Error("未能从任何候选地址获取模型列表");
+            // 支持多种响应格式
+            let ids = [];
+            
+            if (data.data && Array.isArray(data.data)) {
+                // 标准 OpenAI 格式: { data: [{id: 'model-1'}, ...] }
+                ids = data.data.map(m => m.id).filter(id => id);
+            } else if (Array.isArray(data)) {
+                // 某些服务商直接返回数组: [{id: 'model-1'}, ...]
+                ids = data.map(m => m.id || m.name || m.model).filter(id => id);
+            } else if (data.models && Array.isArray(data.models)) {
+                // 另一种常见格式: { models: [...] }
+                ids = data.models.map(m => m.id || m.name || m).filter(id => id);
+            } else if (data.object === 'list' && Array.isArray(data.data)) {
+                // OpenAI 标准格式确认
+                ids = data.data.map(m => m.id).filter(id => id);
             }
-
-            const ids = data.data.map(m => m.id).filter(id => id);
+            
+            if (ids.length === 0) {
+                throw lastError || new Error("未能从任何候选地址获取模型列表，或返回格式不支持");
+            }
 
             // Store all models in allModels
             provider.allModels = ids.join(', ');
