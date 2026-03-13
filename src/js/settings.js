@@ -42,7 +42,12 @@ function detectModelCapabilities(modelId, modelObj = {}) {
     
     // OpenAI 模型
     const openaiModels = {
-        // GPT-4系列
+        // GPT-5 系列（2025 年发布）
+        "gpt-5": { vision: true, reasoning: true, tools: true },
+        "gpt-5-turbo": { vision: true, reasoning: true, tools: true },
+        "gpt-5-mini": { vision: true, reasoning: false, tools: true },
+        "gpt-5-codex": { vision: false, reasoning: true, tools: true },
+        // GPT-4 系列
         "gpt-4-vision": { vision: true, reasoning: false, tools: true },
         "gpt-4-turbo": { vision: true, reasoning: false, tools: true },
         "gpt-4-turbo-vision": { vision: true, reasoning: false, tools: true },
@@ -51,28 +56,38 @@ function detectModelCapabilities(modelId, modelObj = {}) {
         "gpt-4o-vision": { vision: true, reasoning: false, tools: true },
         "gpt-4-32k": { vision: false, reasoning: false, tools: true },
         "gpt-4": { vision: false, reasoning: false, tools: true },
-        // GPT-3.5系列
+        // GPT-3.5 系列
         "gpt-3.5-turbo": { vision: false, reasoning: false, tools: true },
         "gpt-3.5": { vision: false, reasoning: false, tools: true },
-        // O系列（推理/思维）
+        // O 系列（推理/思维）
         "o1": { vision: false, reasoning: true, tools: true },
         "o1-mini": { vision: false, reasoning: true, tools: true },
         "o1-preview": { vision: false, reasoning: true, tools: true },
         "o3": { vision: false, reasoning: true, tools: true },
         "o3-mini": { vision: false, reasoning: true, tools: true },
+        "o4": { vision: false, reasoning: true, tools: true },
+        "o4-mini": { vision: false, reasoning: true, tools: true },
     };
     
     // Claude 模型（Anthropic）
     const claudeModels = {
-        // Claude 3系列
-        "claude-3-opus": { vision: true, reasoning: false, tools: true },
-        "claude-3-sonnet": { vision: true, reasoning: false, tools: true },
-        "claude-3-haiku": { vision: true, reasoning: false, tools: true },
-        // Claude 3.5系列 - 旗舰
+        // Claude 4 系列（2025 年发布）
+        "claude-4-opus": { vision: true, reasoning: true, tools: true },
+        "claude-4-sonnet": { vision: true, reasoning: true, tools: true },
+        "claude-4-haiku": { vision: true, reasoning: false, tools: true },
+        // Claude 3.7 系列
+        "claude-3.7-sonnet": { vision: true, reasoning: true, tools: true },
+        "claude-3.7-haiku": { vision: true, reasoning: false, tools: true },
+        "claude-3-7-sonnet": { vision: true, reasoning: true, tools: true },
+        // Claude 3.5 系列 - 旗舰
         "claude-3-5-sonnet": { vision: true, reasoning: false, tools: true },
         "claude-3.5-sonnet": { vision: true, reasoning: false, tools: true },
         "claude-3-5-haiku": { vision: true, reasoning: false, tools: true },
         "claude-3.5-haiku": { vision: true, reasoning: false, tools: true },
+        // Claude 3 系列
+        "claude-3-opus": { vision: true, reasoning: false, tools: true },
+        "claude-3-sonnet": { vision: true, reasoning: false, tools: true },
+        "claude-3-haiku": { vision: true, reasoning: false, tools: true },
         // 旧版
         "claude-2": { vision: false, reasoning: false, tools: true },
         "claude-2.1": { vision: false, reasoning: false, tools: true },
@@ -81,12 +96,21 @@ function detectModelCapabilities(modelId, modelObj = {}) {
     
     // Gemini 模型（Google）
     const geminiModels = {
-        // Gemini 2系列 - 最新
-        "gemini-2-flash": { vision: true, reasoning: false, tools: true },           // 旗舰
+        // Gemini 3 系列（2026 年发布）
+        "gemini-3-pro": { vision: true, reasoning: true, tools: true },
+        "gemini-3-flash": { vision: true, reasoning: false, tools: true },
+        "gemini-3-ultra": { vision: true, reasoning: true, tools: true },
+        // Gemini 2.5 系列（2025 年发布）
+        "gemini-2.5-pro": { vision: true, reasoning: true, tools: true },
+        "gemini-2.5-flash": { vision: true, reasoning: false, tools: true },
+        "gemini-2.5-ultra": { vision: true, reasoning: true, tools: true },
+        // Gemini 2 系列
+        "gemini-2-flash": { vision: true, reasoning: false, tools: true },
         "gemini-2-flash-lite": { vision: true, reasoning: false, tools: true },
         "gemini-2-pro": { vision: true, reasoning: false, tools: true },
         "gemini-2-flash-thinking": { vision: false, reasoning: true, tools: true },
-        // Gemini 1.5系列
+        "gemini-2-ultra": { vision: true, reasoning: true, tools: true },
+        // Gemini 1.5 系列
         "gemini-1.5-pro": { vision: true, reasoning: false, tools: true },
         "gemini-1.5-flash": { vision: true, reasoning: false, tools: true },
         "gemini-1.5-flash-8b": { vision: true, reasoning: false, tools: true },
@@ -94,31 +118,54 @@ function detectModelCapabilities(modelId, modelObj = {}) {
         "gemini-pro": { vision: true, reasoning: false, tools: true },
         "gemini-pro-vision": { vision: true, reasoning: false, tools: true },
         "gemini-vision": { vision: true, reasoning: false, tools: true },
+        "gemini-ultra": { vision: true, reasoning: true, tools: true },
     };
     
     // Qwen 模型（阿里云）
     const qwenModels = {
-        "qwen-exp": { vision: false, reasoning: false, tools: true },
-        "qwen-max": { vision: false, reasoning: false, tools: true },
-        "qwen-turbo": { vision: false, reasoning: false, tools: true },
-        "qwen-plus": { vision: false, reasoning: false, tools: true },
-        // Qwen 3.5系列 - 多模态（文本+图片）
-        "qwen3.5": { vision: true, reasoning: false, tools: true },
-        "qwen-3.5": { vision: true, reasoning: false, tools: true },
-        "qwen-3.5-turbo": { vision: true, reasoning: false, tools: true },
-        "qwen-3.5-vision": { vision: true, reasoning: false, tools: true },
-        "qwen3.5-turbo": { vision: true, reasoning: false, tools: true },
-        "qwen3.5-vision": { vision: true, reasoning: false, tools: true },
-        // Qwen 2.5系列 - 文本模型
+        // Qwen 3.5 系列（2025-2026 年，原生多模态 - 所有变体都有 vision 能力）
+        "qwen3.5": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-turbo": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-turbo": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-vision": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-vision": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-plus": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-plus": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-32b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-72b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-27b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-122b-a10b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-35b-a3b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-32b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-72b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-27b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-122b-a10b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-35b-a3b": { vision: true, reasoning: true, tools: true },
+        // Qwen 3.5 小尺寸模型
+        "qwen3.5-0.8b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-2b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-4b": { vision: true, reasoning: true, tools: true },
+        "qwen3.5-9b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-0.8b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-2b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-4b": { vision: true, reasoning: true, tools: true },
+        "qwen-3.5-9b": { vision: true, reasoning: true, tools: true },
+        // Qwen 3 系列
+        "qwen3": { vision: true, reasoning: false, tools: true },
+        "qwen-3": { vision: true, reasoning: false, tools: true },
+        "qwen3-turbo": { vision: true, reasoning: false, tools: true },
+        "qwen3-plus": { vision: true, reasoning: false, tools: true },
+        // Qwen 2.5 系列 - 文本模型
         "qwen2.5-72b": { vision: false, reasoning: false, tools: true },
         "qwen2.5-32b": { vision: false, reasoning: false, tools: true },
         "qwen2.5-14b": { vision: false, reasoning: false, tools: true },
         "qwen2.5-7b": { vision: false, reasoning: false, tools: true },
         "qwen2.5-coder-32b": { vision: false, reasoning: false, tools: true },
-        "qwen2.5-math-7b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-math-7b": { vision: false, reasoning: true, tools: true },
         "qwen2-72b": { vision: false, reasoning: false, tools: true },
         "qwen2-7b": { vision: false, reasoning: false, tools: true },
-        // Qwen VL系列 - 视觉/多模态
+        // Qwen VL 系列 - 视觉/多模态
         "qwen-vl": { vision: true, reasoning: false, tools: true },
         "qwen-vl-max": { vision: true, reasoning: false, tools: true },
         "qwen-vl-plus": { vision: true, reasoning: false, tools: true },
@@ -126,56 +173,74 @@ function detectModelCapabilities(modelId, modelObj = {}) {
         "qwen2-vl-7b": { vision: true, reasoning: false, tools: true },
         "qwen2.5-vl": { vision: true, reasoning: false, tools: true },
         "qwen2.5-vl-7b": { vision: true, reasoning: false, tools: true },
-        // Qwen特殊能力模型
+        // Qwen 特殊能力模型
         "qwq": { vision: false, reasoning: true, tools: false },
         "qwq-1b": { vision: false, reasoning: true, tools: false },
         "qwq-32b": { vision: false, reasoning: true, tools: false },
+        // 基础模型
+        "qwen-exp": { vision: false, reasoning: false, tools: true },
+        "qwen-max": { vision: false, reasoning: false, tools: true },
+        "qwen-turbo": { vision: false, reasoning: false, tools: true },
+        "qwen-plus": { vision: false, reasoning: false, tools: true },
     };
     
     // DeepSeek 模型
     const deepseekModels = {
-        // R1系列（推理）
+        // R1 系列（推理）
         "deepseek-r1": { vision: false, reasoning: true, tools: true },
         "deepseek-r1-distill-qwen-32b": { vision: false, reasoning: true, tools: true },
         "deepseek-r1-distill-llama-70b": { vision: false, reasoning: true, tools: true },
         "deepseek-r1-zero": { vision: false, reasoning: true, tools: true },
-        // V3系列 - 旗舰
-        "deepseek-v3": { vision: true, reasoning: false, tools: true },
+        "deepseek-r1-lite": { vision: false, reasoning: true, tools: true },
+        // V3 系列 - 旗舰
+        "deepseek-v3": { vision: true, reasoning: true, tools: true },
         "deepseek-v3-lite": { vision: true, reasoning: false, tools: true },
-        // VL系列（多模态）
+        "deepseek-v3-base": { vision: true, reasoning: true, tools: true },
+        // VL 系列（多模态）
         "deepseek-vl": { vision: true, reasoning: false, tools: true },
         "deepseek-vl2": { vision: true, reasoning: false, tools: true },
+        "deepseek-vl2-lite": { vision: true, reasoning: false, tools: true },
         // 其他
         "deepseek-chat": { vision: false, reasoning: false, tools: true },
         "deepseek-coder": { vision: false, reasoning: false, tools: true },
         "deepseek-coder-v2": { vision: false, reasoning: false, tools: true },
+        "deepseek-math": { vision: false, reasoning: true, tools: true },
     };
     
-    // Llama 模型
+    // Llama 模型（Meta）
     const llamaModels = {
-        "llama-3-70b": { vision: false, reasoning: false, tools: true },
-        "llama-3-8b": { vision: false, reasoning: false, tools: true },
+        // Llama 3.2 系列（多模态）
+        "llama-3.2-90b-vision": { vision: true, reasoning: false, tools: true },
+        "llama-3.2-11b-vision": { vision: true, reasoning: false, tools: true },
+        "llama-3.2": { vision: true, reasoning: false, tools: true },
+        "llama-3.2-vision": { vision: true, reasoning: false, tools: true },
+        // Llama 3.1 系列
         "llama-3.1-405b": { vision: false, reasoning: false, tools: true },
         "llama-3.1-70b": { vision: false, reasoning: false, tools: true },
         "llama-3.1-8b": { vision: false, reasoning: false, tools: true },
-        "llama-3.2": { vision: true, reasoning: false, tools: true },
-        "llama-3.2-vision": { vision: true, reasoning: false, tools: true },
+        // Llama 3 系列
+        "llama-3-70b": { vision: false, reasoning: false, tools: true },
+        "llama-3-8b": { vision: false, reasoning: false, tools: true },
+        // Llama 2 系列
         "llama-2-70b": { vision: false, reasoning: false, tools: true },
         "llama-2-13b": { vision: false, reasoning: false, tools: true },
     };
     
     // Ernie 模型（百度）
     const ernieModels = {
-        // Ernie 4.0系列 - 旗舰
+        // Ernie 4.5 系列（2025 年）
+        "ernie-4.5-turbo": { vision: true, reasoning: true, tools: true },
+        "ernie-4.5-pro": { vision: true, reasoning: true, tools: true },
+        // Ernie 4.0 系列 - 旗舰
         "ernie-4.0-turbo-8k": { vision: false, reasoning: false, tools: true },
         "ernie-4.0-8k": { vision: false, reasoning: false, tools: true },
         "ernie-4.0-turbo": { vision: false, reasoning: false, tools: true },
         "ernie-4.0": { vision: false, reasoning: false, tools: true },
-        // Ernie 3.5系列
+        // Ernie 3.5 系列
         "ernie-3.5-turbo-8k": { vision: false, reasoning: false, tools: true },
         "ernie-3.5-8k": { vision: false, reasoning: false, tools: true },
         "ernie-3.5-turbo": { vision: false, reasoning: false, tools: true },
-        // Ernie Pro系列
+        // Ernie Pro 系列
         "ernie-pro": { vision: false, reasoning: false, tools: true },
         "ernie-pro-vision": { vision: true, reasoning: false, tools: true },
         // 轻量级
@@ -188,9 +253,12 @@ function detectModelCapabilities(modelId, modelObj = {}) {
     
     // Hunyuan 模型（腾讯）
     const hunyuanModels = {
+        // Hunyuan 2.0 系列（2025 年）
+        "hunyuan-2.0-pro": { vision: true, reasoning: true, tools: true },
+        "hunyuan-2.0-turbo": { vision: true, reasoning: false, tools: true },
         // 标准模型
         "hunyuan-pro": { vision: false, reasoning: false, tools: true },
-        "hunyuan-pro-vision": { vision: true, reasoning: false, tools: true },        // 旗舰多模态
+        "hunyuan-pro-vision": { vision: true, reasoning: false, tools: true },
         "hunyuan-plus": { vision: false, reasoning: false, tools: true },
         "hunyuan-lite": { vision: false, reasoning: false, tools: true },
         "hunyuan-turbo": { vision: false, reasoning: false, tools: true },
@@ -201,18 +269,24 @@ function detectModelCapabilities(modelId, modelObj = {}) {
     
     // Mistral 模型
     const mistralModels = {
+        // Mistral Large 2（2025 年）
+        "mistral-large-2": { vision: true, reasoning: true, tools: true },
+        "mistral-large-3": { vision: true, reasoning: true, tools: true },
+        // Mistral 系列
         "mistral-large": { vision: false, reasoning: false, tools: true },
-        "mistral-large-3": { vision: false, reasoning: false, tools: true },
         "mistral-medium": { vision: false, reasoning: false, tools: true },
         "mistral-small": { vision: false, reasoning: false, tools: true },
+        "mistral-small-3": { vision: false, reasoning: false, tools: true },
         "mixtral-8x22b": { vision: false, reasoning: false, tools: true },
         "mixtral-8x7b": { vision: false, reasoning: false, tools: true },
         "codestral": { vision: false, reasoning: false, tools: true },
+        "codestral-25b": { vision: false, reasoning: false, tools: true },
     };
     
     // 其他服务商模型
     const otherModels = {
-        // xAI
+        // xAI（Grok）
+        "grok-4": { vision: true, reasoning: true, tools: true },
         "grok-3": { vision: true, reasoning: false, tools: true },
         "grok-2-vision": { vision: true, reasoning: false, tools: true },
         "grok-2": { vision: false, reasoning: false, tools: true },
@@ -220,39 +294,72 @@ function detectModelCapabilities(modelId, modelObj = {}) {
         "command-r": { vision: false, reasoning: false, tools: true },
         "command-r-plus": { vision: false, reasoning: false, tools: true },
         "command-nightly": { vision: false, reasoning: false, tools: true },
+        "command-a": { vision: false, reasoning: false, tools: true },
         // Perplexity
         "sonar-pro": { vision: false, reasoning: false, tools: true },
         "sonar": { vision: false, reasoning: false, tools: true },
         "sonar-reasoning-pro": { vision: false, reasoning: true, tools: true },
         "sonar-reasoning": { vision: false, reasoning: true, tools: true },
+        "sonar-deep-research": { vision: false, reasoning: true, tools: true },
         // 360 AI
         "360gpt-pro": { vision: true, reasoning: false, tools: true },
         "360gpt-turbo": { vision: false, reasoning: false, tools: true },
         "360gpt-3": { vision: false, reasoning: false, tools: true },
-        // Moonshot
+        // Moonshot（月之暗面/Kimi）- moonshot-v1-vision 有视觉，Kimi K2/K2.5 是原生多模态
         "moonshot-v1-8k": { vision: false, reasoning: false, tools: true },
         "moonshot-v1-32k": { vision: false, reasoning: false, tools: true },
         "moonshot-v1-128k": { vision: false, reasoning: false, tools: true },
         "moonshot-v1-auto": { vision: false, reasoning: false, tools: true },
-        // 01.AI
+        "moonshot-v1-vision-preview": { vision: true, reasoning: false, tools: true },
+        "moonshot-v1-vision": { vision: true, reasoning: false, tools: true },
+        "kimi-k2": { vision: true, reasoning: true, tools: true },
+        "kimi-k2.5": { vision: true, reasoning: true, tools: true },
+        "kimi-k2-vision": { vision: true, reasoning: true, tools: true },
+        "kimi-k2.5-vision": { vision: true, reasoning: true, tools: true },
+        // 01.AI（零一万物）
         "yi-large": { vision: false, reasoning: false, tools: true },
         "yi-vision": { vision: true, reasoning: false, tools: true },
         "yi-medium": { vision: false, reasoning: false, tools: true },
         "yi-spark": { vision: false, reasoning: false, tools: true },
-        // ByteDance
+        "yi-lightning": { vision: false, reasoning: false, tools: true },
+        // ByteDance（豆包）
         "doubao-pro-32k": { vision: false, reasoning: false, tools: true },
         "doubao-pro-128k": { vision: false, reasoning: false, tools: true },
         "doubao-pro-4k": { vision: false, reasoning: false, tools: true },
         "doubao-vision-pro": { vision: true, reasoning: false, tools: true },
+        "doubao-lite": { vision: false, reasoning: false, tools: true },
+        // MiniMax（MiniMax-Text-01 是文本，MiniMax-VL-01 是视觉）
+        "minimax-01": { vision: true, reasoning: false, tools: true },
+        "minimax-vl-01": { vision: true, reasoning: false, tools: true },
+        "minimax-text-01": { vision: false, reasoning: false, tools: true },
+        "minimax-abab6.5": { vision: false, reasoning: false, tools: true },
+        "minimax-abab7": { vision: true, reasoning: true, tools: true },
+        "minimax-abab7-vision": { vision: true, reasoning: false, tools: true },
+        // StepFun（阶跃星辰）
+        "step-1v": { vision: true, reasoning: false, tools: true },
+        "step-2": { vision: true, reasoning: true, tools: true },
+        // Baichuan（百川）
+        "baichuan-3-turbo": { vision: false, reasoning: false, tools: true },
+        "baichuan-4": { vision: true, reasoning: false, tools: true },
+        // Fireworks AI
+        "firefunction-v2": { vision: false, reasoning: false, tools: true },
+        // Together AI
+        "together-llama-3.1-405b": { vision: false, reasoning: false, tools: true },
         // 开源模型
         "llava-13b": { vision: true, reasoning: false, tools: false },
         "llava-7b": { vision: true, reasoning: false, tools: false },
+        "llava-next": { vision: true, reasoning: false, tools: false },
+        "cogvlm": { vision: true, reasoning: false, tools: false },
         "falcon-40b": { vision: false, reasoning: false, tools: true },
         "falcon-7b": { vision: false, reasoning: false, tools: true },
         "vicuna-13b": { vision: false, reasoning: false, tools: true },
         "alpaca-13b": { vision: false, reasoning: false, tools: true },
         "mpt-30b": { vision: false, reasoning: false, tools: true },
         "starling-lm": { vision: false, reasoning: false, tools: true },
+        // InternLM（书生·浦语）
+        "internlm2.5-7b": { vision: false, reasoning: false, tools: true },
+        "internlm2.5-20b": { vision: false, reasoning: false, tools: true },
+        "internlm-xcomposer2": { vision: true, reasoning: false, tools: true },
     };
     
     // 合并所有数据库
@@ -276,19 +383,45 @@ function detectModelCapabilities(modelId, modelObj = {}) {
     
     // 不精确匹配失败时，使用模糊匹配规则作为后备
     // 这样可以处理未来新发布但还没录入的模型变体
+    // 注意：不能仅凭名字中的某些字符判断能力，需要结合主流厂商的命名规范
     
-    // Vision 能力 - 模糊匹配
-    if (/(vision|visual|multimodal|mm-|^gpt-4[ov-]|-v$|-vision$|-vl|multimodal)/.test(id)) {
+    // Vision 能力 - 模糊匹配（基于主流厂商命名规范）
+    // 只有明确标识视觉能力的后缀才认为有 vision 能力
+    const visionPatterns = [
+        'vision', 'visual', 'multimodal', 'mm-', '-v-', '-v$', 
+        '-vision$', '-vl$', '-vl-', 'vl-', '^vl-', // vl 必须在开头或作为独立词段
+        '-camera', '-see', '-image', '-pic', '-photo',
+        // Qwen3.5 系列都是原生多模态（2025-2026 年）- 支持 qwen/qwen3.5-9b 这种格式
+        'qwen3\\.5', 'qwen-3\\.5',
+        // Kimi K2/K2.5 是原生多模态
+        'kimi-k2',
+        // MiniMax abab7 是多模态
+        'abab7'
+    ];
+    const visionRegex = new RegExp('(' + visionPatterns.join('|') + ')', 'i');
+    if (visionRegex.test(id)) {
         capabilities.vision = true;
     }
     
-    // Reasoning 能力 - 模糊匹配
-    if (/(reasoning|^o[1-3]|^r1|-r1|thinking|-think|-distill.*r1|qwq)/.test(id)) {
+    // Reasoning 能力 - 模糊匹配（基于主流厂商命名规范）
+    // 只有明确标识推理能力的型号才认为有 reasoning 能力
+    const reasoningPatterns = [
+        'reasoning', '^o[1-9]', '-r1$', '-r1-', '^r1-', '-think', 'thinking',
+        '-distill.*r1', '-math', '-logic', '-reason', '-deepseek-r'
+    ];
+    const reasoningRegex = new RegExp('(' + reasoningPatterns.join('|') + ')', 'i');
+    if (reasoningRegex.test(id)) {
         capabilities.reasoning = true;
     }
     
-    // Tools 能力 - 默认true，除非是已知不支持的模型
-    if (!/^llava|^cogvlm|^mini-?cpm|pure$|vision-only|-pure|-vision-only/.test(id)) {
+    // Tools 能力 - 默认 true，除非是已知不支持的模型
+    // 纯视觉模型、轻量级模型通常不支持工具调用
+    const noToolsPatterns = [
+        '^llava', '^cogvlm', '^mini-?cpm', 'pure$', 'vision-only',
+        '-pure$', '-vision-only$', '-lite$', '-nano$', '-tiny$'
+    ];
+    const noToolsRegex = new RegExp('(' + noToolsPatterns.join('|') + ')', 'i');
+    if (!noToolsRegex.test(id)) {
         capabilities.tools = true;
     }
     
