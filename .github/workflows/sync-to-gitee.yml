@@ -10,6 +10,7 @@ on:
 
 jobs:
   mirror:
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
 
     steps:

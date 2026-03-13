@@ -169,7 +169,7 @@ function setupEvents() {
             // Close other dropdowns
             document.getElementById('mcp-selection-dropdown').classList.remove('show');
         });
-        
+
         // Add dropdown items click handlers
         const addDropdownItems = addDropdown.querySelectorAll('.add-dropdown-item');
         addDropdownItems.forEach(item => {
@@ -186,19 +186,19 @@ function setupEvents() {
                 }
             });
         });
-        
+
         // Attachments preview functionality
         const attachmentsPreview = document.getElementById('attachments-preview');
         const attachmentsList = document.getElementById('attachments-list');
-        
+
         function addAttachment(file, isImage = false) {
             const reader = new FileReader();
             reader.onload = (event) => {
                 const previewUrl = event.target.result;
-                
+
                 // Create attachment item
                 const attachmentItem = createAttachmentItem();
-                
+
                 if (isImage) {
                     // Image preview
                     const img = document.createElement('img');
@@ -219,20 +219,20 @@ function setupEvents() {
                     `;
                     attachmentItem.appendChild(fileIcon);
                 }
-                
+
                 // Add file data to attachment item
                 attachmentItem.dataset.fileName = file.name;
                 attachmentItem.dataset.fileType = file.type;
                 attachmentItem.dataset.fileSize = file.size;
                 attachmentItem.dataset.fileData = previewUrl; // Base64 data
-                
+
                 // Add delete button
                 addDeleteButton(attachmentItem);
-                
+
                 // Add to attachments list
                 attachmentsList.appendChild(attachmentItem);
                 attachmentsPreview.style.display = 'block';
-                
+
                 // Don't add file name to message input, just show preview
                 // messageInput.value remains unchanged, user can still type text
                 messageInput.dispatchEvent(new Event('input'));
@@ -241,7 +241,7 @@ function setupEvents() {
             // Only read as data URL for preview, not for message input
             reader.readAsDataURL(file);
         }
-        
+
         function createAttachmentItem() {
             const attachmentItem = document.createElement('div');
             attachmentItem.style.cssText = `
@@ -258,7 +258,7 @@ function setupEvents() {
             `;
             return attachmentItem;
         }
-        
+
         function addDeleteButton(attachmentItem) {
             const deleteBtn = document.createElement('button');
             deleteBtn.innerHTML = '<i class="ph ph-trash"></i>';
@@ -298,7 +298,7 @@ function setupEvents() {
             });
             attachmentItem.appendChild(deleteBtn);
         }
-        
+
         // Image upload handler
         const imageUploadInput = document.getElementById('image-upload-input');
         if (imageUploadInput) {
@@ -309,7 +309,7 @@ function setupEvents() {
                 }
             });
         }
-        
+
         // File upload handler
         const fileUploadInput = document.getElementById('file-upload-input');
         if (fileUploadInput) {
@@ -320,7 +320,7 @@ function setupEvents() {
                 }
             });
         }
-        
+
 
     }
 
@@ -341,7 +341,7 @@ function setupEvents() {
     if (maxMessageCountSlider && maxMessageCountValue) {
         maxMessageCountSlider.addEventListener('input', () => {
             const value = parseInt(maxMessageCountSlider.value);
-            maxMessageCountValue.textContent = value === 15 ? 'No Limit' : value;
+            maxMessageCountValue.textContent = value === 15 ? '无限制' : value;
         });
     }
 
@@ -365,9 +365,24 @@ function setupEvents() {
     const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
     if (maxOutputTokensSlider && maxOutputTokensValue) {
         maxOutputTokensSlider.addEventListener('input', () => {
-            maxOutputTokensValue.textContent = maxOutputTokensSlider.value;
+            const val = parseInt(maxOutputTokensSlider.value);
+            maxOutputTokensValue.textContent = val >= 8100 ? '无限制' : val;
         });
     }
+
+    // Global event delegation for code block copy buttons
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.code-copy-btn');
+        if (btn) {
+            const codeEl = btn.parentElement.querySelector('pre code') || btn.parentElement.querySelector('pre');
+            if (codeEl) {
+                const text = codeEl.innerText;
+                if (typeof copyText === 'function') {
+                    copyText(text, btn);
+                }
+            }
+        }
+    });
 
     // Reset model settings button
     const resetModelSettingsBtn = document.getElementById('reset-model-settings-btn');
@@ -404,48 +419,46 @@ function setupEvents() {
     window.api.onStreamChunk((data) => {
         if (!state.currentStreamDiv) return;
 
-        if (data.reasoning_content) {
-            const currentReasoning = state.currentStreamDiv.dataset.reasoning || '';
-            state.currentStreamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
-        }
-        if (data.content) {
-            const currentRaw = state.currentStreamDiv.dataset.raw || '';
-            state.currentStreamDiv.dataset.raw = currentRaw + data.content;
-        }
-
-        const rawContent = state.currentStreamDiv.dataset.raw || '';
-        const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
-
-        let finalHtml = '';
-        if (rawReasoning && state.settings.enableThinking !== false) {
-            const isStreamingComplete = !state.isStreaming;
-            const parsedReasoningHtml = marked.parse(rawReasoning);
-            finalHtml += `
-                <details class="thinking-block" ${!isStreamingComplete ? 'open' : ''}>
-                    <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(parsedReasoningHtml)}</div>
-                </details>
-            `;
-        }
-
-        if (rawContent) {
-            const parsedHtml = marked.parse(rawContent);
-            finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml)}</div>`;
-        }
-
-        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
-        if (scrollEl) {
-            scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
-
-            // Syntax highlight + per-code-block copy button
-            scrollEl.querySelectorAll('pre code').forEach((block) => {
-                try { hljs.highlightElement(block); } catch (e) { }
-            });
-            if (typeof attachCodeBlockCopyButtons === 'function') {
-                attachCodeBlockCopyButtons(scrollEl);
+        try {
+            if (data.reasoning_content) {
+                const currentReasoning = state.currentStreamDiv.dataset.reasoning || '';
+                state.currentStreamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
             }
+            if (data.content) {
+                const currentRaw = state.currentStreamDiv.dataset.raw || '';
+                state.currentStreamDiv.dataset.raw = currentRaw + data.content;
+            }
+
+            const rawContent = state.currentStreamDiv.dataset.raw || '';
+            const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
+
+            let finalHtml = '';
+            if (rawReasoning && state.settings.enableThinking !== false) {
+                const isStreamingComplete = !state.isStreaming;
+                const parsedReasoningHtml = marked.parse(rawReasoning);
+                finalHtml += `
+                    <details class="thinking-block" ${!isStreamingComplete ? 'open' : ''}>
+                        <summary><i class="ph ph-brain"></i> 思考过程</summary>
+                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(parsedReasoningHtml)}</div>
+                    </details>
+                `;
+            }
+
+            if (rawContent) {
+                const parsedHtml = marked.parse(rawContent);
+                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml)}</div>`;
+            }
+
+            const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+            if (scrollEl) {
+                scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
+
+                // Highlighting is now handled by custom marked renderer
+            }
+            scrollToBottom();
+        } catch (e) {
+            console.error('Error in onStreamChunk UI update:', e);
         }
-        scrollToBottom();
     });
 
     window.api.onStreamEnd((data) => {
@@ -483,6 +496,29 @@ function finalizeStream(chatId, meta) {
         const detailsEl = state.currentStreamDiv.querySelector('details.thinking-block');
         if (detailsEl) detailsEl.removeAttribute('open');
 
+        // 最终确认为 UI 刷新：由于主进程发送 stream-end 时可能还有极少量未渲染块，
+        // 或者为了确保语法高亮和复制按钮在最后状态也是正确的。
+        const rawContent = state.currentStreamDiv.dataset.raw || '';
+        const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
+        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+        if (scrollEl) {
+            let finalHtml = '';
+            if (rawReasoning && state.settings.enableThinking !== false) {
+                finalHtml += `
+                    <details class="thinking-block">
+                        <summary><i class="ph ph-brain"></i> 思考过程</summary>
+                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning))}</div>
+                    </details>
+                `;
+            }
+            if (rawContent) {
+                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+            }
+            scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
+
+            // Structures are now handled by custom marked renderer
+        }
+
         // Append message meta (word count, tokens, latency, model, time)
         const wordCount = (finalContent || '').trim().split(/\s+/).filter(Boolean).length;
         const parts = [];
@@ -498,7 +534,7 @@ function finalizeStream(chatId, meta) {
         // Insert meta under the horizontal scrollbar (outside .message-scroll)
         const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
         if (existingMeta) existingMeta.remove();
-        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+
         if (scrollEl) {
             scrollEl.insertAdjacentHTML('afterend', metaHtml);
         } else {
@@ -541,22 +577,22 @@ function openConversationSettings() {
             if (nameInput) {
                 nameInput.value = activeChat.title || 'Untitled';
             }
-            
+
             // Set system prompt
             const promptInput = document.getElementById('conversation-prompt');
             if (promptInput) {
                 promptInput.value = activeChat.systemPrompt || state.settings.systemPrompt || 'You are a helpful assistant.';
             }
-            
+
             // Set max message count
             const maxMessageCountSlider = document.getElementById('max-message-count');
             const maxMessageCountValue = document.getElementById('max-message-count-value');
             if (maxMessageCountSlider && maxMessageCountValue) {
                 const value = activeChat.maxMessageCount || 15;
                 maxMessageCountSlider.value = value;
-                maxMessageCountValue.textContent = value === 15 ? 'No Limit' : value;
+                maxMessageCountValue.textContent = value === 15 ? '无限制' : value;
             }
-            
+
             // Set temperature
             const temperatureSlider = document.getElementById('temperature');
             const temperatureValue = document.getElementById('temperature-value');
@@ -565,7 +601,7 @@ function openConversationSettings() {
                 temperatureSlider.value = value;
                 temperatureValue.textContent = value;
             }
-            
+
             // Set top P
             const topPSlider = document.getElementById('top-p');
             const topPValue = document.getElementById('top-p-value');
@@ -574,23 +610,24 @@ function openConversationSettings() {
                 topPSlider.value = value;
                 topPValue.textContent = value;
             }
-            
+
             // Set max output tokens
             const maxOutputTokensSlider = document.getElementById('max-output-tokens');
             const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
             if (maxOutputTokensSlider && maxOutputTokensValue) {
-                const value = activeChat.maxOutputTokens || 2000;
+                // If 0, null, or 8100, treat as infinite (8100)
+                const value = (activeChat.maxOutputTokens === 0 || !activeChat.maxOutputTokens || activeChat.maxOutputTokens >= 8100) ? 8100 : activeChat.maxOutputTokens;
                 maxOutputTokensSlider.value = value;
-                maxOutputTokensValue.textContent = value;
+                maxOutputTokensValue.textContent = value >= 8100 ? '无限制' : value;
             }
-            
+
             // Set stream output
             const streamOutputToggle = document.getElementById('stream-output');
             if (streamOutputToggle) {
                 streamOutputToggle.checked = activeChat.streamOutput !== false;
             }
         }
-        
+
         conversationSettingsModal.style.display = 'flex';
     }
 }
@@ -603,7 +640,7 @@ function closeConversationSettings() {
 
 function saveConversationSettings() {
     if (!state.currentChatId) return;
-    
+
     const activeChat = state.chats.find(c => c.id === state.currentChatId);
     if (activeChat) {
         // Save conversation name
@@ -611,52 +648,52 @@ function saveConversationSettings() {
         if (nameInput) {
             activeChat.title = nameInput.value.trim() || 'Untitled';
         }
-        
+
         // Save system prompt
         const promptInput = document.getElementById('conversation-prompt');
         if (promptInput) {
             activeChat.systemPrompt = promptInput.value.trim();
         }
-        
+
         // Save max message count
         const maxMessageCountSlider = document.getElementById('max-message-count');
         if (maxMessageCountSlider) {
             activeChat.maxMessageCount = parseInt(maxMessageCountSlider.value);
         }
-        
+
         // Save temperature
         const temperatureSlider = document.getElementById('temperature');
         if (temperatureSlider) {
             activeChat.temperature = parseFloat(temperatureSlider.value);
         }
-        
+
         // Save top P
         const topPSlider = document.getElementById('top-p');
         if (topPSlider) {
             activeChat.topP = parseFloat(topPSlider.value);
         }
-        
+
         // Save max output tokens
         const maxOutputTokensSlider = document.getElementById('max-output-tokens');
         if (maxOutputTokensSlider) {
             activeChat.maxOutputTokens = parseInt(maxOutputTokensSlider.value);
         }
-        
+
         // Save stream output
         const streamOutputToggle = document.getElementById('stream-output');
         if (streamOutputToggle) {
             activeChat.streamOutput = streamOutputToggle.checked;
         }
-        
+
         // Save changes
         saveChats();
         renderChatList();
-        
+
         // Update current chat title
         if (currentChatTitle) {
             currentChatTitle.textContent = activeChat.title;
         }
-        
+
         closeConversationSettings();
         showNotification('对话设置已保存', 'success');
     }
@@ -668,30 +705,30 @@ function resetModelSettings() {
     const maxMessageCountValue = document.getElementById('max-message-count-value');
     if (maxMessageCountSlider && maxMessageCountValue) {
         maxMessageCountSlider.value = 15;
-        maxMessageCountValue.textContent = 'No Limit';
+        maxMessageCountValue.textContent = '无限制';
     }
-    
+
     const temperatureSlider = document.getElementById('temperature');
     const temperatureValue = document.getElementById('temperature-value');
     if (temperatureSlider && temperatureValue) {
         temperatureSlider.value = 0.7;
         temperatureValue.textContent = '0.7';
     }
-    
+
     const topPSlider = document.getElementById('top-p');
     const topPValue = document.getElementById('top-p-value');
     if (topPSlider && topPValue) {
         topPSlider.value = 1;
         topPValue.textContent = '1.0';
     }
-    
+
     const maxOutputTokensSlider = document.getElementById('max-output-tokens');
     const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
     if (maxOutputTokensSlider && maxOutputTokensValue) {
-        maxOutputTokensSlider.value = 2000;
-        maxOutputTokensValue.textContent = '2000';
+        maxOutputTokensSlider.value = 8100;
+        maxOutputTokensValue.textContent = '无限制';
     }
-    
+
     const streamOutputToggle = document.getElementById('stream-output');
     if (streamOutputToggle) {
         streamOutputToggle.checked = true;

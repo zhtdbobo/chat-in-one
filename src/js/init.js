@@ -1,12 +1,27 @@
 // init.js - Initialization functions
 
 // Configure Marked.js syntax highlighting
-marked.setOptions({
-    highlight: function (code, lang) {
-        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-        return hljs.highlight(code, { language }).value;
+const renderer = new marked.Renderer();
+renderer.code = function (code, lang) {
+    let highlighted;
+    try {
+        if (lang && hljs.getLanguage(lang)) {
+            highlighted = hljs.highlight(code, { language: lang }).value;
+        } else {
+            highlighted = hljs.highlightAuto(code).value;
+        }
+    } catch (e) {
+        console.error('Highlight.js error:', e);
+        highlighted = code;
     }
-});
+
+    return `<div class="code-block">
+        <pre><code class="hljs ${lang || ''}">${highlighted}</code></pre>
+        <button type="button" class="code-copy-btn" title="复制代码"><i class="ph ph-copy"></i></button>
+    </div>`;
+};
+
+marked.setOptions({ renderer });
 
 // -----------------------------------------
 // Initialization
@@ -40,7 +55,7 @@ async function initApp() {
     if (state.settings.enableThinking === undefined) {
         state.settings.enableThinking = true;
     }
-    
+
     if (state.settings.showCompanionsInNewChat === undefined) {
         state.settings.showCompanionsInNewChat = true;
     }

@@ -243,7 +243,7 @@ if (app.isPackaged) {
                         if (completed === testSites.length) {
                             resolve(!results.github || (results.gitee && results.gitee < results.github));
                         }
-                    }).setTimeout(3000, function() {
+                    }).setTimeout(3000, function () {
                         results[site.name] = Infinity;
                         completed++;
                         if (completed === testSites.length) {
@@ -325,7 +325,7 @@ ipcMain.handle('check-for-updates', async () => {
                         if (completed === testSites.length) {
                             resolve(!results.github || (results.gitee && results.gitee < results.github));
                         }
-                    }).setTimeout(3000, function() {
+                    }).setTimeout(3000, function () {
                         results[site.name] = Infinity;
                         completed++;
                         if (completed === testSites.length) {
@@ -529,7 +529,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             stream_options: { include_usage: true },
             temperature: temperature || 0.7,
             top_p: top_p || 1,
-            max_tokens: max_tokens || 2000,
+            max_tokens: max_tokens || undefined,
             ...(enableThinking !== undefined ? { include_reasoning: enableThinking } : {}),
             ...(enableSearch !== undefined ? { web_search: enableSearch, search: enableSearch, enable_search: enableSearch } : {})
         };
@@ -573,42 +573,70 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         let lastUsage = null;
         let lastModel = modelName;
 
+        let buffer = '';
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+                if (buffer.trim()) processSSELine(buffer, true);
+                break;
+            }
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            buffer += decoder.decode(value, { stream: true });
+            let lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
-                if (line.includes('[DONE]')) break;
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.replace('data: ', '');
-                    if (dataStr === '[DONE]') continue;
-                    try {
-                        const parsed = JSON.parse(dataStr);
-                        const delta = parsed.choices?.[0]?.delta;
-                        if (parsed.model) lastModel = parsed.model;
-                        if (parsed.usage && parsed.usage.total_tokens != null) lastUsage = parsed.usage;
-                        if (delta) {
-                            if (firstTokenLatency == null && (delta.reasoning_content || delta.content)) {
-                                firstTokenLatency = Date.now() - streamStartTime;
-                            }
-                            if (delta.reasoning_content && enableThinking !== false) {
-                                event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
-                            }
-                            if (delta.content) {
-                                event.reply('stream-chunk', { chatId, content: delta.content });
-                            }
-                            if (delta.tool_calls) {
-                                for (const tc of delta.tool_calls) {
-                                    if (!toolCalls[tc.index]) toolCalls[tc.index] = { id: tc.id, name: '', args: '' };
-                                    if (tc.function?.name) toolCalls[tc.index].name += tc.function.name;
-                                    if (tc.function?.arguments) toolCalls[tc.index].args += tc.function.arguments;
-                                }
-                            }
+                processSSELine(line);
+            }
+        }
+
+        function processSSELine(line, isFinal = false) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
+
+            // Check for DONE before extracting data
+            if (trimmedLine === 'data: [DONE]' || trimmedLine === '[DONE]') {
+                return;
+            }
+
+            let dataStr = '';
+            if (trimmedLine.startsWith('data: ')) {
+                dataStr = trimmedLine.substring(6).trim();
+            } else if (trimmedLine.startsWith('data:')) {
+                dataStr = trimmedLine.substring(5).trim();
+            } else if (trimmedLine.startsWith('{')) {
+                dataStr = trimmedLine;
+            }
+
+            if (!dataStr || dataStr === '[DONE]') return;
+
+            try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices?.[0]?.delta;
+                if (parsed.model) lastModel = parsed.model;
+                if (parsed.usage && (parsed.usage.total_tokens != null || parsed.usage.output_tokens != null)) lastUsage = parsed.usage;
+                if (delta) {
+                    if (firstTokenLatency == null && (delta.reasoning_content || delta.content)) {
+                        firstTokenLatency = Date.now() - streamStartTime;
+                    }
+                    if (delta.reasoning_content && enableThinking !== false) {
+                        event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
+                    }
+                    if (delta.content) {
+                        event.reply('stream-chunk', { chatId, content: delta.content });
+                    }
+                    if (delta.tool_calls) {
+                        for (const tc of delta.tool_calls) {
+                            if (!toolCalls[tc.index]) toolCalls[tc.index] = { id: tc.id, name: '', args: '' };
+                            if (tc.function?.name) toolCalls[tc.index].name += tc.function.name;
+                            if (tc.function?.arguments) toolCalls[tc.index].args += tc.function.arguments;
                         }
-                    } catch (e) { }
+                    }
+                }
+            } catch (e) {
+                // Only log if it's not a known non-JSON line
+                if (!isFinal && !trimmedLine.includes('[DONE]')) {
+                    console.error('Error parsing SSE chunk:', e, 'Raw Line:', trimmedLine);
                 }
             }
         }
@@ -656,25 +684,50 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             let toolFirstTokenLatency = null;
             let toolLastUsage = null;
             let toolLastModel = modelName;
+            let toolBuffer = '';
             while (true) {
                 const { done, value } = await finalReader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+                if (done) {
+                    if (toolBuffer.trim()) processToolSSELine(toolBuffer);
+                    break;
+                }
+
+                toolBuffer += decoder.decode(value, { stream: true });
+                let lines = toolBuffer.split(/\r?\n/);
+                toolBuffer = lines.pop() || '';
+
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const dataStr = line.replace('data: ', '');
-                        if (dataStr === '[DONE]') continue;
-                        try {
-                            const parsed = JSON.parse(dataStr);
-                            const delta = parsed.choices?.[0]?.delta;
-                            if (parsed.model) toolLastModel = parsed.model;
-                            if (parsed.usage && parsed.usage.total_tokens != null) toolLastUsage = parsed.usage;
-                            if (delta?.content) {
-                                if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
-                                event.reply('stream-chunk', { chatId, content: delta.content });
-                            }
-                        } catch (e) { }
+                    processToolSSELine(line);
+                }
+            }
+
+            function processToolSSELine(line) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine || trimmedLine === 'data: [DONE]' || trimmedLine === '[DONE]') return;
+
+                let dataStr = '';
+                if (trimmedLine.startsWith('data: ')) {
+                    dataStr = trimmedLine.substring(6).trim();
+                } else if (trimmedLine.startsWith('data:')) {
+                    dataStr = trimmedLine.substring(5).trim();
+                } else if (trimmedLine.startsWith('{')) {
+                    dataStr = trimmedLine;
+                }
+
+                if (!dataStr || dataStr === '[DONE]') return;
+
+                try {
+                    const parsed = JSON.parse(dataStr);
+                    const delta = parsed.choices?.[0]?.delta;
+                    if (parsed.model) toolLastModel = parsed.model;
+                    if (parsed.usage && (parsed.usage.total_tokens != null || parsed.usage.output_tokens != null)) toolLastUsage = parsed.usage;
+                    if (delta?.content) {
+                        if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
+                        event.reply('stream-chunk', { chatId, content: delta.content });
+                    }
+                } catch (e) {
+                    if (!trimmedLine.includes('[DONE]')) {
+                        console.error('Error parsing Tool SSE chunk:', e, 'Raw Line:', trimmedLine);
                     }
                 }
             }

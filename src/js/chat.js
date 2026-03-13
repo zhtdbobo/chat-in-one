@@ -289,7 +289,7 @@ function renderMessageItem(role, content) {
         if (rawContent) {
             htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
         }
-        
+
         // Add attachments
         const attachments = typeof content === 'object' && content.attachments ? content.attachments : [];
         if (attachments.length > 0) {
@@ -391,11 +391,11 @@ function sendMessage() {
     }
 
     const text = messageInput.value.trim();
-    
+
     // Get attachments
     const attachmentsList = document.getElementById('attachments-list');
     const attachments = [];
-    
+
     if (attachmentsList) {
         const attachmentItems = attachmentsList.querySelectorAll('[data-file-name]');
         attachmentItems.forEach(item => {
@@ -407,7 +407,7 @@ function sendMessage() {
             });
         });
     }
-    
+
     if (!text && attachments.length === 0) return;
 
     // Process User Message
@@ -424,7 +424,7 @@ function sendMessage() {
             content: text
         };
     }
-    
+
     chat.messages.push({ role: 'user', content: messageContent });
     const userMsgEl = renderMessageItem('user', messageContent);
     if (messagesList) {
@@ -451,7 +451,8 @@ function sendMessage() {
     let finalSystemPrompt = chat.systemPrompt || state.settings.systemPrompt || '';
     const temperature = chat.temperature || 0.7;
     const topP = chat.topP || 1;
-    const maxOutputTokens = chat.maxOutputTokens || 2000;
+    let maxOutputTokens = chat.maxOutputTokens || 0;
+    if (maxOutputTokens >= 8100) maxOutputTokens = 0;
     const streamOutput = chat.streamOutput !== false;
 
     // Skill Override
@@ -473,7 +474,7 @@ function sendMessage() {
     if (chat.maxMessageCount && chat.maxMessageCount < 15) {
         messagesToSend = messagesToSend.slice(-chat.maxMessageCount);
     }
-    
+
     // Prepare messages for model - include attachments for models that support them
     const messagesForModel = messagesToSend.map(msg => {
         try {
@@ -484,7 +485,7 @@ function sendMessage() {
                     if (msg.content.attachments && msg.content.attachments.length > 0) {
                         // For messages with attachments, create a content array that includes both text and attachments
                         const contentArray = [];
-                        
+
                         // Add text content if it exists
                         if (msg.content.content) {
                             contentArray.push({
@@ -492,7 +493,7 @@ function sendMessage() {
                                 text: msg.content.content
                             });
                         }
-                        
+
                         // Add attachments
                         msg.content.attachments.forEach(attachment => {
                             contentArray.push({
@@ -504,7 +505,7 @@ function sendMessage() {
                                 }
                             });
                         });
-                        
+
                         return {
                             role: msg.role,
                             content: contentArray
@@ -550,11 +551,11 @@ function sendMessage() {
 
     // Check if model supports attachments
     const supportsAttachments = true; // Assume all models support attachments for now
-    
+
     if (!supportsAttachments && attachments.length > 0) {
         showNotification('当前模型不支持文件上传', 'warning');
     }
-    
+
     // Clear attachments after sending
     if (attachmentsList) {
         attachmentsList.innerHTML = '';

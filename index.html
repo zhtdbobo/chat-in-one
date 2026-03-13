@@ -122,11 +122,13 @@
                     <div class="input-row-main" style="position: relative;">
                         <div style="position: relative; flex: 1;">
                             <!-- Attachments Preview Area inside input -->
-                            <div id="attachments-preview" class="attachments-preview" style="display: none; padding: 8px; margin-bottom: 8px;">
-                                <div class="attachments-list" id="attachments-list" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+                            <div id="attachments-preview" class="attachments-preview"
+                                style="display: none; padding: 8px; margin-bottom: 8px;">
+                                <div class="attachments-list" id="attachments-list"
+                                    style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
                             </div>
-                            <textarea id="message-input" placeholder="输入消息，或 Shift + Enter 换行..." rows="1"
-                                autofocus style="width: 100%; padding-right: 80px;"></textarea>
+                            <textarea id="message-input" placeholder="输入消息，或 Shift + Enter 换行..." rows="1" autofocus
+                                style="width: 100%; padding-right: 80px;"></textarea>
                         </div>
                         <div class="send-stop-container">
                             <button id="send-btn" class="btn btn-icon btn-send" title="发送 (Enter)">
@@ -161,7 +163,7 @@
                                 <input type="file" id="image-upload-input" accept="image/*" style="display: none;">
                                 <input type="file" id="file-upload-input" style="display: none;">
                             </div>
-                            
+
 
                             <button id="toggle-search-btn" class="tool-btn" title="联网搜索"><i
                                     class="ph ph-globe"></i></button>
@@ -177,7 +179,8 @@
                                 </div>
                             </div>
                             <button class="tool-btn" title="集成知识库"><i class="ph ph-books"></i></button>
-                            <button id="conversation-settings-btn" class="tool-btn" title="对话设置"><i class="ph ph-sliders"></i></button>
+                            <button id="conversation-settings-btn" class="tool-btn" title="对话设置"><i
+                                    class="ph ph-sliders"></i></button>
                         </div>
                         <div class="tools-right">
                             <select id="current-model-select" title="切换模型">
@@ -263,7 +266,8 @@
                                 <button class="btn btn-ghost btn-sm" id="reset-model-settings-btn">重置</button>
                             </div>
                             <div class="setting-item">
-                                <label for="max-message-count">上下文消息数量 <i class="ph ph-info" title="设置上下文窗口中的最大消息数量"></i></label>
+                                <label for="max-message-count">上下文消息数量 <i class="ph ph-info"
+                                        title="设置上下文窗口中的最大消息数量"></i></label>
                                 <div class="slider-container">
                                     <input type="range" id="max-message-count" min="1" max="15" value="15">
                                     <span id="max-message-count-value">无限制</span>
@@ -284,10 +288,12 @@
                                 </div>
                             </div>
                             <div class="setting-item">
-                                <label for="max-output-tokens">最大输出 Token <i class="ph ph-info" title="设置生成文本的最大 token 数"></i></label>
+                                <label for="max-output-tokens">最大输出 Token <i class="ph ph-info"
+                                        title="设置生成文本的最大 token 数"></i></label>
                                 <div class="slider-container">
-                                    <input type="range" id="max-output-tokens" min="100" max="4000" step="100" value="2000">
-                                    <span id="max-output-tokens-value">2000</span>
+                                    <input type="range" id="max-output-tokens" min="100" max="8100" step="100"
+                                        value="8100">
+                                    <span id="max-output-tokens-value">无限制</span>
                                 </div>
                             </div>
                             <div class="setting-item">
