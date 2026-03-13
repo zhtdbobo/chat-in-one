@@ -1,6 +1,301 @@
 // settings.js - Settings related functions
 
 // -----------------------------------------
+// Model Capability Detection
+// -----------------------------------------
+/**
+ * 根据模型ID或模型对象检测其支持的能力
+ * 基于2024-2026年市面最新模型信息，覆盖125+个模型
+ * 来源：OpenAI、Claude、Gemini、DeepSeek、Qwen、Ernie等主流服务商
+ * @param {string} modelId - 模型ID
+ * @param {object} modelObj - 模型对象（可选）
+ * @returns {object} 能力对象 { vision: boolean, reasoning: boolean, tools: boolean }
+ */
+function detectModelCapabilities(modelId, modelObj = {}) {
+    const id = String(modelId).toLowerCase().trim();
+    
+    // 初始化能力
+    let capabilities = {
+        vision: false,
+        reasoning: false,
+        tools: false
+    };
+    
+    // 先检查API返回的能力信息（优先级最高）
+    if (modelObj) {
+        if (modelObj.capabilities && Array.isArray(modelObj.capabilities)) {
+            capabilities.vision = modelObj.capabilities.includes('vision');
+            capabilities.reasoning = modelObj.capabilities.includes('reasoning');
+            capabilities.tools = modelObj.capabilities.includes('tools');
+            return capabilities;
+        }
+        if (modelObj.vision !== undefined || modelObj.reasoning !== undefined || modelObj.tools !== undefined) {
+            capabilities.vision = !!modelObj.vision;
+            capabilities.reasoning = !!modelObj.reasoning;
+            capabilities.tools = !!modelObj.tools;
+            return capabilities;
+        }
+    }
+    
+    // ==================== 完整模型数据库查表 ====================
+    // 这个数据库涵盖市面上主流的125+个模型
+    
+    // OpenAI 模型
+    const openaiModels = {
+        // GPT-4系列
+        "gpt-4-vision": { vision: true, reasoning: false, tools: true },
+        "gpt-4-turbo": { vision: true, reasoning: false, tools: true },
+        "gpt-4-turbo-vision": { vision: true, reasoning: false, tools: true },
+        "gpt-4o": { vision: true, reasoning: false, tools: true },           // 旗舰多模态
+        "gpt-4o-mini": { vision: true, reasoning: false, tools: true },
+        "gpt-4o-vision": { vision: true, reasoning: false, tools: true },
+        "gpt-4-32k": { vision: false, reasoning: false, tools: true },
+        "gpt-4": { vision: false, reasoning: false, tools: true },
+        // GPT-3.5系列
+        "gpt-3.5-turbo": { vision: false, reasoning: false, tools: true },
+        "gpt-3.5": { vision: false, reasoning: false, tools: true },
+        // O系列（推理/思维）
+        "o1": { vision: false, reasoning: true, tools: true },
+        "o1-mini": { vision: false, reasoning: true, tools: true },
+        "o1-preview": { vision: false, reasoning: true, tools: true },
+        "o3": { vision: false, reasoning: true, tools: true },
+        "o3-mini": { vision: false, reasoning: true, tools: true },
+    };
+    
+    // Claude 模型（Anthropic）
+    const claudeModels = {
+        // Claude 3系列
+        "claude-3-opus": { vision: true, reasoning: false, tools: true },
+        "claude-3-sonnet": { vision: true, reasoning: false, tools: true },
+        "claude-3-haiku": { vision: true, reasoning: false, tools: true },
+        // Claude 3.5系列 - 旗舰
+        "claude-3-5-sonnet": { vision: true, reasoning: false, tools: true },
+        "claude-3.5-sonnet": { vision: true, reasoning: false, tools: true },
+        "claude-3-5-haiku": { vision: true, reasoning: false, tools: true },
+        "claude-3.5-haiku": { vision: true, reasoning: false, tools: true },
+        // 旧版
+        "claude-2": { vision: false, reasoning: false, tools: true },
+        "claude-2.1": { vision: false, reasoning: false, tools: true },
+        "claude-instant": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // Gemini 模型（Google）
+    const geminiModels = {
+        // Gemini 2系列 - 最新
+        "gemini-2-flash": { vision: true, reasoning: false, tools: true },           // 旗舰
+        "gemini-2-flash-lite": { vision: true, reasoning: false, tools: true },
+        "gemini-2-pro": { vision: true, reasoning: false, tools: true },
+        "gemini-2-flash-thinking": { vision: false, reasoning: true, tools: true },
+        // Gemini 1.5系列
+        "gemini-1.5-pro": { vision: true, reasoning: false, tools: true },
+        "gemini-1.5-flash": { vision: true, reasoning: false, tools: true },
+        "gemini-1.5-flash-8b": { vision: true, reasoning: false, tools: true },
+        // 兼容性别名
+        "gemini-pro": { vision: true, reasoning: false, tools: true },
+        "gemini-pro-vision": { vision: true, reasoning: false, tools: true },
+        "gemini-vision": { vision: true, reasoning: false, tools: true },
+    };
+    
+    // Qwen 模型（阿里云）
+    const qwenModels = {
+        "qwen-exp": { vision: false, reasoning: false, tools: true },
+        "qwen-max": { vision: false, reasoning: false, tools: true },
+        "qwen-turbo": { vision: false, reasoning: false, tools: true },
+        "qwen-plus": { vision: false, reasoning: false, tools: true },
+        // Qwen 3.5系列 - 多模态（文本+图片）
+        "qwen3.5": { vision: true, reasoning: false, tools: true },
+        "qwen-3.5": { vision: true, reasoning: false, tools: true },
+        "qwen-3.5-turbo": { vision: true, reasoning: false, tools: true },
+        "qwen-3.5-vision": { vision: true, reasoning: false, tools: true },
+        "qwen3.5-turbo": { vision: true, reasoning: false, tools: true },
+        "qwen3.5-vision": { vision: true, reasoning: false, tools: true },
+        // Qwen 2.5系列 - 文本模型
+        "qwen2.5-72b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-32b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-14b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-7b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-coder-32b": { vision: false, reasoning: false, tools: true },
+        "qwen2.5-math-7b": { vision: false, reasoning: false, tools: true },
+        "qwen2-72b": { vision: false, reasoning: false, tools: true },
+        "qwen2-7b": { vision: false, reasoning: false, tools: true },
+        // Qwen VL系列 - 视觉/多模态
+        "qwen-vl": { vision: true, reasoning: false, tools: true },
+        "qwen-vl-max": { vision: true, reasoning: false, tools: true },
+        "qwen-vl-plus": { vision: true, reasoning: false, tools: true },
+        "qwen2-vl": { vision: true, reasoning: false, tools: true },
+        "qwen2-vl-7b": { vision: true, reasoning: false, tools: true },
+        "qwen2.5-vl": { vision: true, reasoning: false, tools: true },
+        "qwen2.5-vl-7b": { vision: true, reasoning: false, tools: true },
+        // Qwen特殊能力模型
+        "qwq": { vision: false, reasoning: true, tools: false },
+        "qwq-1b": { vision: false, reasoning: true, tools: false },
+        "qwq-32b": { vision: false, reasoning: true, tools: false },
+    };
+    
+    // DeepSeek 模型
+    const deepseekModels = {
+        // R1系列（推理）
+        "deepseek-r1": { vision: false, reasoning: true, tools: true },
+        "deepseek-r1-distill-qwen-32b": { vision: false, reasoning: true, tools: true },
+        "deepseek-r1-distill-llama-70b": { vision: false, reasoning: true, tools: true },
+        "deepseek-r1-zero": { vision: false, reasoning: true, tools: true },
+        // V3系列 - 旗舰
+        "deepseek-v3": { vision: true, reasoning: false, tools: true },
+        "deepseek-v3-lite": { vision: true, reasoning: false, tools: true },
+        // VL系列（多模态）
+        "deepseek-vl": { vision: true, reasoning: false, tools: true },
+        "deepseek-vl2": { vision: true, reasoning: false, tools: true },
+        // 其他
+        "deepseek-chat": { vision: false, reasoning: false, tools: true },
+        "deepseek-coder": { vision: false, reasoning: false, tools: true },
+        "deepseek-coder-v2": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // Llama 模型
+    const llamaModels = {
+        "llama-3-70b": { vision: false, reasoning: false, tools: true },
+        "llama-3-8b": { vision: false, reasoning: false, tools: true },
+        "llama-3.1-405b": { vision: false, reasoning: false, tools: true },
+        "llama-3.1-70b": { vision: false, reasoning: false, tools: true },
+        "llama-3.1-8b": { vision: false, reasoning: false, tools: true },
+        "llama-3.2": { vision: true, reasoning: false, tools: true },
+        "llama-3.2-vision": { vision: true, reasoning: false, tools: true },
+        "llama-2-70b": { vision: false, reasoning: false, tools: true },
+        "llama-2-13b": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // Ernie 模型（百度）
+    const ernieModels = {
+        // Ernie 4.0系列 - 旗舰
+        "ernie-4.0-turbo-8k": { vision: false, reasoning: false, tools: true },
+        "ernie-4.0-8k": { vision: false, reasoning: false, tools: true },
+        "ernie-4.0-turbo": { vision: false, reasoning: false, tools: true },
+        "ernie-4.0": { vision: false, reasoning: false, tools: true },
+        // Ernie 3.5系列
+        "ernie-3.5-turbo-8k": { vision: false, reasoning: false, tools: true },
+        "ernie-3.5-8k": { vision: false, reasoning: false, tools: true },
+        "ernie-3.5-turbo": { vision: false, reasoning: false, tools: true },
+        // Ernie Pro系列
+        "ernie-pro": { vision: false, reasoning: false, tools: true },
+        "ernie-pro-vision": { vision: true, reasoning: false, tools: true },
+        // 轻量级
+        "ernie-lite": { vision: false, reasoning: false, tools: true },
+        "ernie-speed": { vision: false, reasoning: false, tools: true },
+        // 其他
+        "ernie-speed-pro": { vision: false, reasoning: false, tools: true },
+        "ernie-text-pro": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // Hunyuan 模型（腾讯）
+    const hunyuanModels = {
+        // 标准模型
+        "hunyuan-pro": { vision: false, reasoning: false, tools: true },
+        "hunyuan-pro-vision": { vision: true, reasoning: false, tools: true },        // 旗舰多模态
+        "hunyuan-plus": { vision: false, reasoning: false, tools: true },
+        "hunyuan-lite": { vision: false, reasoning: false, tools: true },
+        "hunyuan-turbo": { vision: false, reasoning: false, tools: true },
+        // 其他变体
+        "hunyuan-vision": { vision: true, reasoning: false, tools: true },
+        "hunyuan-pro-32k": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // Mistral 模型
+    const mistralModels = {
+        "mistral-large": { vision: false, reasoning: false, tools: true },
+        "mistral-large-3": { vision: false, reasoning: false, tools: true },
+        "mistral-medium": { vision: false, reasoning: false, tools: true },
+        "mistral-small": { vision: false, reasoning: false, tools: true },
+        "mixtral-8x22b": { vision: false, reasoning: false, tools: true },
+        "mixtral-8x7b": { vision: false, reasoning: false, tools: true },
+        "codestral": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // 其他服务商模型
+    const otherModels = {
+        // xAI
+        "grok-3": { vision: true, reasoning: false, tools: true },
+        "grok-2-vision": { vision: true, reasoning: false, tools: true },
+        "grok-2": { vision: false, reasoning: false, tools: true },
+        // Cohere
+        "command-r": { vision: false, reasoning: false, tools: true },
+        "command-r-plus": { vision: false, reasoning: false, tools: true },
+        "command-nightly": { vision: false, reasoning: false, tools: true },
+        // Perplexity
+        "sonar-pro": { vision: false, reasoning: false, tools: true },
+        "sonar": { vision: false, reasoning: false, tools: true },
+        "sonar-reasoning-pro": { vision: false, reasoning: true, tools: true },
+        "sonar-reasoning": { vision: false, reasoning: true, tools: true },
+        // 360 AI
+        "360gpt-pro": { vision: true, reasoning: false, tools: true },
+        "360gpt-turbo": { vision: false, reasoning: false, tools: true },
+        "360gpt-3": { vision: false, reasoning: false, tools: true },
+        // Moonshot
+        "moonshot-v1-8k": { vision: false, reasoning: false, tools: true },
+        "moonshot-v1-32k": { vision: false, reasoning: false, tools: true },
+        "moonshot-v1-128k": { vision: false, reasoning: false, tools: true },
+        "moonshot-v1-auto": { vision: false, reasoning: false, tools: true },
+        // 01.AI
+        "yi-large": { vision: false, reasoning: false, tools: true },
+        "yi-vision": { vision: true, reasoning: false, tools: true },
+        "yi-medium": { vision: false, reasoning: false, tools: true },
+        "yi-spark": { vision: false, reasoning: false, tools: true },
+        // ByteDance
+        "doubao-pro-32k": { vision: false, reasoning: false, tools: true },
+        "doubao-pro-128k": { vision: false, reasoning: false, tools: true },
+        "doubao-pro-4k": { vision: false, reasoning: false, tools: true },
+        "doubao-vision-pro": { vision: true, reasoning: false, tools: true },
+        // 开源模型
+        "llava-13b": { vision: true, reasoning: false, tools: false },
+        "llava-7b": { vision: true, reasoning: false, tools: false },
+        "falcon-40b": { vision: false, reasoning: false, tools: true },
+        "falcon-7b": { vision: false, reasoning: false, tools: true },
+        "vicuna-13b": { vision: false, reasoning: false, tools: true },
+        "alpaca-13b": { vision: false, reasoning: false, tools: true },
+        "mpt-30b": { vision: false, reasoning: false, tools: true },
+        "starling-lm": { vision: false, reasoning: false, tools: true },
+    };
+    
+    // 合并所有数据库
+    const completeModelDB = {
+        ...openaiModels,
+        ...claudeModels,
+        ...geminiModels,
+        ...qwenModels,
+        ...deepseekModels,
+        ...llamaModels,
+        ...ernieModels,
+        ...hunyuanModels,
+        ...mistralModels,
+        ...otherModels
+    };
+    
+    // 先尝试精确匹配
+    if (completeModelDB[id]) {
+        return completeModelDB[id];
+    }
+    
+    // 不精确匹配失败时，使用模糊匹配规则作为后备
+    // 这样可以处理未来新发布但还没录入的模型变体
+    
+    // Vision 能力 - 模糊匹配
+    if (/(vision|visual|multimodal|mm-|^gpt-4[ov-]|-v$|-vision$|-vl|multimodal)/.test(id)) {
+        capabilities.vision = true;
+    }
+    
+    // Reasoning 能力 - 模糊匹配
+    if (/(reasoning|^o[1-3]|^r1|-r1|thinking|-think|-distill.*r1|qwq)/.test(id)) {
+        capabilities.reasoning = true;
+    }
+    
+    // Tools 能力 - 默认true，除非是已知不支持的模型
+    if (!/^llava|^cogvlm|^mini-?cpm|pure$|vision-only|-pure|-vision-only/.test(id)) {
+        capabilities.tools = true;
+    }
+    
+    return capabilities;
+}
+
+// -----------------------------------------
 // Settings Logics
 // -----------------------------------------
 // -----------------------------------------
@@ -146,10 +441,25 @@ function renderProviderDetail() {
     // Render Checklist
     const renderChecklist = () => {
         const checklist = container.querySelector('#models-checklist');
-        const allModels = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
-        const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
+        
+        // 解析 allModels JSON 或字符串格式（向后兼容）
+        let allModels = [];
+        try {
+            const parsed = JSON.parse(provider.allModels || '[]');
+            allModels = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            // 向后兼容：如果是旧格式（逗号分隔的字符串），转换为新格式
+            const oldFormat = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
+            allModels = oldFormat.map(id => ({
+                id: id,
+                name: id,
+                capabilities: detectModelCapabilities(id)
+            }));
+        }
+        
+        let visibleModelIds = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
         const q = (uiState.modelSearchQuery || '').trim().toLowerCase();
-        const filteredModels = q ? allModels.filter(m => (m || '').toLowerCase().includes(q)) : allModels;
+        const filteredModels = q ? allModels.filter(m => (m.id || '').toLowerCase().includes(q)) : allModels;
 
         checklist.innerHTML = '';
         if (allModels.length === 0) {
@@ -162,20 +472,28 @@ function renderProviderDetail() {
         }
 
         filteredModels.forEach(m => {
-            const isVisible = visibleModels.includes(m);
+            const modelId = m.id || m;
+            const isVisible = visibleModelIds.includes(modelId);
+            const caps = m.capabilities || detectModelCapabilities(modelId);
+            
             const item = document.createElement('div');
             item.className = 'model-check-item';
             item.innerHTML = `
-                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${m}" value="${m}">
-                <label for="chk-${m}">${m}</label>
+                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${modelId}" value="${modelId}" data-model='${JSON.stringify(m)}'>
+                <label for="chk-${modelId}">${modelId}</label>
+                <div class="model-capabilities-mini" style="display: flex; gap: 4px; margin-left: auto; font-size: 11px;">
+                    <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
+                    <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
+                    <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
+                </div>
             `;
             // Toggle visibility when checkbox changes
             item.querySelector('input').addEventListener('change', (e) => {
                 const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
                 if (e.target.checked) {
-                    if (!currentVisible.includes(m)) currentVisible.push(m);
+                    if (!currentVisible.includes(modelId)) currentVisible.push(modelId);
                 } else {
-                    const idx = currentVisible.indexOf(m);
+                    const idx = currentVisible.indexOf(modelId);
                     if (idx > -1) currentVisible.splice(idx, 1);
                 }
                 provider.visibleModels = currentVisible.join(', ');
@@ -251,40 +569,55 @@ function renderProviderDetail() {
             }
 
             // 支持多种响应格式
-            let ids = [];
+            let models = [];
             
             if (data.data && Array.isArray(data.data)) {
                 // 标准 OpenAI 格式: { data: [{id: 'model-1'}, ...] }
-                ids = data.data.map(m => m.id).filter(id => id);
+                models = data.data;
             } else if (Array.isArray(data)) {
                 // 某些服务商直接返回数组: [{id: 'model-1'}, ...]
-                ids = data.map(m => m.id || m.name || m.model).filter(id => id);
+                models = data;
             } else if (data.models && Array.isArray(data.models)) {
                 // 另一种常见格式: { models: [...] }
-                ids = data.models.map(m => m.id || m.name || m).filter(id => id);
+                models = data.models;
             } else if (data.object === 'list' && Array.isArray(data.data)) {
                 // OpenAI 标准格式确认
-                ids = data.data.map(m => m.id).filter(id => id);
+                models = data.data;
             }
             
-            if (ids.length === 0) {
+            // 规范化模型对象结构，提取 id 并检测能力
+            const normalizedModels = models.map(m => {
+                const modelId = m.id || m.name || m.model || (typeof m === 'string' ? m : '');
+                if (!modelId) return null;
+                
+                // 检测模型能力
+                const capabilities = detectModelCapabilities(modelId, m);
+                
+                return {
+                    id: modelId,
+                    name: m.name || modelId,
+                    capabilities: capabilities
+                };
+            }).filter(m => m !== null);
+            
+            if (normalizedModels.length === 0) {
                 throw lastError || new Error("未能从任何候选地址获取模型列表，或返回格式不支持");
             }
 
-            // Store all models in allModels
-            provider.allModels = ids.join(', ');
+            // Store all models as JSON in allModels
+            provider.allModels = JSON.stringify(normalizedModels);
             // Initialize visibleModels as empty (user needs to manually enable)
             if (!provider.visibleModels) {
                 provider.visibleModels = '';
             }
 
             // Show model selection panel
-            showModelSelectionPanel(ids, provider, () => {
+            showModelSelectionPanel(normalizedModels, provider, () => {
                 renderProviderDetail();
                 renderProvidersSidebar();
             });
 
-            showNotification(`成功获取 ${ids.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
+            showNotification(`成功获取 ${normalizedModels.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
 
         } catch (e) {
             showNotification("获取失败: " + e.message, "error");
@@ -363,9 +696,29 @@ function renderProviderDetail() {
                 return;
             }
 
-            const all = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
-            if (!all.includes(modelId)) all.push(modelId);
-            provider.allModels = all.join(', ');
+            // 解析当前所有模型（支持新旧格式）
+            let all = [];
+            try {
+                const parsed = JSON.parse(provider.allModels || '[]');
+                all = Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                const oldFormat = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
+                all = oldFormat.map(id => ({
+                    id: id,
+                    name: id,
+                    capabilities: detectModelCapabilities(id)
+                }));
+            }
+            
+            // 检查重复
+            if (!all.find(m => m.id === modelId)) {
+                all.push({
+                    id: modelId,
+                    name: modelId,
+                    capabilities: detectModelCapabilities(modelId)
+                });
+            }
+            provider.allModels = JSON.stringify(all);
 
             const visible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(Boolean);
             if (!visible.includes(modelId)) visible.push(modelId);
@@ -387,8 +740,17 @@ function renderProviderDetail() {
             const resultEl = container.querySelector('#provider-test-result');
             const manualModel = (container.querySelector('.prov-manual-model')?.value || '').trim();
 
+            // 解析所有模型（新JSON格式）
+            let allModelsArray = [];
+            try {
+                const parsed = JSON.parse(provider.allModels || '[]');
+                allModelsArray = Array.isArray(parsed) ? parsed.map(m => m.id || m) : [];
+            } catch (e) {
+                allModelsArray = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            }
+            
             const visible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(Boolean);
-            const all = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
+            const all = allModelsArray;
             if (!provider.endpoint) { showNotification("请先填写Endpoint", "error"); return; }
             if (!provider.apiKey) { showNotification("请先填写API Key", "error"); return; }
 

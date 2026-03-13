@@ -307,6 +307,8 @@ function setupEvents() {
                 if (file) {
                     addAttachment(file, true);
                 }
+                // 重置input，使得下一次选择同样的文件仍然能触发change事件
+                e.target.value = '';
             });
         }
 
@@ -318,6 +320,8 @@ function setupEvents() {
                 if (file) {
                     addAttachment(file, false);
                 }
+                // 重置input，使得下一次选择同样的文件仍然能触发change事件
+                e.target.value = '';
             });
         }
 

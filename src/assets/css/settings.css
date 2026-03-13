@@ -736,6 +736,54 @@
     min-width: 0;
 }
 
+/* =============================================
+   Model Capabilities Indicators
+   ============================================= */
+
+.model-capabilities-mini {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 12px;
+    margin: 0 8px;
+}
+
+.model-capabilities-mini span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--text-secondary);
+    transition: opacity var(--transition), color var(--transition);
+}
+
+.model-capabilities-mini span:hover {
+    color: var(--text-primary);
+}
+
+.model-capabilities-indicators {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.model-capabilities-indicators span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--text-secondary);
+    transition: opacity var(--transition), color var(--transition);
+}
+
+.model-capabilities-indicators span:hover {
+    color: var(--text-primary);
+}
+}
+
 .companion-card-v2 .card-name {
     font-size: 15px;
     font-weight: 600;

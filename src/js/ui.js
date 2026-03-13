@@ -175,23 +175,36 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
         const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
         
         // 排序：已启用的模型放在最上面
-        let filtered = fetchedModels.filter(m => m.toLowerCase().includes(query));
+        let filtered = fetchedModels.filter(m => {
+            const modelId = m.id || m;
+            return modelId.toLowerCase().includes(query);
+        });
         filtered.sort((a, b) => {
-            const aVisible = visibleModels.includes(a);
-            const bVisible = visibleModels.includes(b);
+            const aId = a.id || a;
+            const bId = b.id || b;
+            const aVisible = visibleModels.includes(aId);
+            const bVisible = visibleModels.includes(bId);
             if (aVisible && !bVisible) return -1;
             if (!aVisible && bVisible) return 1;
-            return a.localeCompare(b);
+            return aId.localeCompare(bId);
         });
 
         modelsList.innerHTML = '';
         filtered.forEach(model => {
-            const isVisible = visibleModels.includes(model);
+            const modelId = model.id || model;
+            const isVisible = visibleModels.includes(modelId);
+            const caps = model.capabilities || {};
+            
             const item = document.createElement('div');
             item.className = `model-selection-item ${isVisible ? 'selected' : ''}`;
             item.innerHTML = `
-                <span class="model-name">${model}</span>
-                <button class="btn btn-sm model-toggle-btn ${isVisible ? 'btn-primary' : 'btn-ghost'}" data-model="${model}">
+                <span class="model-name">${modelId}</span>
+                <div class="model-capabilities-indicators" style="display: flex; gap: 4px; font-size: 12px;">
+                    <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
+                    <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
+                    <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
+                </div>
+                <button class="btn btn-sm model-toggle-btn ${isVisible ? 'btn-primary' : 'btn-ghost'}" data-model="${modelId}">
                     <i class="ph ${isVisible ? 'ph-eye' : 'ph-eye-slash'}"></i>
                 </button>
             `;

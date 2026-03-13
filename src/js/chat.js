@@ -13,6 +13,12 @@ function createNewChat() {
     if (attachmentsPreview) attachmentsPreview.style.display = 'none';
     if (attachmentsList) attachmentsList.innerHTML = '';
     if (messageInput) messageInput.value = '';
+    
+    // Reset upload inputs to allow re-uploading the same files
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const fileUploadInput = document.getElementById('file-upload-input');
+    if (imageUploadInput) imageUploadInput.value = '';
+    if (fileUploadInput) fileUploadInput.value = '';
 
     // Get default model from last used or first provider
     let defaultModel = state.settings.lastUsedModel || '';
@@ -55,6 +61,12 @@ function switchChat(chatId) {
     if (attachmentsPreview) attachmentsPreview.style.display = 'none';
     if (attachmentsList) attachmentsList.innerHTML = '';
     if (messageInput) messageInput.value = '';
+    
+    // Reset upload inputs to allow re-uploading the same files
+    const imageUploadInput = document.getElementById('image-upload-input');
+    const fileUploadInput = document.getElementById('file-upload-input');
+    if (imageUploadInput) imageUploadInput.value = '';
+    if (fileUploadInput) fileUploadInput.value = '';
 
     // Only keep flag if we are switching to the chat we just created
     if (state._newlyCreatedId !== chatId) {
@@ -433,6 +445,20 @@ function sendMessage() {
         });
     }
 
+    // 检查模型是否支持所有附件类型
+    if (attachments.length > 0) {
+        // 检查模型vision能力
+        const modelCapabilities = detectModelCapabilities(modelName, {});
+        
+        if (!modelCapabilities.vision) {
+            showNotification(`❌ 模型 "${modelName}" 不支持图片上传。请选择支持视觉能力的模型。`, 'error');
+            console.warn(`Model ${modelName} does not support vision capabilities`);
+            return;
+        }
+        
+        console.log(`✓ 模型 "${modelName}" 支持视觉能力，可以发送图片消息`);
+    }
+
     if (!text && attachments.length === 0) return;
 
     // Process User Message
@@ -508,7 +534,7 @@ function sendMessage() {
     }
 
     // Prepare messages for model - include attachments for models that support them
-    const messagesForModel = messagesToSend.map(msg => {
+    let messagesForModel = messagesToSend.map(msg => {
         try {
             if (typeof msg.content === 'object' && msg.content !== null) {
                 // For user messages with attachments or assistant messages with reasoning
@@ -516,6 +542,7 @@ function sendMessage() {
                     // Check if there are attachments
                     if (msg.content.attachments && msg.content.attachments.length > 0) {
                         // For messages with attachments, create a content array that includes both text and attachments
+                        // Using a neutral format that will be converted by messageFormatConverter
                         const contentArray = [];
 
                         // Add text content if it exists
@@ -526,14 +553,18 @@ function sendMessage() {
                             });
                         }
 
-                        // Add attachments
+                        // Add attachments in neutral format
                         msg.content.attachments.forEach(attachment => {
+                            const base64Data = attachment.data.includes(',') 
+                                ? attachment.data.split(',')[1] 
+                                : attachment.data;
+                            
                             contentArray.push({
                                 type: "image",
                                 source: {
                                     type: "base64",
                                     media_type: attachment.type,
-                                    data: attachment.data.split(',')[1] // Remove data URL prefix
+                                    data: base64Data
                                 }
                             });
                         });
@@ -581,11 +612,20 @@ function sendMessage() {
         }
     });
 
-    // Check if model supports attachments
-    const supportsAttachments = true; // Assume all models support attachments for now
+    // Convert messages to provider-specific format before sending
+    try {
+        if (typeof convertMessageForProvider === 'function' && providerId) {
+            messagesForModel = convertMessageForProvider(providerId, messagesForModel, provider.endpoint);
+            console.log(`✓ 已将消息转换为 ${provider.name} 格式`);
+        }
+    } catch (e) {
+        console.warn('消息格式转换失败，使用原始格式:', e);
+    }
 
-    if (!supportsAttachments && attachments.length > 0) {
-        showNotification('当前模型不支持文件上传', 'warning');
+    // Check if model supports attachments (after conversion)
+    const hasAttachments = messagesForModel.some(msg => Array.isArray(msg.content));
+    if (!hasAttachments && attachments.length > 0) {
+        // Model doesn't have attachments but user tried to send them
     }
 
     // Clear attachments after sending
@@ -595,6 +635,12 @@ function sendMessage() {
         if (attachmentsPreview) {
             attachmentsPreview.style.display = 'none';
         }
+        
+        // Also reset upload inputs to allow uploading again immediately
+        const imageUploadInput = document.getElementById('image-upload-input');
+        const fileUploadInput = document.getElementById('file-upload-input');
+        if (imageUploadInput) imageUploadInput.value = '';
+        if (fileUploadInput) fileUploadInput.value = '';
     }
 
     // Dispatch to Electron Main Process
