@@ -37,7 +37,7 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    timeout-minutes: 20  
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -64,6 +64,20 @@ jobs:
           mkdir assets
           for url in $(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[].browser_download_url'); do
             wget -P assets $url
+          done
+
+      - name: Delete Existing Gitee Release Assets
+        run: |
+          # 获取 Gitee 上该 Release 的所有附件 ID
+          RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITEE_TOKEN }}" \
+            "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/tags/${{ github.event.release.tag_name }}")
+          
+          # 提取附件 ID 并删除
+          echo "$RELEASE_INFO" | jq -r '.assets[].id' | while read asset_id; do
+            if [ -n "$asset_id" ]; then
+              curl -X DELETE -H "Authorization: token ${{ secrets.GITEE_TOKEN }}" \
+                "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/assets/${asset_id}" || true
+            fi
           done
 
       - name: Create/Update Gitee Release and Upload Assets
