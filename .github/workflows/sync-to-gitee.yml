@@ -3,9 +3,10 @@ name: Sync GitHub to Gitee
 on:
   push:
     branches: ["**"]
+    tags: ["*"]
     # 注意：不监听 tags，避免与 release 事件重复触发
   release:
-    types: [published, edited]
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -37,9 +38,6 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -68,20 +66,6 @@ jobs:
             wget -P assets $url
           done
 
-      - name: Delete Existing Gitee Release Assets
-        run: |
-          # 获取 Gitee 上该 Release 的所有附件 ID
-          RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITEE_TOKEN }}" \
-            "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/tags/${{ github.event.release.tag_name }}")
-          
-          # 提取附件 ID 并删除
-          echo "$RELEASE_INFO" | jq -r '.assets[].id' | while read asset_id; do
-            if [ -n "$asset_id" ]; then
-              curl -X DELETE -H "Authorization: token ${{ secrets.GITEE_TOKEN }}" \
-                "https://gitee.com/api/v5/repos/${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}/releases/assets/${asset_id}" || true
-            fi
-          done
-
       - name: Create/Update Gitee Release and Upload Assets
         uses: nicennnnnnnlee/action-gitee-release@master
         with:
@@ -95,4 +79,3 @@ jobs:
           gitee_target_commitish: master
           gitee_upload_retry_times: 3
           gitee_files: |
-            assets/*
