@@ -5,7 +5,7 @@ on:
     branches: ["**"]
     # 注意：不监听 tags，避免与 release 事件重复触发
   release:
-    types: [published]
+    types: [published, edited]
   workflow_dispatch:
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
   release:
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # 整体超时 10 分钟
+    timeout-minutes: 20  
 
     steps:
       - name: Checkout
