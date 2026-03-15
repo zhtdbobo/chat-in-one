@@ -4,7 +4,6 @@ on:
   push:
     branches: ["**"]
     tags: ["*"]
-    # 注意：不监听 tags，避免与 release 事件重复触发
   release:
     types: [published, edited]
   workflow_dispatch:
@@ -33,12 +32,11 @@ jobs:
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
           git push gitee --all
-          
 
   release:
     if: |
-      github.event_name == 'release' && 
-      (github.event.action == 'published' || 
+      github.event_name == 'release' &&
+      (github.event.action == 'published' ||
       (github.event.action == 'edited' && github.event.release.draft == false))
     runs-on: ubuntu-latest
 
@@ -69,10 +67,20 @@ jobs:
             wget -P assets $url
           done
 
-      - name: Create/Update Gitee Release and Upload Assets
+      - name: Delete existing Gitee Release if exists
+        continue-on-error: true
         uses: nicennnnnnnlee/action-gitee-release@master
         with:
-          gitee_action: upsert_release
+          gitee_action: delete_release
+          gitee_owner: ${{ secrets.GITEE_USER }}
+          gitee_repo: ${{ github.event.repository.name }}
+          gitee_token: ${{ secrets.GITEE_TOKEN }}
+          gitee_tag_name: ${{ github.event.release.tag_name }}
+
+      - name: Create Gitee Release and Upload Assets
+        uses: nicennnnnnnlee/action-gitee-release@master
+        with:
+          gitee_action: create_release
           gitee_owner: ${{ secrets.GITEE_USER }}
           gitee_repo: ${{ github.event.repository.name }}
           gitee_token: ${{ secrets.GITEE_TOKEN }}
@@ -82,3 +90,4 @@ jobs:
           gitee_target_commitish: master
           gitee_upload_retry_times: 3
           gitee_files: |
+            assets/
