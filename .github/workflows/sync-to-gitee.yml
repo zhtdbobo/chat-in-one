@@ -4,23 +4,14 @@ on:
   push:
     branches: ["**"]
     tags: ["*"]
+    # 注意：不监听 tags，避免与 release 事件重复触发
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: '要同步的 tag，例如 v1.1.6'
-        required: true
-      release_name:
-        description: 'Release 标题'
-        required: true
-      release_body:
-        description: 'Release 描述'
-        required: false
 
 jobs:
   mirror:
-    if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+    if: github.event_name != 'release'
     runs-on: ubuntu-latest
 
     steps:
@@ -42,9 +33,10 @@ jobs:
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
           git push gitee --all
+          
 
   release:
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
 
     steps:
@@ -62,52 +54,29 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
 
-      - name: Set variables
-        id: vars
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
-            echo "release_name=${{ github.event.inputs.release_name }}" >> $GITHUB_OUTPUT
-            echo "release_body=${{ github.event.inputs.release_body }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-            echo "release_name=${{ github.event.release.name }}" >> $GITHUB_OUTPUT
-            echo "release_body=${{ github.event.release.body }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Push release tag to Gitee
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
-          git push gitee ${{ steps.vars.outputs.tag }} || echo "Tag may already exist on Gitee"
+          git push gitee ${{ github.event.release.tag_name }} || echo "Tag may already exist on Gitee"
 
       - name: Download GitHub Release Assets
         run: |
           mkdir assets
-          for url in $(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.vars.outputs.tag }} | jq -r '.assets[].browser_download_url'); do
+          for url in $(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[].browser_download_url'); do
             wget -P assets $url
           done
 
-      - name: Delete existing Gitee Release if exists
-        continue-on-error: true
-        uses: nicennnnnnnlee/action-gitee-release@master
-        with:
-          gitee_action: delete_release
-          gitee_owner: ${{ secrets.GITEE_USER }}
-          gitee_repo: ${{ github.event.repository.name }}
-          gitee_token: ${{ secrets.GITEE_TOKEN }}
-          gitee_tag_name: ${{ steps.vars.outputs.tag }}
-
-      - name: Create Gitee Release and Upload Assets
+      - name: Create/Update Gitee Release and Upload Assets
         uses: nicennnnnnnlee/action-gitee-release@master
         with:
           gitee_action: create_release
           gitee_owner: ${{ secrets.GITEE_USER }}
           gitee_repo: ${{ github.event.repository.name }}
           gitee_token: ${{ secrets.GITEE_TOKEN }}
-          gitee_tag_name: ${{ steps.vars.outputs.tag }}
-          gitee_release_name: ${{ steps.vars.outputs.release_name }}
-          gitee_release_body: ${{ steps.vars.outputs.release_body }}
+          gitee_tag_name: ${{ github.event.release.tag_name }}
+          gitee_release_name: ${{ github.event.release.name }}
+          gitee_release_body: ${{ github.event.release.body }}
           gitee_target_commitish: master
           gitee_upload_retry_times: 3
           gitee_files: |
-            assets/
+            assets/*
