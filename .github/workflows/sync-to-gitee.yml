@@ -36,7 +36,10 @@ jobs:
           
 
   release:
-    if: github.event_name == 'release'
+    if: |
+      github.event_name == 'release' && 
+      (github.event.action == 'published' || 
+      (github.event.action == 'edited' && github.event.release.draft == false))
     runs-on: ubuntu-latest
 
     steps:
@@ -69,7 +72,7 @@ jobs:
       - name: Create/Update Gitee Release and Upload Assets
         uses: nicennnnnnnlee/action-gitee-release@master
         with:
-          gitee_action: create_release
+          gitee_action: upsert_release
           gitee_owner: ${{ secrets.GITEE_USER }}
           gitee_repo: ${{ github.event.repository.name }}
           gitee_token: ${{ secrets.GITEE_TOKEN }}
