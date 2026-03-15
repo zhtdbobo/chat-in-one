@@ -6,7 +6,7 @@ on:
     tags: ["*"]
     # 注意：不监听 tags，避免与 release 事件重复触发
   release:
-    types: [published]
+    types: [published, edited]
   workflow_dispatch:
 
 jobs:
