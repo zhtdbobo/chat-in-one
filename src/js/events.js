@@ -328,6 +328,74 @@ function setupEvents() {
 
     }
 
+    // Context usage tooltip + compression button
+    const ctxBtn = document.getElementById('context-compress-btn');
+    const ctxTip = document.getElementById('context-usage-tooltip');
+    if (ctxBtn && ctxTip) {
+        let rafId = null;
+
+        const renderTip = () => {
+            const est = (typeof getCurrentContextUsageEstimate === 'function')
+                ? getCurrentContextUsageEstimate({ includeDraftInput: true })
+                : null;
+
+            if (!est) {
+                ctxTip.innerHTML = `<div class="muted">无法计算上下文占用（缺少预估器或未选择对话）</div>`;
+                return;
+            }
+
+            // Keep tooltip simple by default; show details only near limit.
+            const used = est.msgTokens ?? 0; // so a fresh chat starts at 0
+            const usedPct = est.contextLimit ? Math.min(999, Math.round((used / est.contextLimit) * 100)) : 0;
+            const totalPct = est.contextLimit ? Math.min(999, Math.round((est.estimatedTotal / est.contextLimit) * 100)) : 0;
+            const cls = totalPct >= 98 ? 'bad' : (totalPct >= 85 ? 'warn' : '');
+
+            const basic = `
+                <div><strong>上下文占用</strong></div>
+                <div class="${cls}">${usedPct}%（${used}/${est.contextLimit} tokens）</div>
+                <div class="muted">点击压缩早期对话</div>
+            `;
+
+            if (totalPct < 85) {
+                ctxTip.innerHTML = basic;
+                return;
+            }
+
+            ctxTip.innerHTML = `
+                ${basic}
+                <div class="muted" style="margin-top:6px;">
+                    细节：系统提示词 ${est.promptTokens ?? 0} · 预留输出 ${est.outputReserve} · 总计 ~ ${est.estimatedTotal}/${est.contextLimit}（${totalPct}%）
+                </div>
+            `;
+        };
+
+        const show = () => {
+            renderTip();
+            ctxTip.style.display = 'block';
+            const loop = () => {
+                renderTip();
+                rafId = requestAnimationFrame(loop);
+            };
+            rafId = requestAnimationFrame(loop);
+        };
+
+        const hide = () => {
+            ctxTip.style.display = 'none';
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+        };
+
+        ctxBtn.addEventListener('mouseenter', show);
+        ctxBtn.addEventListener('mouseleave', hide);
+        ctxBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            hide();
+            if (typeof compressCurrentChatContext === 'function') {
+                await compressCurrentChatContext();
+            }
+        });
+    }
+
     // Conversation settings modal interactions
     if (closeConversationSettingsBtn) {
         closeConversationSettingsBtn.addEventListener('click', closeConversationSettings);

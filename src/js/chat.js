@@ -461,51 +461,12 @@ function sendMessage() {
 
     if (!text && attachments.length === 0) return;
 
-    // Process User Message
-    let messageContent;
-    if (attachments.length > 0) {
-        // For messages with attachments
-        messageContent = {
-            content: text,
-            attachments: attachments
-        };
-    } else {
-        // For plain text messages, use object format to match assistant messages
-        messageContent = {
-            content: text
-        };
-    }
+    // Process User Message (do NOT mutate chat yet; we may block due to context length)
+    const messageContent = attachments.length > 0
+        ? { content: text, attachments }
+        : { content: text };
 
-    chat.messages.push({ role: 'user', content: messageContent });
-    const userMsgEl = renderMessageItem('user', messageContent);
-    if (messagesList) {
-        messagesList.appendChild(userMsgEl);
-    } else {
-        messageContainer.appendChild(userMsgEl);
-    }
-
-    // Hide welcome elements once first message is sent
-    if (welcomeScreen) welcomeScreen.style.display = 'none';
-    const companionsPanel = document.getElementById('companions-panel');
-    if (companionsPanel) companionsPanel.style.display = 'none';
-    const skillSection = document.querySelector('.skills-section');
-    if (skillSection) skillSection.style.display = 'none';
-    state.isNewFreshChat = false;
-
-    messageInput.value = '';
-    messageInput.style.height = 'auto'; // reset textarea height
-    scrollToBottom();
-
-    // Try to generate title after first user message
-    if (chat.messages.length === 1 && chat.title === "新对话") {
-        chat.title = generateTitleFromContent(messageContent);
-        currentChatTitle.textContent = chat.title;
-        renderChatList();
-    }
-
-    saveChats();
-
-    // Get conversation-specific settings
+    // Get conversation-specific settings (needed for context estimation and sending)
     let finalSystemPrompt = chat.systemPrompt || state.settings.systemPrompt || '';
     const temperature = chat.temperature || 0.7;
     const topP = chat.topP || 1;
@@ -528,7 +489,7 @@ function sendMessage() {
     }
 
     // Apply max message count if set
-    let messagesToSend = chat.messages;
+    let messagesToSend = [...chat.messages, { role: 'user', content: messageContent }];
     if (chat.maxMessageCount && chat.maxMessageCount < 15) {
         messagesToSend = messagesToSend.slice(-chat.maxMessageCount);
     }
@@ -622,6 +583,73 @@ function sendMessage() {
         console.warn('消息格式转换失败，使用原始格式:', e);
     }
 
+    // Context length warning / blocking (best-effort heuristic)
+    try {
+        if (typeof estimateConversationTokens === 'function') {
+            const contextLimitTokens = (typeof getContextWindowTokensFromProvider === 'function')
+                ? getContextWindowTokensFromProvider(provider, modelName)
+                : null;
+            const est = estimateConversationTokens({
+                systemPrompt: finalSystemPrompt,
+                messages: messagesForModel,
+                maxOutputTokens,
+                modelName,
+                contextLimitTokens
+            });
+
+            const hardBlockAt = Math.floor(est.contextLimit * 0.98);
+            const warnAt = Math.floor(est.contextLimit * 0.85);
+
+            if (est.estimatedTotal > hardBlockAt) {
+                showNotification(
+                    `❌ 上下文过长：预计 ${est.estimatedTotal} tokens（上限约 ${est.contextLimit}）。请减少历史消息/设置“最大消息数”或缩短输入后再发送。`,
+                    'error',
+                    6000
+                );
+                return;
+            }
+            if (est.estimatedTotal > warnAt) {
+                showNotification(
+                    `⚠️ 接近上下文上限：预计 ${est.estimatedTotal}/${est.contextLimit} tokens。若发送失败，请减少历史消息或缩短输入。`,
+                    'warning',
+                    5000
+                );
+            }
+        }
+    } catch (e) {
+        console.warn('Context estimation failed:', e);
+    }
+
+    // Now commit the user message to UI/state
+    chat.messages.push({ role: 'user', content: messageContent });
+    const userMsgEl = renderMessageItem('user', messageContent);
+    if (messagesList) {
+        messagesList.appendChild(userMsgEl);
+    } else {
+        messageContainer.appendChild(userMsgEl);
+    }
+
+    // Hide welcome elements once first message is sent
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+    const companionsPanel = document.getElementById('companions-panel');
+    if (companionsPanel) companionsPanel.style.display = 'none';
+    const skillSection = document.querySelector('.skills-section');
+    if (skillSection) skillSection.style.display = 'none';
+    state.isNewFreshChat = false;
+
+    messageInput.value = '';
+    messageInput.style.height = 'auto'; // reset textarea height
+    scrollToBottom();
+
+    // Try to generate title after first user message
+    if (chat.messages.length === 1 && chat.title === "新对话") {
+        chat.title = generateTitleFromContent(messageContent);
+        currentChatTitle.textContent = chat.title;
+        renderChatList();
+    }
+
+    saveChats();
+
     // Check if model supports attachments (after conversion)
     const hasAttachments = messagesForModel.some(msg => Array.isArray(msg.content));
     if (!hasAttachments && attachments.length > 0) {
@@ -665,6 +693,216 @@ function sendMessage() {
 
 function scrollToBottom() {
     messageContainer.scrollTop = messageContainer.scrollHeight;
+}
+
+// -----------------------------------------
+// Context usage + compression helpers (UI button)
+// -----------------------------------------
+
+function getCurrentChatProviderAndModel(chat) {
+    let providerId, modelName;
+    if (chat?.model && chat.model.includes('|')) {
+        [providerId, modelName] = chat.model.split('|').map(s => s.trim());
+    } else {
+        const providers = state.settings.providers || [];
+        if (providers.length > 0) {
+            providerId = providers[0].id;
+            const models = (providers[0].models || "").split(',').map(m => m.trim()).filter(m => m);
+            modelName = models[0];
+        }
+    }
+    const provider = (state.settings.providers || []).find(p => p.id === providerId);
+    return { providerId, modelName, provider };
+}
+
+function getContextWindowTokensFromProvider(provider, modelName) {
+    if (!provider || !modelName) return null;
+    let allModels = [];
+    try {
+        const parsed = JSON.parse(provider.allModels || '[]');
+        allModels = Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        allModels = [];
+    }
+    const hit = allModels.find(m => (m?.id || m?.name) === modelName) || allModels.find(m => String(m?.id || '').toLowerCase() === String(modelName).toLowerCase());
+    if (!hit) return null;
+
+    const candidates = [
+        hit.contextWindowTokens,
+        hit.context_window,
+        hit.contextWindow,
+        hit.context_length,
+        hit.contextLength,
+        hit.max_context_tokens,
+        hit.maxContextTokens,
+        hit.max_input_tokens,
+        hit.maxInputTokens,
+        hit.input_tokens,
+        hit.inputTokens
+    ];
+    for (const v of candidates) {
+        const n = typeof v === 'string' ? parseInt(v, 10) : v;
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+}
+
+function buildMessagesForModelPreview(chat, extraUserText = '') {
+    if (!chat) return [];
+    let msgs = chat.messages || [];
+    if (chat.maxMessageCount && chat.maxMessageCount < 15) {
+        msgs = msgs.slice(-chat.maxMessageCount);
+    }
+
+    // Optional preview includes current input (not committed yet)
+    const trimmed = String(extraUserText || '').trim();
+    if (trimmed) {
+        msgs = [...msgs, { role: 'user', content: { content: trimmed } }];
+    }
+
+    // Convert to model format used by sendMessage() (best-effort; for estimation only)
+    return msgs.map(msg => {
+        if (msg && typeof msg.content === 'object' && msg.content !== null) {
+            if (msg.content.content !== undefined) {
+                if (msg.content.attachments && msg.content.attachments.length > 0) {
+                    const contentArray = [];
+                    if (msg.content.content) contentArray.push({ type: "text", text: msg.content.content });
+                    msg.content.attachments.forEach(att => {
+                        const base64Data = att.data?.includes(',') ? att.data.split(',')[1] : att.data;
+                        contentArray.push({
+                            type: "image",
+                            source: { type: "base64", media_type: att.type, data: base64Data }
+                        });
+                    });
+                    return { role: msg.role, content: contentArray };
+                }
+                return { role: msg.role, content: msg.content.content };
+            }
+            if (msg.content.reasoning_content !== undefined) {
+                return { role: msg.role, content: msg.content.content || '' };
+            }
+            return { role: msg.role, content: JSON.stringify(msg.content) };
+        }
+        if (typeof msg?.content === 'string') return msg;
+        return { role: msg?.role || 'user', content: String(msg?.content ?? '') };
+    });
+}
+
+function getCurrentContextUsageEstimate({ includeDraftInput = false } = {}) {
+    const chat = state.chats.find(c => c.id === state.currentChatId);
+    if (!chat) return null;
+
+    const { modelName, provider } = getCurrentChatProviderAndModel(chat);
+    const contextLimitTokens = getContextWindowTokensFromProvider(provider, modelName);
+
+    let systemPrompt = chat.systemPrompt || state.settings.systemPrompt || '';
+    if (state.activeSkillId) {
+        const allCompanions = getAllCompanions();
+        const skill = allCompanions.find(s => s.id === state.activeSkillId);
+        if (skill?.prompt) systemPrompt = skill.prompt;
+    }
+    if (state.settings.enableSearch) {
+        systemPrompt += "\n\n[System Nudge: Web Search is ENABLED. Please use your online search capabilities or tools to provide the most up-to-date information if the user's request requires it. If you don't have direct tools, acknowledge the current date and provide the best available knowledge.]";
+    }
+
+    let maxOutputTokens = chat.maxOutputTokens || 0;
+    if (maxOutputTokens >= 8100) maxOutputTokens = 0;
+
+    const draft = includeDraftInput ? (messageInput?.value || '') : '';
+    const messagesForModel = buildMessagesForModelPreview(chat, draft);
+
+    if (typeof estimateConversationTokens !== 'function') return null;
+    return estimateConversationTokens({
+        systemPrompt,
+        messages: messagesForModel,
+        maxOutputTokens,
+        modelName,
+        contextLimitTokens
+    });
+}
+
+async function compressCurrentChatContext() {
+    if (state.isStreaming) return;
+
+    const chat = state.chats.find(c => c.id === state.currentChatId);
+    if (!chat) return;
+
+    const { modelName, provider } = getCurrentChatProviderAndModel(chat);
+    if (!provider?.apiKey || !provider?.endpoint) {
+        showNotification('请先在设置中配置当前模型的服务商（Endpoint / API Key）', 'error', 4000);
+        openSettings();
+        return;
+    }
+
+    const keepLast = 6; // keep recent turns intact
+    if ((chat.messages || []).length <= keepLast + 2) {
+        showNotification('当前对话内容较少，无需压缩。', 'info', 2500);
+        return;
+    }
+
+    // Build transcript from older messages (exclude existing summaries to avoid snowball)
+    const older = (chat.messages || [])
+        .filter(m => !(m?.role === 'system' && typeof m?.content === 'string' && m.content.includes('[对话摘要]')))
+        .slice(0, Math.max(0, (chat.messages.length - keepLast)));
+
+    const recent = (chat.messages || []).slice(-keepLast);
+
+    const transcriptLines = [];
+    for (const m of older) {
+        const role = m?.role || 'assistant';
+        let c = m?.content;
+        if (Array.isArray(c)) {
+            const parts = c.map(p => p?.type === 'text' ? p.text : '[image]').filter(Boolean).join(' ');
+            transcriptLines.push(`${role}: ${parts}`);
+        } else if (c && typeof c === 'object') {
+            const text = c.content != null ? String(c.content) : JSON.stringify(c);
+            const imgCount = Array.isArray(c.attachments) ? c.attachments.filter(a => String(a?.type || '').startsWith('image/')).length : 0;
+            transcriptLines.push(`${role}: ${text}${imgCount ? ` [images:${imgCount}]` : ''}`);
+        } else {
+            transcriptLines.push(`${role}: ${String(c ?? '')}`);
+        }
+    }
+
+    const instruction = [
+        "你是一个对话压缩器。请把“对话记录”压缩成可用于后续继续对话的长期记忆摘要。",
+        "要求：",
+        "- 保留关键事实、用户目标、偏好、约束、已做过的尝试、结论、待办/未解决问题、重要上下文。",
+        "- 用中文输出，结构化为要点列表，尽量短但信息密度高。",
+        "- 不要编造未出现的信息；不需要客套。",
+        "",
+        "对话记录：",
+        transcriptLines.join('\n')
+    ].join('\n');
+
+    showNotification('正在压缩上下文…', 'info', 1800);
+
+    const res = await window.api.summarizeChat({
+        endpoint: provider.endpoint,
+        apiKey: provider.apiKey,
+        modelName,
+        systemPrompt: 'You are a helpful assistant.',
+        temperature: 0.2,
+        max_tokens: 800,
+        messages: [{ role: 'user', content: instruction }]
+    });
+
+    if (!res?.ok || !res?.summary) {
+        showNotification('压缩失败：' + (res?.error || 'Unknown error'), 'error', 6000);
+        return;
+    }
+
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const summaryMsg = {
+        role: 'system',
+        content: `[对话摘要] (${stamp})\n${res.summary}`
+    };
+
+    chat.messages = [summaryMsg, ...recent];
+    saveChats();
+    renderMessages(chat.messages);
+    scrollToBottom();
+    showNotification('已压缩：早期对话已替换为摘要（保留最近 ' + keepLast + ' 条消息）', 'success', 3500);
 }
 
 // Textarea auto-resize - moved to setupEvents() in events.js

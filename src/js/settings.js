@@ -725,11 +725,32 @@ function renderProviderDetail() {
                 
                 // 检测模型能力
                 const capabilities = detectModelCapabilities(modelId, m);
+
+                // Best-effort: try to capture context window tokens if provider returns it
+                const contextCandidates = [
+                    m.contextWindowTokens,
+                    m.context_window,
+                    m.contextWindow,
+                    m.context_length,
+                    m.contextLength,
+                    m.max_context_tokens,
+                    m.maxContextTokens,
+                    m.max_input_tokens,
+                    m.maxInputTokens,
+                    m.input_tokens,
+                    m.inputTokens
+                ];
+                let contextWindowTokens = null;
+                for (const v of contextCandidates) {
+                    const n = (typeof v === 'string') ? parseInt(v, 10) : v;
+                    if (Number.isFinite(n) && n > 0) { contextWindowTokens = n; break; }
+                }
                 
                 return {
                     id: modelId,
                     name: m.name || modelId,
-                    capabilities: capabilities
+                    capabilities: capabilities,
+                    contextWindowTokens: contextWindowTokens
                 };
             }).filter(m => m !== null);
             

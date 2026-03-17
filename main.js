@@ -644,6 +644,83 @@ ipcMain.handle('test-provider-connection', async (event, payload) => {
     }
 });
 
+// One-shot summarization (context compression)
+ipcMain.handle('summarize-chat', async (event, payload) => {
+    const { endpoint, apiKey, modelName, systemPrompt, messages, max_tokens, temperature } = payload || {};
+    if (!endpoint) return { ok: false, error: 'Missing endpoint' };
+    if (!apiKey) return { ok: false, error: 'Missing apiKey' };
+    if (!modelName) return { ok: false, error: 'Missing modelName' };
+
+    const controller = new AbortController();
+    const timeoutMs = 45000;
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    const start = Date.now();
+    try {
+        const apiMessages = [
+            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+            ...((messages || []).map(m => ({ role: m.role, content: m.content })))
+        ];
+
+        const { response: resp, url: usedUrl } = await fetchChatCompletionWithFallback(
+            endpoint,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    stream: false,
+                    temperature: (temperature != null ? temperature : 0.2),
+                    max_tokens: max_tokens || 800,
+                    messages: apiMessages
+                })
+            },
+            controller
+        );
+
+        const latencyMs = Date.now() - start;
+        const text = await resp.text();
+
+        if (!resp.ok) {
+            return {
+                ok: false,
+                status: resp.status,
+                latencyMs,
+                error: text ? text.slice(0, 800) : `HTTP ${resp.status}`,
+                url: usedUrl
+            };
+        }
+
+        let json = null;
+        try { json = JSON.parse(text); } catch (e) { }
+        const usedModel = json?.model || modelName;
+        const usage = json?.usage || null;
+        const content = json?.choices?.[0]?.message?.content ?? '';
+
+        return {
+            ok: true,
+            latencyMs,
+            model: usedModel,
+            usage,
+            summary: String(content || '').trim(),
+            url: usedUrl
+        };
+    } catch (err) {
+        const latencyMs = Date.now() - start;
+        const aborted = err?.name === 'AbortError';
+        return {
+            ok: false,
+            latencyMs,
+            error: aborted ? `Timeout after ${timeoutMs}ms` : (err?.message || String(err))
+        };
+    } finally {
+        clearTimeout(t);
+    }
+});
+
 // Stream Request Handler
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');

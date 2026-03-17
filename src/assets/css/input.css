@@ -87,6 +87,43 @@
     gap: 4px;
 }
 
+.context-compress-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.context-usage-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    min-width: 220px;
+    max-width: 320px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface-elevated);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.35;
+    display: none;
+    z-index: 1010;
+    pointer-events: none;
+}
+
+.context-usage-tooltip .muted {
+    color: var(--text-muted);
+}
+
+.context-usage-tooltip .warn {
+    color: #f59e0b;
+}
+
+.context-usage-tooltip .bad {
+    color: #ef4444;
+}
+
 .tool-btn {
     background: transparent;
     border: none;
