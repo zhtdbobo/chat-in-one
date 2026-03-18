@@ -216,53 +216,52 @@ const https = require('https');
 function isCNNetwork() {
     return new Promise((resolve) => {
         const testSites = [
-            { name: 'gitee', url: 'https://gitee.com' },
-            { name: 'github', url: 'https://github.com' }
+            { name: 'gitee', url: 'https://gitee.com', timeout: 3000 },
+            { name: 'github', url: 'https://github.com', timeout: 3000 }
         ];
         let completed = 0;
-        const results = {};
+        const results = { gitee: Infinity, github: Infinity };
         let resolved = false;
 
+        const cleanup = () => {
+            if (resolved) return;
+            resolved = true;
+            // 如果 GitHub 不通或者 Gitee 更快，则判定为中国网络
+            const isCN = results.github === Infinity || results.gitee < results.github;
+            resolve(isCN);
+        };
+
         // 整体超时保护
-        const overallTimeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                resolve(true); // 超时默认使用 Gitee
-            }
-        }, 5000);
+        const overallTimeout = setTimeout(cleanup, 5000);
 
         testSites.forEach(site => {
             const startTime = Date.now();
-            const req = https.get(site.url, { timeout: 3000 }, (res) => {
+            const req = https.get(site.url, { timeout: site.timeout }, (res) => {
                 if (resolved) return;
                 results[site.name] = Date.now() - startTime;
                 completed++;
                 if (completed === testSites.length) {
                     clearTimeout(overallTimeout);
-                    resolved = true;
-                    resolve(!results.github || (results.gitee && results.gitee < results.github));
+                    cleanup();
                 }
             }).on('error', (err) => {
                 if (resolved) return;
-                console.warn(`Network test failed for ${site.name}:`, err.message);
                 results[site.name] = Infinity;
                 completed++;
                 if (completed === testSites.length) {
                     clearTimeout(overallTimeout);
-                    resolved = true;
-                    resolve(!results.github || (results.gitee && results.gitee < results.github));
+                    cleanup();
                 }
             });
             
-            req.setTimeout(3000, function () {
+            req.setTimeout(site.timeout, function () {
                 if (resolved) return;
                 req.destroy();
                 results[site.name] = Infinity;
                 completed++;
                 if (completed === testSites.length) {
                     clearTimeout(overallTimeout);
-                    resolved = true;
-                    resolve(!results.github || (results.gitee && results.gitee < results.github));
+                    cleanup();
                 }
             });
         });
@@ -273,7 +272,13 @@ function isCNNetwork() {
 async function getGiteeLatestRelease(owner, repo) {
     return new Promise((resolve, reject) => {
         const url = `https://gitee.com/api/v5/repos/${owner}/${repo}/releases/latest`;
-        https.get(url, { timeout: 10000 }, (res) => {
+        https.get(url, { 
+            timeout: 5000,
+            headers: { 'User-Agent': 'chat-in-one-updater' }
+        }, (res) => {
+            if (res.statusCode !== 200) {
+                return reject(new Error(`Gitee API error: ${res.statusCode}`));
+            }
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
@@ -284,8 +289,38 @@ async function getGiteeLatestRelease(owner, repo) {
                     reject(new Error('Failed to parse Gitee release: ' + e.message));
                 }
             });
-        }).on('error', reject).setTimeout(10000, function () {
+        }).on('error', reject).setTimeout(5000, function () {
             reject(new Error('Gitee API timeout'));
+        });
+    });
+}
+
+// 获取 GitHub 最新 Release 信息 (带代理回退)
+async function getGithubLatestRelease(owner, repo, useProxy = false) {
+    return new Promise((resolve, reject) => {
+        const baseUrl = useProxy 
+            ? `https://mirror.ghproxy.com/https://api.github.com/repos/${owner}/${repo}/releases/latest`
+            : `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+            
+        https.get(baseUrl, { 
+            timeout: 8000,
+            headers: { 'User-Agent': 'chat-in-one-updater' }
+        }, (res) => {
+            if (res.statusCode !== 200) {
+                return reject(new Error(`GitHub API error: ${res.statusCode}`));
+            }
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const release = JSON.parse(data);
+                    resolve(release);
+                } catch (e) {
+                    reject(new Error('Failed to parse GitHub release: ' + e.message));
+                }
+            });
+        }).on('error', reject).setTimeout(8000, function () {
+            reject(new Error('GitHub API timeout'));
         });
     });
 }
@@ -319,122 +354,174 @@ if (app.isPackaged) {
 
 ipcMain.handle('check-for-updates', async () => {
     if (!autoUpdater) return { ok: false, reason: 'unavailable' };
+    
     try {
         let isCN = false;
         try {
-            // 检测网络环境，决定使用 GitHub 还是 Gitee
             isCN = await isCNNetwork();
         } catch (networkErr) {
-            console.warn('Network detection failed:', networkErr.message);
-            // 网络检测失败时默认使用 GitHub
             isCN = false;
         }
         
+        const ghOwner = 'zhtdbobo';
+        const giteeOwner = 'JaridLi';
+        const repo = 'chat-in-one';
+        
+        // 1. 如果在 CN，优先试 Gitee
         if (isCN) {
-            // 使用 Gitee 源
-            updateSource = 'gitee';
-            console.log('Using Gitee update source for CN network');
-            
             try {
-                // 获取 Gitee 最新 Release
-                const release = await getGiteeLatestRelease('zhtdbobo', 'chat-in-one');
+                console.log('Testing Gitee update source...');
+                const release = await getGiteeLatestRelease(giteeOwner, repo);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
                 const currentVersion = app.getVersion();
                 
-                if (!latestVersion) {
-                    throw new Error('无法获取 Gitee 版本信息');
-                }
-                
-                // 比较版本号
-                if (latestVersion > currentVersion) {
-                    // 找到对应的安装包
-                    const asset = release.assets && release.assets.find(a => 
-                        a.name && a.name.includes('Setup') && a.name.endsWith('.exe')
-                    );
-                    
-                    if (!asset) {
-                        throw new Error('Gitee Release 中未找到安装包');
-                    }
-                    
-                    // 使用 generic provider 指向 Gitee 的下载链接
-                    // electron-updater 需要 latest.yml 文件，但 Gitee 不提供
-                    // 所以我们手动下载并安装
-                    sendUpdateStatus({ 
-                        type: 'available', 
-                        version: release.tag_name, 
-                        releaseNotes: release.body || '' 
-                    });
-                    
-                    // 手动下载更新
-                    const downloadUrl = asset.browser_download_url;
-                    const userDataPath = app.getPath('userData');
-                    const updatePath = path.join(userDataPath, 'update.exe');
-                    
-                    // 下载文件
-                    await new Promise((resolve, reject) => {
-                        const file = fs.createWriteStream(updatePath);
-                        https.get(downloadUrl, { timeout: 60000 }, (response) => {
-                            const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
-                            let downloadedBytes = 0;
-                            
-                            response.on('data', (chunk) => {
-                                downloadedBytes += chunk.length;
-                                if (totalBytes > 0) {
-                                    const percent = (downloadedBytes / totalBytes) * 100;
-                                    sendUpdateStatus({ type: 'progress', percent });
-                                }
-                            });
-                            
-                            response.pipe(file);
-                            file.on('finish', () => {
-                                file.close();
-                                resolve();
-                            });
-                        }).on('error', (err) => {
-                            fs.unlink(updatePath, () => {});
-                            reject(err);
-                        }).setTimeout(60000, function () {
-                            fs.unlink(updatePath, () => {});
-                            reject(new Error('下载超时'));
-                        });
-                    });
-                    
-                    // 下载完成，准备安装
-                    sendUpdateStatus({ type: 'downloaded', version: release.tag_name });
-                    
-                    // 存储更新文件路径供后续安装使用
-                    global.updateInstallerPath = updatePath;
-                    
-                    return { ok: true, message: '更新已下载' };
-                } else {
-                    sendUpdateStatus({ type: 'not-available' });
-                    return { ok: true, message: '当前已是最新版本' };
+                if (latestVersion && latestVersion > currentVersion) {
+                    updateSource = 'gitee';
+                    // 找到了 Gitee 更新，后续走手动下载流程
+                    handleGiteeUpdate(release);
+                    return { ok: true, message: '发现 Gitee 更新' };
                 }
             } catch (giteeErr) {
-                console.warn('Gitee update failed, falling back to GitHub:', giteeErr.message);
-                // Gitee 失败时回退到 GitHub
-                updateSource = 'github';
+                console.warn('Gitee update check skipped/failed:', giteeErr.message);
+            }
+            
+            // 2. 如果 Gitee 失败，在 CN 环境下尝试 GHProxy 检查 GitHub 
+            try {
+                console.log('Testing GitHub via Proxy...');
+                const release = await getGithubLatestRelease(ghOwner, repo, true);
+                const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
+                const currentVersion = app.getVersion();
+                
+                if (latestVersion && latestVersion > currentVersion) {
+                    updateSource = 'github-proxy';
+                    handleGHProxyUpdate(release);
+                    return { ok: true, message: '发现 GitHub (代理) 更新' };
+                }
+            } catch (proxyErr) {
+                console.warn('GitHub Proxy check failed:', proxyErr.message);
             }
         }
         
-        // 使用 GitHub 源（默认或回退）
-        if (updateSource === 'github') {
-            console.log('Using GitHub update source');
-            // 使用 package.json 中配置的 publish 设置
-            await autoUpdater.checkForUpdates();
-        }
+        // 3. 默认尝试官方 checkForUpdates (GitHub)
+        // 注意：在 CN 且上述都失败时，如果不希望直接卡死，可以在这里加个判断
+        console.log('Using standard autoUpdater (GitHub)');
+        updateSource = 'github';
         
+        // 为 autoUpdater 设置较短的超时，避免长时间等待
+        const checkPromise = autoUpdater.checkForUpdates();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('检查更新超时，请检查网络连接或代理设置')), 15000)
+        );
+        
+        await Promise.race([checkPromise, timeoutPromise]);
         return { ok: true, message: '检查更新已启动' };
+        
     } catch (e) {
         const errorMessage = e.message || String(e);
-        sendUpdateStatus({ type: 'error', message: errorMessage });
-        return { ok: false, reason: errorMessage };
+        const userFriendlyError = errorMessage.includes('TIMEOUT') || errorMessage.includes('Timed out') || errorMessage.includes('timed_out')
+            ? '检查更新超时：GitHub 访问受限，请尝试开启代理或检查网络。'
+            : errorMessage;
+            
+        sendUpdateStatus({ type: 'error', message: userFriendlyError });
+        return { ok: false, reason: userFriendlyError };
     }
 });
 
+// 处理 Gitee 更新逻辑 (原逻辑提取)
+async function handleGiteeUpdate(release) {
+    try {
+        const asset = release.assets && release.assets.find(a => 
+            a.name && (a.name.includes('Setup') || a.name.includes('exe')) && a.name.endsWith('.exe')
+        );
+        
+        if (!asset) throw new Error('未找到安装包');
+        
+        sendUpdateStatus({ 
+            type: 'available', 
+            version: release.tag_name, 
+            releaseNotes: release.body || '' 
+        });
+        
+        const downloadUrl = asset.browser_download_url;
+        const userDataPath = app.getPath('userData');
+        const updatePath = path.join(userDataPath, 'update.exe');
+        
+        await downloadFile(downloadUrl, updatePath);
+        
+        sendUpdateStatus({ type: 'downloaded', version: release.tag_name });
+        global.updateInstallerPath = updatePath;
+    } catch (err) {
+        sendUpdateStatus({ type: 'error', message: 'Gitee 下载失败: ' + err.message });
+    }
+}
+
+// 获取 GHProxy 后的资源下载地址
+async function handleGHProxyUpdate(release) {
+    try {
+        const asset = release.assets && release.assets.find(a => 
+            a.name && a.name.endsWith('.exe')
+        );
+        if (!asset) throw new Error('未找到安装包');
+
+        sendUpdateStatus({ 
+            type: 'available', 
+            version: release.tag_name, 
+            releaseNotes: release.body || '' 
+        });
+
+        // 使用镜像下载资源
+        const downloadUrl = `https://mirror.ghproxy.com/${asset.browser_download_url}`;
+        const userDataPath = app.getPath('userData');
+        const updatePath = path.join(userDataPath, 'update.exe');
+
+        await downloadFile(downloadUrl, updatePath);
+
+        sendUpdateStatus({ type: 'downloaded', version: release.tag_name });
+        global.updateInstallerPath = updatePath;
+    } catch (err) {
+        sendUpdateStatus({ type: 'error', message: '代理下载失败: ' + err.message });
+    }
+}
+
+// 通用下载函数
+function downloadFile(url, savePath) {
+    return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(savePath);
+        https.get(url, { timeout: 60000 }, (response) => {
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                // 处理重定向
+                return downloadFile(response.headers.location, savePath).then(resolve).catch(reject);
+            }
+            
+            const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+            let downloadedBytes = 0;
+            
+            response.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                if (totalBytes > 0) {
+                    const percent = (downloadedBytes / totalBytes) * 100;
+                    sendUpdateStatus({ type: 'progress', percent });
+                }
+            });
+            
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close();
+                resolve();
+            });
+        }).on('error', (err) => {
+            fs.unlink(savePath, () => {});
+            reject(err);
+        }).setTimeout(90000, function () {
+            fs.unlink(savePath, () => {});
+            reject(new Error('下载超时'));
+        });
+    });
+}
+
 ipcMain.handle('install-update', () => {
-    if (updateSource === 'gitee' && global.updateInstallerPath && fs.existsSync(global.updateInstallerPath)) {
-        // 使用 Gitee 下载的更新文件进行安装
+    if ((updateSource === 'gitee' || updateSource === 'github-proxy') && global.updateInstallerPath && fs.existsSync(global.updateInstallerPath)) {
+        // 使用手动下载的更新文件进行安装
         const { spawn } = require('child_process');
         const installerPath = global.updateInstallerPath;
         
