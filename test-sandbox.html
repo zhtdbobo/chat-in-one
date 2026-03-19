@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sandbox Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { margin: 5px; padding: 10px; }
+        .code-block { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .code-actions { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Sandbox Functionality Test</h1>
+    
+    <div class="test-result" id="dom-elements-test">
+        <h3>DOM Elements Test</h3>
+        <div id="dom-result"></div>
+    </div>
+    
+    <div class="test-result" id="function-test">
+        <h3>Function Test</h3>
+        <div id="function-result"></div>
+    </div>
+    
+    <div class="test-result">
+        <h3>Test Preview Button</h3>
+        <div class="code-block">
+            <div class="code-actions">
+                <button type="button" class="code-preview-btn" title="沙盒预览">
+                    <span>预览</span>
+                </button>
+            </div>
+            <pre><code class="hljs html" data-raw-b64>PGgxPlRlc3Q8L2gxPg==</code></pre>
+        </div>
+    </div>
+    
+    <!-- Sandbox Area (Right Panel) -->
+    <div class="sandbox-resizer" id="sandbox-resizer" style="display: none;"></div>
+    <aside class="sandbox-area" id="sandbox-area" style="display: none;">
+        <div class="sandbox-header">
+            <span class="sandbox-title">Sandbox 预览</span>
+            <div class="sandbox-actions">
+                <button id="sandbox-refresh-btn" class="btn btn-icon btn-ghost" title="重新加载">
+                    <span>刷新</span>
+                </button>
+                <button id="sandbox-close-btn" class="btn btn-icon btn-ghost" title="关闭沙盒">
+                    <span>关闭</span>
+                </button>
+            </div>
+        </div>
+        <div class="sandbox-content">
+            <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+        </div>
+    </aside>
+    
+    <script src="src/js/utils.js"></script>
+    <script src="src/js/state.js"></script>
+    <script src="src/js/init.js"></script>
+    <script src="src/js/events.js"></script>
+    <script src="src/js/sandbox.js"></script>
+    
+    <script>
+        // Test DOM elements
+        function testDomElements() {
+            const elements = [
+                'message-container',
+                'sandbox-resizer',
+                'sandbox-area',
+                'sandbox-iframe'
+            ];
+            
+            let result = '';
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    result += `<p class="success">✓ ${id} exists</p>`;
+                } else {
+                    result += `<p class="error">✗ ${id} not found</p>`;
+                }
+            });
+            document.getElementById('dom-result').innerHTML = result;
+        }
+        
+        // Test functions
+        function testFunctions() {
+            let result = '';
+            
+            if (typeof window.openSandbox === 'function') {
+                result += `<p class="success">✓ window.openSandbox is a function</p>`;
+            } else {
+                result += `<p class="error">✗ window.openSandbox is not a function</p>`;
+            }
+            
+            if (typeof decodeBase64Utf8 === 'function') {
+                result += `<p class="success">✓ decodeBase64Utf8 is a function</p>`;
+            } else {
+                result += `<p class="error">✗ decodeBase64Utf8 is not a function</p>`;
+            }
+            
+            document.getElementById('function-result').innerHTML = result;
+        }
+        
+        // Run tests
+        testDomElements();
+        testFunctions();
+        
+        // Add click event listener to test preview button
+        document.querySelector('.code-preview-btn').addEventListener('click', function() {
+            const codeBlock = this.closest('.code-block');
+            const codeEl = codeBlock.querySelector('code');
+            const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
+            
+            try {
+                if (typeof window.openSandbox === 'function') {
+                    window.openSandbox(codeText);
+                    alert('Preview button clicked, sandbox should open');
+                } else {
+                    alert('window.openSandbox is not a function');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+    </script>
+</body>
+</html>

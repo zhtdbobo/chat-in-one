@@ -280,12 +280,12 @@ function renderMessages(messages) {
                         htmlContent += `
                             <details class="thinking-block">
                                 <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                                <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning))}</div>
+                                <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning), { ADD_TAGS: ['button'] })}</div>
                             </details>
                         `;
                     }
                     if (cRaw) {
-                        htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw))}</div>`;
+                        htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw), { ADD_TAGS: ['button'] })}</div>`;
                     }
                     
                     col.innerHTML = `
@@ -349,7 +349,7 @@ function renderMessages(messages) {
 function renderMarkdownSafe(text) {
     const raw = typeof text === 'string' ? text : String(text ?? '');
     try {
-        return DOMPurify.sanitize(marked.parse(raw));
+        return DOMPurify.sanitize(marked.parse(raw), { ADD_TAGS: ['button'] });
     } catch (e) {
         console.error('Markdown render error, fallback to plain text:', e);
         return `<pre class="markdown-body">${escapeHtml(raw)}</pre>`;

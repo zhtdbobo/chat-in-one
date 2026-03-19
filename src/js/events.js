@@ -4,6 +4,22 @@
 // Events
 // -----------------------------------------
 function setupEvents() {
+    function decodeBase64Utf8(b64) {
+        try {
+            const bin = atob(b64);
+            // Convert binary string -> Uint8Array -> UTF-8 string
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            if (typeof TextDecoder !== 'undefined') {
+                return new TextDecoder('utf-8').decode(bytes);
+            }
+            // Fallback: best-effort
+            return decodeURIComponent(escape(bin));
+        } catch (e) {
+            return '';
+        }
+    }
+
     // Settings Tabs Event
     document.querySelectorAll('.settings-tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
@@ -113,7 +129,8 @@ function setupEvents() {
             const copyBtn = e.target.closest('.code-copy-btn');
             if (copyBtn) {
                 const codeBlock = copyBtn.closest('.code-block');
-                const codeText = codeBlock.querySelector('code').innerText;
+                const codeEl = codeBlock.querySelector('code');
+                const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
                 if (typeof copyText === 'function') {
                     copyText(codeText, copyBtn);
                 }
@@ -124,9 +141,26 @@ function setupEvents() {
             const previewBtn = e.target.closest('.code-preview-btn');
             if (previewBtn) {
                 const codeBlock = previewBtn.closest('.code-block');
-                const codeText = codeBlock.querySelector('code').innerText;
-                if (typeof window.openSandbox === 'function') {
-                    window.openSandbox(codeText);
+                const codeEl = codeBlock.querySelector('code');
+                const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
+                try {
+                    if (typeof window.openSandbox === 'function') {
+                        window.openSandbox(codeText);
+                    } else {
+                        console.error('Sandbox is not initialized: window.openSandbox is not a function');
+                        if (typeof showNotification === 'function') {
+                            showNotification('❌ Sandbox 未初始化（openSandbox 不可用），请重启应用后再试。', 'error', 4500);
+                        } else {
+                            alert('Sandbox 未初始化（openSandbox 不可用），请重启应用后再试。');
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to open sandbox preview:', err);
+                    if (typeof showNotification === 'function') {
+                        showNotification('❌ 打开 Sandbox 预览失败，请查看控制台错误信息。', 'error', 4500);
+                    } else {
+                        alert('打开 Sandbox 预览失败，请查看控制台错误信息。');
+                    }
                 }
                 return;
             }
@@ -601,14 +635,14 @@ function setupEvents() {
                 finalHtml += `
                     <details class="thinking-block" ${!isStreamingComplete ? 'open' : ''}>
                         <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(parsedReasoningHtml)}</div>
+                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(parsedReasoningHtml, { ADD_TAGS: ['button'] })}</div>
                     </details>
                 `;
             }
 
             if (rawContent) {
                 const parsedHtml = marked.parse(rawContent);
-                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml)}</div>`;
+                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml, { ADD_TAGS: ['button'] })}</div>`;
             }
 
             const scrollEl = streamDiv.querySelector('.message-scroll');
@@ -675,12 +709,12 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
             finalHtml += `
                 <details class="thinking-block">
                     <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning))}</div>
+                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning), { ADD_TAGS: ['button'] })}</div>
                 </details>
             `;
         }
         if (rawContent) {
-            finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+            finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent), { ADD_TAGS: ['button'] })}</div>`;
         }
         scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
     }
@@ -765,12 +799,12 @@ function finalizeStream(chatId, meta) {
                 finalHtml += `
                     <details class="thinking-block">
                         <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning))}</div>
+                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning), { ADD_TAGS: ['button'] })}</div>
                     </details>
                 `;
             }
             if (rawContent) {
-                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent), { ADD_TAGS: ['button'] })}</div>`;
             }
             scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
         }
