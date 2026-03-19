@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('api', {
     stopStream: () => ipcRenderer.invoke('stop-stream'),
     updateTitlebarTheme: (theme) => ipcRenderer.send('update-titlebar-theme', theme),
 
+    // Window Management API
+    isMaximized: () => ipcRenderer.invoke('is-maximized'),
+    maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+
     // Listeners
     onStreamStart: (callback) => ipcRenderer.on('stream-start', (event, data) => callback(data)),
     onStreamChunk: (callback) => ipcRenderer.on('stream-chunk', (event, data) => callback(data)),

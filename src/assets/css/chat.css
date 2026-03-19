@@ -140,6 +140,178 @@ body.light-theme .companions-panel-list .companion-item {
     /* Ensure space at bottom */
 }
 
+/* ============================================
+   Comparison View Layout
+   ============================================ */
+.message-container.comparison-layout {
+    overflow-x: auto;
+    padding: 16px;
+}
+
+/* The user question appears as normal message above the grid */
+.message-container.comparison-layout #messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    min-width: fit-content;
+}
+
+/* The grid holding all model columns */
+.comparison-grid {
+    display: flex;
+    flex-direction: row;
+    gap: 14px;
+    align-items: start;
+    padding-bottom: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    width: 100%;
+}
+
+/* Individual model column */
+.comparison-column {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg, 12px);
+    overflow: hidden;
+    min-height: 200px;
+    flex: 1 1 320px;
+    min-width: 320px;
+    max-width: 100%;
+    scroll-snap-align: start;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.2s ease;
+    animation: slideUp 0.3s ease-out;
+}
+
+.comparison-column:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Column header bar */
+.comparison-header {
+    padding: 10px 14px;
+    background: var(--bg-surface-elevated);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.comparison-header .model-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.comparison-header .model-name i {
+    font-size: 15px;
+    color: var(--bg-primary);
+    flex-shrink: 0;
+}
+
+.comparison-header .model-status {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.3s, color 0.3s;
+}
+
+.comparison-header .model-status.streaming {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.3);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+body.light-theme .comparison-header .model-status.streaming {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* Column content body */
+.comparison-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+}
+
+.comparison-body .message-content {
+    background: transparent;
+    padding: 0;
+    max-width: 100%;
+    width: 100%;
+}
+
+.comparison-body .message-scroll {
+    overflow-x: auto;
+}
+
+.comparison-body .message-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-subtle);
+    font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.comparison-body .empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.comparison-body .empty-state i {
+    font-size: 32px;
+    opacity: 0.4;
+}
+
+.comparison-body::-webkit-scrollbar {
+    width: 5px;
+}
+
+.comparison-body::-webkit-scrollbar-thumb {
+    background-color: var(--border-subtle);
+    border-radius: 3px;
+}
+
+/* Comparison toggle button active state */
+#comparison-toggle-btn.active {
+    background: var(--brand-alpha, rgba(59,130,246,0.15));
+    color: var(--bg-primary, #3b82f6);
+    border-color: rgba(59,130,246,0.3);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .message-container.switching {
     opacity: 0;
     visibility: hidden;

@@ -552,6 +552,20 @@ ipcMain.on('update-titlebar-theme', (event, theme) => {
     }
 });
 
+// Window Management API
+ipcMain.handle('is-maximized', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        return mainWindow.isMaximized();
+    }
+    return false;
+});
+
+ipcMain.handle('maximize-window', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+        mainWindow.maximize();
+    }
+    return true;
+});
 // IPC Handlers for Settings
 ipcMain.handle('get-settings', () => {
     return store.get('settings');
@@ -844,13 +858,19 @@ async function getMcpTools(servers) {
 ipcMain.on('send-message-stream', async (event, requestData) => {
     const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers } = requestData;
 
+    let thisController;
     try {
-        // Cleanup old clients
-        for (const c of mcpClients) await c.transport.close();
-        mcpClients = [];
+        // Cleanup old clients (only on non-comparison to avoid cancelling siblings)
+        if (!requestData.isComparisonStream) {
+            for (const c of mcpClients) await c.transport.close();
+            mcpClients = [];
+        }
 
-        // Create AbortController for this stream
-        currentStreamController = new AbortController();
+        // Create AbortController for this stream and register it
+        thisController = new AbortController();
+        currentStreamController = thisController;
+        if (!global.activeStreamControllers) global.activeStreamControllers = [];
+        global.activeStreamControllers.push(thisController);
 
         let tools = [];
         if (mcpServers && mcpServers.length > 0) {
@@ -897,19 +917,19 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                 },
                 body: JSON.stringify(body)
             },
-            currentStreamController
+            thisController
         );
 
         if (!response.ok) {
             const errStr = await response.text();
-            event.reply('stream-error', { chatId, error: `API Error: ${response.status} - ${errStr}`, url: usedUrl });
+            event.reply('stream-error', { chatId, modelName, error: `API Error: ${response.status} - ${errStr}`, url: usedUrl });
             return;
         }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
 
-        event.reply('stream-start', { chatId });
+        event.reply('stream-start', { chatId, modelName });
 
         let toolCalls = [];
         let firstTokenLatency = null;
@@ -963,10 +983,10 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                         firstTokenLatency = Date.now() - streamStartTime;
                     }
                     if (delta.reasoning_content && enableThinking !== false) {
-                        event.reply('stream-chunk', { chatId, reasoning_content: delta.reasoning_content });
+                        event.reply('stream-chunk', { chatId, modelName, reasoning_content: delta.reasoning_content });
                     }
                     if (delta.content) {
-                        event.reply('stream-chunk', { chatId, content: delta.content });
+                        event.reply('stream-chunk', { chatId, modelName, content: delta.content });
                     }
                     if (delta.tool_calls) {
                         for (const tc of delta.tool_calls) {
@@ -1070,7 +1090,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     if (parsed.usage && (parsed.usage.total_tokens != null || parsed.usage.output_tokens != null)) toolLastUsage = parsed.usage;
                     if (delta?.content) {
                         if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
-                        event.reply('stream-chunk', { chatId, content: delta.content });
+                        event.reply('stream-chunk', { chatId, modelName, content: delta.content });
                     }
                 } catch (e) {
                     if (!trimmedLine.includes('[DONE]')) {
@@ -1085,17 +1105,25 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
 
         const endTime = new Date();
         const timeStr = String(endTime.getHours()).padStart(2, '0') + ':' + String(endTime.getMinutes()).padStart(2, '0');
-        event.reply('stream-end', { chatId, usage: lastUsage, model: lastModel, firstTokenLatency, time: timeStr });
+        event.reply('stream-end', { chatId, modelName, usage: lastUsage, model: lastModel, firstTokenLatency, time: timeStr });
     } catch (error) {
-        event.reply('stream-error', { chatId, error: error.message });
+        if (error.name !== 'AbortError') {
+            event.reply('stream-error', { chatId, modelName, error: error.message });
+        }
     } finally {
-        // Cleanup controller
-        currentStreamController = null;
+        // Cleanup this controller from the active list
+        if (global.activeStreamControllers) {
+            global.activeStreamControllers = global.activeStreamControllers.filter(c => c !== thisController);
+        }
     }
 });
 
-// Stop stream handler
+// Stop stream handler - aborts ALL active streams (including comparison mode parallel streams)
 ipcMain.handle('stop-stream', () => {
+    if (global.activeStreamControllers && global.activeStreamControllers.length > 0) {
+        global.activeStreamControllers.forEach(c => c.abort());
+        global.activeStreamControllers = [];
+    }
     if (currentStreamController) {
         currentStreamController.abort();
         currentStreamController = null;

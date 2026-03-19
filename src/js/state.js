@@ -11,7 +11,10 @@ let state = {
     activeSkillId: null,
     enabledMcpServerIds: [],
     _newlyCreatedId: null,
-    isNewFreshChat: false
+    isNewFreshChat: false,
+    isComparisonMode: false,
+    selectedComparisonModels: [], // array of "providerId|modelName"
+    comparisonStreams: {} // modelName -> DOM element mapping
 };
 
 // DOM Elements
@@ -52,3 +55,12 @@ const addCompanionBtn = document.getElementById('add-companion-btn');
 const currentChatTitle = document.getElementById('current-chat-title');
 const welcomeScreen = document.getElementById('welcome-screen');
 const toggleSearchBtn = document.getElementById('toggle-search-btn');
+
+// Comparison View Elements
+const comparisonToggleBtn = document.getElementById('comparison-toggle-btn');
+const multiModelSelectBtn = document.getElementById('multi-model-select-btn');
+const multiModelModal = document.getElementById('multi-model-modal');
+const multiModelList = document.getElementById('multi-model-list');
+const confirmMultiModelBtn = document.getElementById('confirm-multi-model-btn');
+const cancelMultiModelBtn = document.getElementById('cancel-multi-model-btn');
+const closeMultiModelBtn = document.getElementById('close-multi-model-btn');

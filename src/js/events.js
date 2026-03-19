@@ -106,6 +106,33 @@ function setupEvents() {
         }
     });
 
+    // Delegation for Dynamically Created Buttons in Code Blocks
+    if (messageContainer) {
+        messageContainer.addEventListener('click', (e) => {
+            // Handle Copy button
+            const copyBtn = e.target.closest('.code-copy-btn');
+            if (copyBtn) {
+                const codeBlock = copyBtn.closest('.code-block');
+                const codeText = codeBlock.querySelector('code').innerText;
+                if (typeof copyText === 'function') {
+                    copyText(codeText, copyBtn);
+                }
+                return;
+            }
+
+            // Handle Sandbox Preview button
+            const previewBtn = e.target.closest('.code-preview-btn');
+            if (previewBtn) {
+                const codeBlock = previewBtn.closest('.code-block');
+                const codeText = codeBlock.querySelector('code').innerText;
+                if (typeof window.openSandbox === 'function') {
+                    window.openSandbox(codeText);
+                }
+                return;
+            }
+        });
+    }
+
     // Restore sidebar width on init
     if (state.settings.sidebarWidth) {
         document.documentElement.style.setProperty('--sidebar-width', state.settings.sidebarWidth);
@@ -139,6 +166,38 @@ function setupEvents() {
             if (searchCheckbox) searchCheckbox.checked = !!state.settings.enableSearch;
         });
     }
+
+    // Comparison Mode Toggle
+    if (comparisonToggleBtn) {
+        comparisonToggleBtn.addEventListener('click', () => {
+            state.isComparisonMode = !state.isComparisonMode;
+            updateComparisonToggleState();
+            
+            // If turning off, revert UI
+            if (!state.isComparisonMode) {
+                messageContainer.classList.remove('comparison-layout');
+                const chat = state.chats.find(c => c.id === state.currentChatId);
+                if (chat) switchChat(chat.id);
+            } else {
+                // If turning on and chat is empty, show empty comparison state
+                const chat = state.chats.find(c => c.id === state.currentChatId);
+                if (chat && chat.messages.length === 0 && state.selectedComparisonModels.length >= 2) {
+                    messageContainer.classList.add('comparison-layout');
+                    renderComparisonEmptyState();
+                } else if (state.selectedComparisonModels.length < 2) {
+                    openMultiModelModal();
+                }
+            }
+        });
+    }
+
+    if (multiModelSelectBtn) {
+        multiModelSelectBtn.addEventListener('click', openMultiModelModal);
+    }
+
+    if (closeMultiModelBtn) closeMultiModelBtn.addEventListener('click', closeMultiModelModal);
+    if (cancelMultiModelBtn) cancelMultiModelBtn.addEventListener('click', closeMultiModelModal);
+    if (confirmMultiModelBtn) confirmMultiModelBtn.addEventListener('click', confirmMultiModelSelection);
 
     // Stop button
     if (stopBtn) {
@@ -478,31 +537,62 @@ function setupEvents() {
         state.isStreaming = true;
         if (sendBtn) sendBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'flex';
-        const div = renderMessageItem('assistant', '');
-        if (messagesList) {
-            messagesList.appendChild(div);
+        
+        if (state.isComparisonMode && data.modelName) {
+            // Find the model's column body using the modelId stored in data-model-id
+            // The column's body id is built from the full modelId (providerId|modelName)
+            const matchedModelId = state.selectedComparisonModels.find(id => id.endsWith('|' + data.modelName) || id === data.modelName);
+            const safeId = (matchedModelId || data.modelName).replace(/[^a-zA-Z0-9]/g, '-');
+            const colId = `comp-body-${safeId}`;
+            const colBody = document.getElementById(colId);
+
+            if (colBody) {
+                colBody.innerHTML = '<div class="message-content" data-raw="" data-reasoning=""><div class="message-scroll"></div></div>';
+                state.comparisonStreams[data.modelName] = colBody.querySelector('.message-content');
+
+                // Update header status
+                const col = colBody.closest('.comparison-column');
+                if (col) {
+                    const status = col.querySelector('.model-status');
+                    if (status) {
+                        status.textContent = '正在生成...';
+                        status.classList.add('streaming');
+                    }
+                }
+            } else {
+                console.warn('[Comparison] Could not find column body:', colId, 'for model:', data.modelName);
+            }
         } else {
-            messageContainer.appendChild(div);
+            const div = renderMessageItem('assistant', '');
+            if (messagesList) {
+                messagesList.appendChild(div);
+            } else {
+                messageContainer.appendChild(div);
+            }
+            state.currentStreamDiv = div.querySelector('.message-content');
         }
-        state.currentStreamDiv = div.querySelector('.message-content');
         scrollToBottom();
     });
 
     window.api.onStreamChunk((data) => {
-        if (!state.currentStreamDiv) return;
+        const streamDiv = (state.isComparisonMode && data.modelName) 
+            ? state.comparisonStreams[data.modelName] 
+            : state.currentStreamDiv;
+            
+        if (!streamDiv) return;
 
         try {
             if (data.reasoning_content) {
-                const currentReasoning = state.currentStreamDiv.dataset.reasoning || '';
-                state.currentStreamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
+                const currentReasoning = streamDiv.dataset.reasoning || '';
+                streamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
             }
             if (data.content) {
-                const currentRaw = state.currentStreamDiv.dataset.raw || '';
-                state.currentStreamDiv.dataset.raw = currentRaw + data.content;
+                const currentRaw = streamDiv.dataset.raw || '';
+                streamDiv.dataset.raw = currentRaw + data.content;
             }
 
-            const rawContent = state.currentStreamDiv.dataset.raw || '';
-            const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
+            const rawContent = streamDiv.dataset.raw || '';
+            const rawReasoning = streamDiv.dataset.reasoning || '';
 
             let finalHtml = '';
             if (rawReasoning && state.settings.enableThinking !== false) {
@@ -521,7 +611,7 @@ function setupEvents() {
                 finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml)}</div>`;
             }
 
-            const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+            const scrollEl = streamDiv.querySelector('.message-scroll');
             if (scrollEl) {
                 scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
 
@@ -534,20 +624,118 @@ function setupEvents() {
     });
 
     window.api.onStreamEnd((data) => {
-        finalizeStream(data.chatId, data);
+        if (state.isComparisonMode && data.modelName) {
+            finalizeComparisonColumn(data.chatId, data.modelName, data);
+        } else {
+            finalizeStream(data.chatId, data);
+        }
     });
 
     window.api.onStreamError((data) => {
-        if (state.currentStreamDiv) {
-            const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
-            if (scrollEl) {
-                scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${data.error}]</span>`;
+        if (state.isComparisonMode && data.modelName) {
+            // Show error in the specific model column
+            const streamDiv = state.comparisonStreams[data.modelName];
+            if (streamDiv) {
+                const scrollEl = streamDiv.querySelector('.message-scroll');
+                if (scrollEl) {
+                    scrollEl.innerHTML = `<div class="markdown-body"><span style="color:var(--color-error, #ef4444)">❌ 发生错误: ${data.error}</span></div>`;
+                }
             }
+            finalizeComparisonColumn(data.chatId, data.modelName, {});
         } else {
-            renderMessageItem('system', `API 连接错误: ${data.error}`);
+            if (state.currentStreamDiv) {
+                const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
+                if (scrollEl) {
+                    scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${data.error}]</span>`;
+                }
+            } else {
+                renderMessageItem('system', `API 连接错误: ${data.error}`);
+            }
+            finalizeStream(data.chatId, {});
         }
-        finalizeStream(data.chatId, {});
     });
+}
+
+/**
+ * Finalize a single comparison column when its stream ends.
+ * Replaces finalizeStream for comparison mode.
+ */
+function finalizeComparisonColumn(chatId, modelName, meta) {
+    const streamDiv = state.comparisonStreams[modelName];
+    if (!streamDiv) return;
+
+    // Final render
+    const rawContent = streamDiv.dataset.raw || '';
+    const rawReasoning = streamDiv.dataset.reasoning || '';
+    const scrollEl = streamDiv.querySelector('.message-scroll');
+
+    if (scrollEl) {
+        let finalHtml = '';
+        if (rawReasoning && state.settings.enableThinking !== false) {
+            finalHtml += `
+                <details class="thinking-block">
+                    <summary><i class="ph ph-brain"></i> 思考过程</summary>
+                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning))}</div>
+                </details>
+            `;
+        }
+        if (rawContent) {
+            finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
+        }
+        scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
+    }
+
+    // Meta info
+    const wordCount = rawContent.trim().split(/\s+/).filter(Boolean).length;
+    const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
+    const latency = meta.firstTokenLatency != null ? `首词 ${meta.firstTokenLatency}ms · ` : '';
+    const metaStr = `${latency}${tokens} tokens · ${meta.time || ''}`;
+    const existingMeta = streamDiv.querySelector('.message-meta');
+    if (existingMeta) existingMeta.remove();
+    if (scrollEl) {
+        scrollEl.insertAdjacentHTML('afterend', `<div class="message-meta">${metaStr}</div>`);
+    }
+
+    // Update column header status  
+    const col = streamDiv.closest('.comparison-column');
+    if (col) {
+        const status = col.querySelector('.model-status');
+        if (status) {
+            status.textContent = '✓ 完成';
+            status.classList.remove('streaming');
+        }
+    }
+
+    // Save to chat state
+    const chat = state.chats.find(c => c.id === chatId);
+    if (chat) {
+        chat.messages.push({
+            role: 'assistant',
+            content: { content: rawContent, reasoning_content: rawReasoning },
+            model: meta.model || modelName,
+            comparisonModelName: modelName
+        });
+        saveChats();
+    }
+
+    // Remove from active streams map
+    delete state.comparisonStreams[modelName];
+
+    // Check if all comparison streams are done
+    if (Object.keys(state.comparisonStreams).length === 0) {
+        state.isStreaming = false;
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.display = 'flex'; }
+        if (stopBtn) stopBtn.style.display = 'none';
+        messageInput.focus();
+
+        // Auto-generate title
+        if (chat && chat.title === '新对话') {
+            chat.title = generateTitleFromContent(chat.messages[0]?.content);
+            renderChatList();
+            saveChats();
+        }
+    }
+    scrollToBottom();
 }
 
 function finalizeStream(chatId, meta) {
@@ -568,8 +756,6 @@ function finalizeStream(chatId, meta) {
         const detailsEl = state.currentStreamDiv.querySelector('details.thinking-block');
         if (detailsEl) detailsEl.removeAttribute('open');
 
-        // 最终确认为 UI 刷新：由于主进程发送 stream-end 时可能还有极少量未渲染块，
-        // 或者为了确保语法高亮和复制按钮在最后状态也是正确的。
         const rawContent = state.currentStreamDiv.dataset.raw || '';
         const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
         const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
@@ -587,8 +773,6 @@ function finalizeStream(chatId, meta) {
                 finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent))}</div>`;
             }
             scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
-
-            // Structures are now handled by custom marked renderer
         }
 
         // Append message meta (word count, tokens, latency, model, time)
@@ -603,7 +787,6 @@ function finalizeStream(chatId, meta) {
         const metaStr = parts.filter(Boolean).join(', ');
         const metaHtml = `<div class="message-meta">${metaStr}</div>`;
 
-        // Insert meta under the horizontal scrollbar (outside .message-scroll)
         const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
         if (existingMeta) existingMeta.remove();
 
@@ -615,16 +798,17 @@ function finalizeStream(chatId, meta) {
 
         const chat = state.chats.find(c => c.id === chatId);
         if (chat) {
-            chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning } });
+            chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning }, model: meta.model });
 
             // Auto generate title for first message
-            if (chat.messages.length === 2 && chat.title === "新对话") {
+            if (chat.messages.length === 2 && chat.title === '新对话') {
                 chat.title = generateTitleFromContent(chat.messages[0].content);
                 renderChatList();
             }
             saveChats();
         }
     }
+
     state.currentStreamDiv = null;
     scrollToBottom();
 }

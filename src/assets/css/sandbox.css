@@ -1,0 +1,86 @@
+/* Sandbox Area Styles (Right Panel) */
+.sandbox-resizer {
+    width: 4px;
+    background-color: transparent;
+    cursor: col-resize;
+    transition: background-color 0.2s;
+    user-select: none;
+    -webkit-app-region: no-drag;
+}
+
+.sandbox-resizer:hover, .sandbox-resizer.active {
+    background-color: var(--brand-alpha);
+}
+
+.sandbox-area {
+    width: 45%;
+    min-width: 300px;
+    max-width: 80%;
+    background-color: var(--bg-surface);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border-left: 1px solid var(--border-subtle);
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.05);
+    z-index: 10;
+    -webkit-app-region: no-drag;
+}
+
+.sandbox-header {
+    height: 48px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background-color: var(--bg-surface-elevated);
+    user-select: none;
+}
+
+.sandbox-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sandbox-title i {
+    color: var(--bg-primary);
+    font-size: 16px;
+}
+
+.sandbox-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.sandbox-actions .btn {
+    padding: 6px;
+    height: 28px;
+    width: 28px;
+}
+
+.sandbox-actions .btn i {
+    font-size: 15px;
+}
+
+.sandbox-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    background: #ffffff; /* Typically sandboxes render assuming a white background for apps */
+}
+
+/* iframe setup */
+#sandbox-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+}

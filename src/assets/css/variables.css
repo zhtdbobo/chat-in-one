@@ -47,7 +47,7 @@ body.light-theme {
     --bg-primary: #3b82f6;
     --bg-primary-hover: #2563eb;
     --bg-chat-user: #e2e8f0;
-    --bg-chat-assistant: transparent;
+    --bg-chat-assistant: #f1f5f9;
 
     --text-primary: #0f172a;
     --text-secondary: #475569;

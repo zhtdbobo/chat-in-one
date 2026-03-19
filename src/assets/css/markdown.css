@@ -36,12 +36,18 @@
 }
 
 .markdown-body pre {
-    background-color: #0d1117;
+    background-color: #0d1117 !important;
+    color: #e2e8f0 !important;
     padding: 16px;
     border-radius: var(--radius-sm);
     overflow-x: auto;
     margin: 12px 0;
     border: 1px solid var(--border-subtle);
+}
+
+.markdown-body pre code {
+    color: inherit !important;
+    background-color: transparent !important;
 }
 
 .code-block {
@@ -52,34 +58,43 @@
     margin: 12px 0;
 }
 
-.code-copy-btn {
+.code-actions {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    -webkit-app-region: no-drag;
+    z-index: 5;
+}
+
+.code-block:hover .code-actions {
+    opacity: 1;
+}
+
+.code-action-btn {
     border: 1px solid var(--border-subtle);
     background: rgba(20, 21, 26, 0.7);
     color: var(--text-muted);
     border-radius: 6px;
-    padding: 6px;
+    padding: 6px 10px;
     cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s, background 0.15s;
+    transition: color 0.15s, background 0.15s;
     display: flex;
     align-items: center;
     justify-content: center;
-    -webkit-app-region: no-drag;
+    gap: 6px;
+    font-size: 12px;
 }
 
-.code-block:hover .code-copy-btn {
-    opacity: 1;
-}
-
-.code-copy-btn:hover {
+.code-action-btn:hover {
     color: var(--bg-primary);
     background: rgba(20, 21, 26, 0.9);
 }
 
-.code-copy-btn.copied {
+.code-action-btn.copied {
     color: #10b981;
 }
 

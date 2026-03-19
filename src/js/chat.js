@@ -248,7 +248,65 @@ function renderMessages(messages) {
         welcomeScreen.style.display = 'none';
         if (companionsPanel) companionsPanel.style.display = 'none';
 
-        messages.forEach(msg => {
+        let i = 0;
+        while (i < messages.length) {
+            const msg = messages[i];
+
+            // 检查是否为对比模式的历史响应，需要打包成网格并排显示
+            if (msg && typeof msg === 'object' && msg.role === 'assistant' && msg.comparisonModelName) {
+                const compGroup = [];
+                // 收集这一轮对比中的所有模型回复
+                while (i < messages.length && messages[i] && typeof messages[i] === 'object' && messages[i].role === 'assistant' && messages[i].comparisonModelName) {
+                    compGroup.push(messages[i]);
+                    i++;
+                }
+
+                // 渲染为横向滚动的并排列
+                const grid = document.createElement('div');
+                grid.className = 'comparison-grid';
+                grid.style.margin = '8px 0 24px 0'; // Add some vertical spacing
+                
+                compGroup.forEach(cMsg => {
+                    const col = document.createElement('div');
+                    col.className = 'comparison-column';
+                    
+                    const pName = cMsg.comparisonModelName;
+                    const cPayload = cMsg.content;
+                    const cRaw = (cPayload && typeof cPayload === 'object' && cPayload.content !== undefined) ? cPayload.content : String(cPayload || '');
+                    const cReasoning = (cPayload && typeof cPayload === 'object' && cPayload.reasoning_content) ? cPayload.reasoning_content : '';
+                    
+                    let htmlContent = '';
+                    if (cReasoning && state.settings.enableThinking !== false) {
+                        htmlContent += `
+                            <details class="thinking-block">
+                                <summary><i class="ph ph-brain"></i> 思考过程</summary>
+                                <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning))}</div>
+                            </details>
+                        `;
+                    }
+                    if (cRaw) {
+                        htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw))}</div>`;
+                    }
+                    
+                    col.innerHTML = `
+                        <div class="comparison-header">
+                            <div class="model-name"><i class="ph ph-cpu"></i> <span>${pName}</span></div>
+                            <div class="model-status" style="border: none;">✓ 完成</div>
+                        </div>
+                        <div class="comparison-body">
+                            <div class="message-content" style="padding:0; background:transparent;">
+                                <div class="message-scroll">${htmlContent || '<div class="markdown-body"></div>'}</div>
+                                <div class="message-meta" style="margin-top: 16px;">模型: ${cMsg.model || pName}</div>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(col);
+                });
+                
+                fragment.appendChild(grid);
+                continue; // 内层 while 已经增加了 i，跳过本次外层循环递增
+            }
+
             try {
                 // msg 常见形态：
                 // - { role, content: string|object }
@@ -261,7 +319,8 @@ function renderMessages(messages) {
             } catch (e) {
                 console.error('Failed to render message item:', e, msg);
             }
-        });
+            i++;
+        }
     }
 
     // 核心改进：只清空消息列表，而不是整个消息容器
@@ -279,9 +338,8 @@ function renderMessages(messages) {
         });
     }
 
-    if (typeof attachCodeBlockCopyButtons === 'function') {
-        attachCodeBlockCopyButtons(messagesList);
-    }
+
+    updateBadge();
 
     requestAnimationFrame(() => {
         scrollToBottom();
@@ -672,23 +730,76 @@ function sendMessage() {
     }
 
     // Dispatch to Electron Main Process
-    window.api.sendMessageStream({
-        endpoint: provider.endpoint,
-        apiKey: provider.apiKey,
-        modelName: modelName,
-        systemPrompt: finalSystemPrompt,
-        messages: messagesForModel,
-        chatId: chat.id,
-        enableThinking: state.settings.enableThinking !== false,
-        enableSearch: !!state.settings.enableSearch,
-        temperature: temperature,
-        top_p: topP,
-        max_tokens: maxOutputTokens,
-        stream: streamOutput,
-        mcpServers: (state.settings.mcpServers || []).filter(s =>
-            (state.enabledMcpServerIds || []).includes(s.id)
-        )
-    });
+    if (state.isComparisonMode && state.selectedComparisonModels.length >= 2) {
+        // Parallel multi-model comparison
+        messageContainer.classList.add('comparison-layout');
+        
+        // Reset streams tracking map
+        state.comparisonStreams = {};
+        
+        // Render columns FIRST so they exist when stream-start arrives
+        renderComparisonEmptyState();
+
+        state.selectedComparisonModels.forEach(modelId => {
+            const [pId, mName] = modelId.split('|');
+            const prov = state.settings.providers.find(p => p.id === pId);
+            if (!prov) return;
+
+            // Convert messages for each provider
+            let messagesForThisModel = messagesToSend.map(msg => {
+                if (typeof msg.content === 'object' && msg.content !== null) {
+                    return { role: msg.role, content: msg.content.content || '' };
+                }
+                return msg;
+            });
+
+            if (typeof convertMessageForProvider === 'function') {
+                try {
+                    messagesForThisModel = convertMessageForProvider(pId, messagesForThisModel, prov.endpoint);
+                } catch(e) {
+                    console.warn('Message format conversion failed for', pId, e);
+                }
+            }
+
+            window.api.sendMessageStream({
+                endpoint: prov.endpoint,
+                apiKey: prov.apiKey,
+                modelName: mName,
+                systemPrompt: finalSystemPrompt,
+                messages: messagesForThisModel,
+                chatId: chat.id,
+                isComparisonStream: true,  // Flag to prevent aborting sibling streams
+                enableThinking: state.settings.enableThinking !== false,
+                enableSearch: !!state.settings.enableSearch,
+                temperature: temperature,
+                top_p: topP,
+                max_tokens: maxOutputTokens,
+                stream: streamOutput,
+                mcpServers: (state.settings.mcpServers || []).filter(s =>
+                    (state.enabledMcpServerIds || []).includes(s.id)
+                )
+            });
+        });
+    } else {
+        // Normal single model sending
+        window.api.sendMessageStream({
+            endpoint: provider.endpoint,
+            apiKey: provider.apiKey,
+            modelName: modelName,
+            systemPrompt: finalSystemPrompt,
+            messages: messagesForModel,
+            chatId: chat.id,
+            enableThinking: state.settings.enableThinking !== false,
+            enableSearch: !!state.settings.enableSearch,
+            temperature: temperature,
+            top_p: topP,
+            max_tokens: maxOutputTokens,
+            stream: streamOutput,
+            mcpServers: (state.settings.mcpServers || []).filter(s =>
+                (state.enabledMcpServerIds || []).includes(s.id)
+            )
+        });
+    }
 }
 
 function scrollToBottom() {

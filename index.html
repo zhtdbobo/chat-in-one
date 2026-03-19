@@ -190,17 +190,25 @@
                                     class="ph ph-sliders"></i></button>
                         </div>
                         <div class="tools-right">
-                            <select id="current-model-select" title="切换模型">
-                                <option value="">等待配置</option>
-                            </select>
+                            <div class="comparison-mode-wrapper" style="display: flex; align-items: center; gap: 6px;">
+                                <button id="comparison-toggle-btn" class="tool-btn" title="开启模型对比模式" style="transition: all 0.2s;">
+                                    <i class="ph ph-columns"></i>
+                                </button>
+                                <button id="multi-model-select-btn" class="btn btn-subtle" style="display: none; font-size: 12px; padding: 4px 10px; height: 28px; gap: 5px;">
+                                    <i class="ph ph-plus"></i> 选择模型
+                                </button>
+                            </div>
                         </div>
                     </div>
+                </div>
+                <!-- AI Disclaimer -->
                 </div>
                 <!-- AI Disclaimer -->
                 <div class="ai-disclaimer">
                     内容由 AI 生成，可能存在不准确或错误，请仔细甄别和核实重要信息。
                 </div>
-            </div>
+            </div> <!-- End of input-wrapper -->
+        </div> <!-- End of input-area -->
 
             <!-- My Partners (Full Page Modal) -->
             <div class="companions-page" id="companions-modal" style="display: none;">
@@ -364,7 +372,25 @@
             </div>
         </main>
 
-        <!-- Full-Page Modals (moved outside chat-area to cover entire app-container) -->
+        <!-- Sandbox Area (Right Panel) -->
+        <div class="sandbox-resizer" id="sandbox-resizer" style="display: none;"></div>
+        <aside class="sandbox-area" id="sandbox-area" style="display: none;">
+            <div class="sandbox-header">
+                <span class="sandbox-title"><i class="ph ph-magic-wand"></i> Sandbox 预览</span>
+                <div class="sandbox-actions">
+                    <button id="sandbox-refresh-btn" class="btn btn-icon btn-ghost" title="重新加载"><i class="ph ph-arrows-clockwise"></i></button>
+                    <button id="sandbox-close-btn" class="btn btn-icon btn-ghost" title="关闭沙盒"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <div class="sandbox-content">
+                <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+            </div>
+        </aside>
+    </div> <!-- End of app-container -->
+
+    <div id="modal-container"> <!-- Wrapper for all modals -->
+        <!-- Full-Page Modals (moved outside app-container) -->
+
         <div class="settings-page" id="settings-modal" style="display: none;">
             <div class="settings-page-header">
                 <div class="settings-page-title">
@@ -474,6 +500,30 @@
             </div>
         </div>
 
+        <!-- Multi-Model Selection Modal -->
+        <div id="multi-model-modal" class="conversation-settings-modal" style="display: none; z-index: 1000;">
+            <div class="conversation-settings-content" style="max-width: 480px; width: 90%;">
+                <div class="conversation-settings-header">
+                    <h2>选择对比模型 (已选 0/4)</h2>
+                    <button class="btn btn-icon btn-ghost" id="close-multi-model-btn" title="关闭">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+                <div style="padding: 0 20px 12px; color: var(--text-muted); font-size: 13px;">
+                    请选择 2~4 个模型，将对同一问题并行发送请求并对比答案。
+                </div>
+                <div class="conversation-settings-body" style="padding-top: 0;">
+                    <div id="multi-model-list" style="max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                        <!-- Model checkboxes will be injected here -->
+                    </div>
+                </div>
+                <div class="conversation-settings-footer">
+                    <button class="btn btn-ghost" id="cancel-multi-model-btn">取消</button>
+                    <button class="btn btn-primary" id="confirm-multi-model-btn"><i class="ph ph-check"></i> 开始对比</button>
+                </div>
+            </div>
+        </div>
+
 
     </div>
 
@@ -488,6 +538,7 @@
     <script src="src/js/ui.js"></script>
     <script src="src/js/settings.js"></script>
     <script src="src/js/chat.js"></script>
+    <script src="src/js/sandbox.js"></script>
     <script src="src/js/mcp.js"></script>
     <script src="src/js/export.js"></script>
     <script src="renderer.js"></script>

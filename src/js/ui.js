@@ -12,34 +12,60 @@ function updateSearchBtnState() {
     }
 }
 
+function updateComparisonToggleState() {
+    if (comparisonToggleBtn) {
+        if (state.isComparisonMode) {
+            comparisonToggleBtn.classList.add('active');
+            comparisonToggleBtn.title = '关闭模型对比模式';
+            multiModelSelectBtn.style.display = 'flex';
+            const modelSelect = document.getElementById('model-searchable-select');
+            if (modelSelect) modelSelect.style.display = 'none';
+        } else {
+            comparisonToggleBtn.classList.remove('active');
+            comparisonToggleBtn.title = '开启模型对比模式';
+            multiModelSelectBtn.style.display = 'none';
+            const modelSelect = document.getElementById('model-searchable-select');
+            if (modelSelect) modelSelect.style.display = 'flex';
+        }
+    }
+}
+
 // -----------------------------------------
 // Searchable Model Select Implementation
 // -----------------------------------------
 let modelSearchQuery = '';
 function renderSearchableModelSelect() {
-    const container = document.querySelector('.tools-right');
-    container.innerHTML = `
-        <div class="searchable-select" id="model-searchable-select">
-            <div class="select-trigger">
-                <i class="ph ph-cpu"></i>
-                <span class="selected-value">选择模型...</span>
-                <i class="ph ph-caret-down"></i>
+    const container = document.querySelector('.comparison-mode-wrapper'); 
+    
+    // Check if it already exists
+    let searchableSelect = document.getElementById('model-searchable-select');
+    if (!searchableSelect) {
+        searchableSelect = document.createElement('div');
+        searchableSelect.className = 'searchable-select';
+        searchableSelect.id = 'model-searchable-select';
+        container.appendChild(searchableSelect);
+    }
+
+    searchableSelect.innerHTML = `
+        <div class="select-trigger">
+            <i class="ph ph-cpu"></i>
+            <span class="selected-value">选择模型...</span>
+            <i class="ph ph-caret-down"></i>
+        </div>
+        <div class="select-dropdown">
+            <div class="select-search">
+                <i class="ph ph-magnifying-glass"></i>
+                <input type="text" placeholder="搜索模型..." id="model-search-input">
             </div>
-            <div class="select-dropdown">
-                <div class="select-search">
-                    <i class="ph ph-magnifying-glass"></i>
-                    <input type="text" placeholder="搜索模型..." id="model-search-input">
-                </div>
-                <div class="select-options" id="model-options-list"></div>
-            </div>
+            <div class="select-options" id="model-options-list"></div>
         </div>
     `;
 
-    const trigger = container.querySelector('.select-trigger');
-    const dropdown = container.querySelector('.select-dropdown');
-    const searchInput = container.querySelector('#model-search-input');
-    const optionsList = container.querySelector('#model-options-list');
-    const selectedText = container.querySelector('.selected-value');
+    const trigger = searchableSelect.querySelector('.select-trigger');
+    const dropdown = searchableSelect.querySelector('.select-dropdown');
+    const searchInput = searchableSelect.querySelector('#model-search-input');
+    const optionsList = searchableSelect.querySelector('#model-options-list');
+    const selectedText = searchableSelect.querySelector('.selected-value');
 
     const activeChat = state.chats.find(c => c.id === state.currentChatId);
     let currentVal = activeChat ? activeChat.model : '';
@@ -126,6 +152,155 @@ function renderSearchableModelSelect() {
 
     // Outside click handler is now handled globally in setupEvents
     refreshOptions();
+    updateComparisonToggleState();
+}
+
+// -----------------------------------------
+// Multi-Model Comparison UI Functions
+// -----------------------------------------
+function openMultiModelModal() {
+    renderMultiModelList();
+    multiModelModal.style.display = 'flex';
+}
+
+function closeMultiModelModal() {
+    multiModelModal.style.display = 'none';
+}
+
+function renderMultiModelList() {
+    multiModelList.innerHTML = '';
+    let hasModels = false;
+
+    state.settings.providers.forEach(p => {
+        const models = (p.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
+        if (models.length > 0) {
+            hasModels = true;
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'option-group-label';
+            groupHeader.textContent = p.name || '未命名服务商';
+            multiModelList.appendChild(groupHeader);
+
+            models.forEach(m => {
+                const modelId = `${p.id}|${m}`;
+                const isChecked = state.selectedComparisonModels.includes(modelId);
+
+                const item = document.createElement('label');
+                item.className = 'setting-item-row';
+                item.style.cssText = `
+                    display: flex; align-items: center; gap: 10px;
+                    cursor: pointer; padding: 9px 12px;
+                    border-radius: var(--radius-sm);
+                    background: ${isChecked ? 'var(--brand-alpha)' : 'var(--bg-surface-elevated)'};
+                    border: 1px solid ${isChecked ? 'var(--border-focus)' : 'transparent'};
+                    transition: background 0.15s, border-color 0.15s;
+                    margin-bottom: 4px;
+                `;
+                item.innerHTML = `
+                    <input type="checkbox" value="${modelId}" ${isChecked ? 'checked' : ''} style="width:15px;height:15px;flex-shrink:0;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${m}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${p.name}</div>
+                    </div>
+                `;
+
+                const checkbox = item.querySelector('input');
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        if (state.selectedComparisonModels.length >= 4) {
+                            checkbox.checked = false;
+                            showNotification('最多只能同时对比 4 个模型', 'warning');
+                            return;
+                        }
+                        state.selectedComparisonModels.push(modelId);
+                        item.style.background = 'var(--brand-alpha)';
+                        item.style.borderColor = 'var(--border-focus)';
+                    } else {
+                        state.selectedComparisonModels = state.selectedComparisonModels.filter(id => id !== modelId);
+                        item.style.background = 'var(--bg-surface-elevated)';
+                        item.style.borderColor = 'transparent';
+                    }
+                    // Update count in header
+                    const header = document.querySelector('#multi-model-modal h2');
+                    if (header) header.textContent = `选择对比模型 (已选 ${state.selectedComparisonModels.length}/4)`;
+                });
+
+                multiModelList.appendChild(item);
+            });
+        }
+    });
+
+    if (!hasModels) {
+        multiModelList.innerHTML = '<div style="color:var(--text-muted);padding:16px;text-align:center;">暂无可用模型，请先在设置中配置服务商。</div>';
+    }
+}
+
+function confirmMultiModelSelection() {
+    if (state.selectedComparisonModels.length < 2) {
+        showNotification('请至少选择 2 个模型进行对比', 'warning');
+        return;
+    }
+
+    // Update button label
+    const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
+    multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
+
+    closeMultiModelModal();
+
+    // Enter comparison layout
+    messageContainer.classList.add('comparison-layout');
+    renderComparisonEmptyState();
+
+    // Automatically maximize window to present the best view for multi-column layout
+    if (window.api && window.api.isMaximized) {
+        window.api.isMaximized().then(isMax => {
+            if (!isMax) {
+                window.api.maximizeWindow();
+            }
+        });
+    }
+}
+
+function renderComparisonEmptyState() {
+    // Find or create the comparison grid
+    let grid = messagesList.querySelector('.comparison-grid');
+    if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'comparison-grid';
+        messagesList.appendChild(grid);
+    } else {
+        grid.innerHTML = '';
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    state.selectedComparisonModels.forEach(modelId => {
+        const [providerId, modelName] = modelId.split('|');
+        const provider = state.settings.providers.find(p => p.id === providerId);
+        const providerName = provider ? provider.name : providerId;
+
+        const col = document.createElement('div');
+        col.className = 'comparison-column';
+        col.dataset.modelId = modelId;
+        col.innerHTML = `
+            <div class="comparison-header">
+                <div class="model-name">
+                    <i class="ph ph-cpu"></i>
+                    <span title="${providerName} · ${modelName}">${modelName}</span>
+                </div>
+                <div class="model-status">等待中</div>
+            </div>
+            <div class="comparison-body" id="comp-body-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}">
+                <div class="empty-state">
+                    <i class="ph ph-chat-circle-dots"></i>
+                    <p>等待发送消息</p>
+                </div>
+            </div>
+        `;
+        fragment.appendChild(col);
+    });
+
+    grid.appendChild(fragment);
+    scrollToBottom();
 }
 
 // -----------------------------------------

@@ -15,9 +15,22 @@ renderer.code = function (code, lang) {
         highlighted = code;
     }
 
+    const lowLang = (lang || '').toLowerCase();
+    const isRenderable = lowLang.includes('html') || lowLang.includes('svg') || lowLang.includes('xml') || 
+                        lowLang.includes('javascript') || lowLang.includes('js') || 
+                        lowLang.includes('jsx') || lowLang.includes('tsx');
+
+    let previewBtn = '';
+    if (isRenderable) {
+        previewBtn = `<button type="button" class="code-preview-btn" title="沙盒预览"><i class="ph ph-magic-wand"></i><span>预览</span></button>`;
+    }
+
     return `<div class="code-block">
+        <div class="code-actions">
+            ${previewBtn}
+            <button type="button" class="code-copy-btn" title="复制代码"><i class="ph ph-copy"></i><span>复制</span></button>
+        </div>
         <pre><code class="hljs ${lang || ''}">${highlighted}</code></pre>
-        <button type="button" class="code-copy-btn" title="复制代码"><i class="ph ph-copy"></i></button>
     </div>`;
 };
 

@@ -106,35 +106,6 @@ function escapeHtml(str) {
         .replaceAll("'", '&#039;');
 }
 
-function attachCodeBlockCopyButtons(root) {
-    if (!root) return;
-
-    const pres = root.querySelectorAll('pre');
-    pres.forEach((pre) => {
-        // Avoid double-wrapping
-        if (pre.parentElement && pre.parentElement.classList.contains('code-block')) return;
-
-        const codeEl = pre.querySelector('code');
-        const codeText = codeEl ? codeEl.innerText : pre.innerText;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'code-block';
-
-        pre.parentNode.insertBefore(wrapper, pre);
-        wrapper.appendChild(pre);
-
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'code-copy-btn';
-        btn.title = '复制代码';
-        btn.innerHTML = '<i class="ph ph-copy"></i>';
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            copyText(codeText, btn);
-        });
-        wrapper.appendChild(btn);
-    });
-}
 
 // -----------------------------------------
 // Context length / token estimation helpers
