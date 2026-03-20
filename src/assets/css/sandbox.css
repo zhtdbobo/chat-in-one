@@ -16,6 +16,7 @@
     width: 45%;
     min-width: 300px;
     max-width: 80%;
+    flex-shrink: 0;
     background-color: var(--bg-surface);
     display: flex;
     flex-direction: column;

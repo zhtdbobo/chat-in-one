@@ -20,6 +20,22 @@ function setupEvents() {
         }
     }
 
+    function getCodeElementFromActionButton(actionBtn) {
+        if (!actionBtn) return null;
+        // Preferred structure:
+        // .code-block
+        //   .code-actions (button lives here)
+        //   pre > code
+        // But sanitize steps may strip class names. Fallback to nearby structural lookup.
+        return (
+            actionBtn.closest('.code-block')?.querySelector('code') ||
+            actionBtn.closest('.code-actions')?.nextElementSibling?.querySelector?.('code') ||
+            actionBtn.parentElement?.nextElementSibling?.querySelector?.('code') ||
+            actionBtn.closest('pre')?.querySelector('code') ||
+            actionBtn.closest('.message-content')?.querySelector('pre code')
+        );
+    }
+
     // Settings Tabs Event
     document.querySelectorAll('.settings-tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
@@ -125,42 +141,16 @@ function setupEvents() {
     // Delegation for Dynamically Created Buttons in Code Blocks
     if (messageContainer) {
         messageContainer.addEventListener('click', (e) => {
+            if (e.__chatInOneCodeActionHandled) return;
             // Handle Copy button
             const copyBtn = e.target.closest('.code-copy-btn');
             if (copyBtn) {
-                const codeBlock = copyBtn.closest('.code-block');
-                const codeEl = codeBlock.querySelector('code');
+                e.__chatInOneCodeActionHandled = true;
+                const codeEl = getCodeElementFromActionButton(copyBtn);
+                if (!codeEl) return;
                 const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
                 if (typeof copyText === 'function') {
                     copyText(codeText, copyBtn);
-                }
-                return;
-            }
-
-            // Handle Sandbox Preview button
-            const previewBtn = e.target.closest('.code-preview-btn');
-            if (previewBtn) {
-                const codeBlock = previewBtn.closest('.code-block');
-                const codeEl = codeBlock.querySelector('code');
-                const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
-                try {
-                    if (typeof window.openSandbox === 'function') {
-                        window.openSandbox(codeText);
-                    } else {
-                        console.error('Sandbox is not initialized: window.openSandbox is not a function');
-                        if (typeof showNotification === 'function') {
-                            showNotification('❌ Sandbox 未初始化（openSandbox 不可用），请重启应用后再试。', 'error', 4500);
-                        } else {
-                            alert('Sandbox 未初始化（openSandbox 不可用），请重启应用后再试。');
-                        }
-                    }
-                } catch (err) {
-                    console.error('Failed to open sandbox preview:', err);
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ 打开 Sandbox 预览失败，请查看控制台错误信息。', 'error', 4500);
-                    } else {
-                        alert('打开 Sandbox 预览失败，请查看控制台错误信息。');
-                    }
                 }
                 return;
             }
@@ -186,7 +176,6 @@ function setupEvents() {
         this.style.height = 'auto';
         this.style.height = (this.scrollHeight) + 'px';
     });
-
 
 
     // Toggle web search

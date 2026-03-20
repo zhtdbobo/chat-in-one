@@ -449,6 +449,7 @@ body.light-theme .comparison-header .model-status.streaming {
     right: 4px;
     display: flex;
     opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s;
     background: var(--bg-surface);
     border: 1px solid var(--border-subtle);
@@ -461,6 +462,7 @@ body.light-theme .comparison-header .model-status.streaming {
 
 .message:hover .message-actions {
     opacity: 1;
+    pointer-events: auto;
 }
 
 .message-action-btn {

@@ -13,17 +13,6 @@ renderer.code = function (code, lang) {
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
 
-    // Store the original (unescaped) source for preview/copy.
-    // We use base64 to avoid breaking HTML attributes when code contains quotes/newlines.
-    let rawB64 = '';
-    try {
-        if (typeof btoa === 'function') {
-            rawB64 = btoa(unescape(encodeURIComponent(String(code))));
-        }
-    } catch (e) {
-        rawB64 = '';
-    }
-
     const hasHljs = typeof hljs !== 'undefined' && hljs && typeof hljs.highlightAuto === 'function';
     if (hasHljs) {
         try {
@@ -33,103 +22,21 @@ renderer.code = function (code, lang) {
                 highlighted = hljs.highlightAuto(code).value;
             }
         } catch (e) {
-            // Fallback: always escape raw HTML so it can't be interpreted/executed.
-            // (Otherwise `<div>..</div>` / `<style>..</style>` in model output can break layout.)
             highlighted = escapeForCode;
         }
     } else {
         highlighted = escapeForCode;
     }
 
-    const lowLang = (lang || '').toLowerCase();
-    const isRenderable = lowLang.includes('html') || lowLang.includes('svg') || lowLang.includes('xml') || 
-                        lowLang.includes('javascript') || lowLang.includes('js') || 
-                        lowLang.includes('jsx') || lowLang.includes('tsx');
-
-    let previewBtn = '';
-    if (isRenderable) {
-        previewBtn = `<button type="button" class="code-action-btn code-preview-btn" title="沙盒预览"><i class="ph ph-magic-wand"></i><span>预览</span></button>`;
-    }
-
     return `<div class="code-block">
         <div class="code-actions">
-            ${previewBtn}
             <button type="button" class="code-action-btn code-copy-btn" title="复制代码"><i class="ph ph-copy"></i><span>复制</span></button>
         </div>
-        <pre><code class="hljs ${lang || ''}" data-raw-b64="${rawB64}">${highlighted}</code></pre>
+        <pre><code class="hljs ${lang || ''}">${highlighted}</code></pre>
     </div>`;
 };
 
-// If the model outputs raw HTML (not fenced inside ```), marked will normally render
-// it as actual markup, which can break the chat layout. We instead treat it as
-// "code" so only clicking the preview button will render it inside the right-side
-// sandbox iframe.
-renderer.html = function (html) {
-    return renderer.code(html, 'html');
-};
-
-// Provide a lightweight fallback so preview won't silently do nothing
-// even if `sandbox.js` fails to load for any reason.
-if (typeof window.openSandbox !== 'function') {
-    window.openSandbox = function (htmlContent) {
-        const sandboxArea = document.getElementById('sandbox-area');
-        const sandboxResizer = document.getElementById('sandbox-resizer');
-        const sandboxIframe = document.getElementById('sandbox-iframe');
-        if (!sandboxArea || !sandboxResizer || !sandboxIframe) {
-            console.error('Sandbox DOM not found, cannot open preview.');
-            return;
-        }
-        sandboxArea.style.display = 'flex';
-        sandboxResizer.style.display = 'block';
-        const injectedHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:16px;background:#fff;color:#333}*{box-sizing:border-box}</style></head><body>${htmlContent || ''}</body></html>`;
-        sandboxIframe.srcdoc = injectedHtml;
-    };
-}
-
 marked.setOptions({ renderer });
-
-// Configure DOMPurify to preserve button elements for code preview/copy actions
-if (typeof DOMPurify !== 'undefined') {
-    const originalSanitize = DOMPurify.sanitize.bind(DOMPurify);
-    DOMPurify.sanitize = function(dirty, config) {
-        if (typeof dirty !== 'string') {
-            return originalSanitize(dirty, config);
-        }
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = dirty;
-        const buttons = Array.from(tempDiv.querySelectorAll('button'));
-        if (buttons.length === 0) {
-            return originalSanitize(dirty, config);
-        }
-        const buttonInfo = buttons.map(btn => ({
-            outerHTML: btn.outerHTML,
-            className: btn.className,
-            innerHTML: btn.innerHTML
-        }));
-        const result = originalSanitize(dirty, config);
-        const resultDiv = document.createElement('div');
-        resultDiv.innerHTML = result;
-        const resultButtons = resultDiv.querySelectorAll('button');
-        if (resultButtons.length === 0 && buttonInfo.length > 0) {
-            const codeBlock = resultDiv.querySelector('.code-block');
-            if (codeBlock) {
-                const codeActions = codeBlock.querySelector('.code-actions');
-                if (codeActions) {
-                    buttonInfo.forEach(info => {
-                        const tempBtn = document.createElement('div');
-                        tempBtn.innerHTML = info.outerHTML;
-                        const btn = tempBtn.firstChild;
-                        if (btn) {
-                            codeActions.insertBefore(btn, codeActions.firstChild);
-                        }
-                    });
-                }
-            }
-            return resultDiv.innerHTML;
-        }
-        return result;
-    };
-}
 
 // -----------------------------------------
 // Initialization

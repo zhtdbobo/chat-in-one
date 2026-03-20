@@ -67,7 +67,7 @@
     opacity: 0;
     transition: opacity 0.15s;
     -webkit-app-region: no-drag;
-    z-index: 5;
+    z-index: 8;
 }
 
 .code-block:hover .code-actions {
