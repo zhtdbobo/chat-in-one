@@ -142,6 +142,20 @@ function setupEvents() {
     if (messageContainer) {
         messageContainer.addEventListener('click', (e) => {
             if (e.__chatInOneCodeActionHandled) return;
+            
+            // Handle Preview button
+            const previewBtn = e.target.closest('.code-preview-btn');
+            if (previewBtn) {
+                e.__chatInOneCodeActionHandled = true;
+                const codeEl = getCodeElementFromActionButton(previewBtn);
+                if (!codeEl) return;
+                const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
+                if (typeof window.openSandbox === 'function') {
+                    window.openSandbox(codeText);
+                }
+                return;
+            }
+            
             // Handle Copy button
             const copyBtn = e.target.closest('.code-copy-btn');
             if (copyBtn) {

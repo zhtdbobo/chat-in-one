@@ -28,11 +28,17 @@ renderer.code = function (code, lang) {
         highlighted = escapeForCode;
     }
 
+    // Encode raw code for data attribute (used by copy and preview)
+    const rawCodeB64 = (typeof btoa === 'function') 
+        ? btoa(unescape(encodeURIComponent(code)))
+        : btoa(code);
+
     return `<div class="code-block">
         <div class="code-actions">
+            <button type="button" class="code-action-btn code-preview-btn" title="预览代码"><i class="ph ph-play"></i><span>预览</span></button>
             <button type="button" class="code-action-btn code-copy-btn" title="复制代码"><i class="ph ph-copy"></i><span>复制</span></button>
         </div>
-        <pre><code class="hljs ${lang || ''}">${highlighted}</code></pre>
+        <pre><code class="hljs ${lang || ''}" data-raw-b64="${rawCodeB64}">${highlighted}</code></pre>
     </div>`;
 };
 

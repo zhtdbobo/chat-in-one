@@ -1,11 +1,17 @@
 /* Sandbox Area Styles (Right Panel) */
 .sandbox-resizer {
+    position: absolute;
+    top: 35px;
+    right: 45%;
     width: 4px;
+    bottom: 0;
     background-color: transparent;
     cursor: col-resize;
     transition: background-color 0.2s;
     user-select: none;
     -webkit-app-region: no-drag;
+    display: none;
+    z-index: 101;
 }
 
 .sandbox-resizer:hover, .sandbox-resizer.active {
@@ -13,17 +19,19 @@
 }
 
 .sandbox-area {
+    position: absolute;
+    top: 35px;
+    right: 0;
+    bottom: 0;
     width: 45%;
     min-width: 300px;
     max-width: 80%;
-    flex-shrink: 0;
     background-color: var(--bg-surface);
-    display: flex;
+    display: none;
     flex-direction: column;
-    height: 100%;
     border-left: 1px solid var(--border-subtle);
     box-shadow: -4px 0 15px rgba(0, 0, 0, 0.05);
-    z-index: 10;
+    z-index: 100;
     -webkit-app-region: no-drag;
 }
 

@@ -1,10 +1,22 @@
 // sandbox.js - Handles the Frontend UI Rendering Sandbox
 
-const sandboxArea = document.getElementById('sandbox-area');
-const sandboxResizer = document.getElementById('sandbox-resizer');
-const sandboxIframe = document.getElementById('sandbox-iframe');
-const sandboxCloseBtn = document.getElementById('sandbox-close-btn');
-const sandboxRefreshBtn = document.getElementById('sandbox-refresh-btn');
+// Lazy-loaded DOM elements (may not exist when script loads)
+let sandboxArea = null;
+let sandboxResizer = null;
+let sandboxIframe = null;
+let sandboxCloseBtn = null;
+let sandboxRefreshBtn = null;
+
+function getSandboxElements() {
+    if (!sandboxArea) {
+        sandboxArea = document.getElementById('sandbox-area');
+        sandboxResizer = document.getElementById('sandbox-resizer');
+        sandboxIframe = document.getElementById('sandbox-iframe');
+        sandboxCloseBtn = document.getElementById('sandbox-close-btn');
+        sandboxRefreshBtn = document.getElementById('sandbox-refresh-btn');
+    }
+    return { sandboxArea, sandboxResizer, sandboxIframe, sandboxCloseBtn, sandboxRefreshBtn };
+}
 
 let currentSandboxContent = '';
 let isResizingSandbox = false;
@@ -97,15 +109,10 @@ window.openSandbox = function(htmlContent) {
     
     currentSandboxContent = htmlContent;
     
-    // Forced Visibility: Clear any inline styles and set explicit flex layout
-    sandboxArea.style.cssText = ''; 
+    // Forced Visibility: Show sandbox area
     sandboxArea.style.display = 'flex';
-    sandboxArea.style.width = '45%';
-    sandboxArea.style.minWidth = '300px';
-    sandboxArea.style.zIndex = '100'; 
     
     sandboxResizer.style.display = 'block';
-    sandboxResizer.style.zIndex = '101';
     
     const raw = String(htmlContent || '');
     const low = raw.toLowerCase();
@@ -201,54 +208,67 @@ window.closeSandbox = function() {
     currentSandboxContent = '';
 };
 
-// Initialize resizer
-if (sandboxResizer) {
-    sandboxResizer.addEventListener('mousedown', (e) => {
-        isResizingSandbox = true;
-        document.body.style.cursor = 'col-resize';
-        sandboxResizer.classList.add('active');
-        sandboxIframe.style.pointerEvents = 'none'; // Prevent iframe from capturing mouse events during resize
-    });
+// Initialize sandbox elements and event listeners (run after DOM is ready)
+function initSandbox() {
+    const { sandboxArea: sa, sandboxResizer: sr, sandboxIframe: si, sandboxCloseBtn: scb, sandboxRefreshBtn: srb } = getSandboxElements();
+    
+    // Initialize resizer
+    if (sr) {
+        sr.addEventListener('mousedown', (e) => {
+            isResizingSandbox = true;
+            document.body.style.cursor = 'col-resize';
+            sr.classList.add('active');
+            si.style.pointerEvents = 'none'; // Prevent iframe from capturing mouse events during resize
+        });
 
-    document.addEventListener('mousemove', (e) => {
-        if (!isResizingSandbox) return;
-        // Calculate the new width based on window width and mouse X position
-        // The sandbox is on the right, so width is (window.innerWidth - e.clientX)
-        const newWidth = window.innerWidth - e.clientX;
-        if (newWidth > 300 && newWidth < window.innerWidth * 0.8) {
-            sandboxArea.style.width = `${newWidth}px`;
-        }
-    });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizingSandbox) return;
+            // Calculate the new width based on window width and mouse X position
+            // The sandbox is on the right, so width is (window.innerWidth - e.clientX)
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth > 300 && newWidth < window.innerWidth * 0.8) {
+                sa.style.width = `${newWidth}px`;
+            }
+        });
 
-    document.addEventListener('mouseup', () => {
-        if (isResizingSandbox) {
-            isResizingSandbox = false;
-            document.body.style.cursor = '';
-            sandboxResizer.classList.remove('active');
-            sandboxIframe.style.pointerEvents = 'all'; // Re-enable pointer events
-        }
-    });
+        document.addEventListener('mouseup', () => {
+            if (isResizingSandbox) {
+                isResizingSandbox = false;
+                document.body.style.cursor = '';
+                sr.classList.remove('active');
+                si.style.pointerEvents = 'all'; // Re-enable pointer events
+            }
+        });
+    }
+
+    // Close Sandbox
+    if (scb) {
+        scb.addEventListener('click', window.closeSandbox);
+    }
+
+    // Refresh Sandbox
+    if (srb) {
+        srb.addEventListener('click', () => {
+            if (currentSandboxContent) {
+                window.openSandbox(currentSandboxContent);
+            }
+        });
+    }
 }
 
-// Close Sandbox
-if (sandboxCloseBtn) {
-    sandboxCloseBtn.addEventListener('click', window.closeSandbox);
-}
-
-// Refresh Sandbox
-if (sandboxRefreshBtn) {
-    sandboxRefreshBtn.addEventListener('click', () => {
-        if (currentSandboxContent) {
-            window.openSandbox(currentSandboxContent);
-        }
-    });
+// Run initialization after DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSandbox);
+} else {
+    initSandbox();
 }
 
 // Listen for messages from the Sandbox (iframe)
 window.addEventListener('message', (event) => {
     try {
         // Only accept messages from our sandbox iframe if it exists
-        if (!sandboxIframe || event.source !== sandboxIframe.contentWindow) return;
+        const { sandboxIframe: si } = getSandboxElements();
+        if (!si || event.source !== si.contentWindow) return;
         
         if (event.data && event.data.type === 'sandbox-console') {
             console.log(`[Sandbox ${event.data.level.toUpperCase()}]:`, ...event.data.args);

@@ -371,6 +371,25 @@
                 </div>
             </div>
         </main>
+
+        <!-- Sandbox Area (Right Panel for Code Preview) -->
+        <div class="sandbox-resizer" id="sandbox-resizer" style="display: none;"></div>
+        <aside class="sandbox-area" id="sandbox-area" style="display: none;">
+            <div class="sandbox-header">
+                <span class="sandbox-title">代码预览</span>
+                <div class="sandbox-actions">
+                    <button id="sandbox-refresh-btn" class="btn btn-icon btn-ghost" title="重新加载">
+                        <i class="ph ph-arrow-clockwise"></i>
+                    </button>
+                    <button id="sandbox-close-btn" class="btn btn-icon btn-ghost" title="关闭预览">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="sandbox-content">
+                <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+            </div>
+        </aside>
     </div> <!-- End of app-container -->
 
     <div id="modal-container"> <!-- Wrapper for all modals -->
@@ -520,6 +539,7 @@
     <script src="src/js/skills.js"></script>
     <script src="src/js/messageFormatConverter.js"></script>
     <script src="src/js/events.js"></script>
+    <script src="src/js/sandbox.js"></script>
     <script src="src/js/ui.js"></script>
     <script src="src/js/settings.js"></script>
     <script src="src/js/chat.js"></script>
