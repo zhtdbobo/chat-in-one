@@ -254,7 +254,7 @@ function isCNNetwork() {
                     cleanup();
                 }
             });
-            
+
             req.setTimeout(site.timeout, function () {
                 if (resolved) return;
                 req.destroy();
@@ -273,7 +273,7 @@ function isCNNetwork() {
 async function getGiteeLatestRelease(owner, repo) {
     return new Promise((resolve, reject) => {
         const url = `https://gitee.com/api/v5/repos/${owner}/${repo}/releases/latest`;
-        https.get(url, { 
+        https.get(url, {
             timeout: 5000,
             headers: { 'User-Agent': 'chat-in-one-updater' }
         }, (res) => {
@@ -299,11 +299,11 @@ async function getGiteeLatestRelease(owner, repo) {
 // 获取 GitHub 最新 Release 信息 (带代理回退)
 async function getGithubLatestRelease(owner, repo, useProxy = false) {
     return new Promise((resolve, reject) => {
-        const baseUrl = useProxy 
+        const baseUrl = useProxy
             ? `https://mirror.ghproxy.com/https://api.github.com/repos/${owner}/${repo}/releases/latest`
             : `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
-            
-        https.get(baseUrl, { 
+
+        https.get(baseUrl, {
             timeout: 8000,
             headers: { 'User-Agent': 'chat-in-one-updater' }
         }, (res) => {
@@ -355,7 +355,7 @@ if (app.isPackaged) {
 
 ipcMain.handle('check-for-updates', async () => {
     if (!autoUpdater) return { ok: false, reason: 'unavailable' };
-    
+
     try {
         let isCN = false;
         try {
@@ -363,11 +363,11 @@ ipcMain.handle('check-for-updates', async () => {
         } catch (networkErr) {
             isCN = false;
         }
-        
+
         const ghOwner = 'zhtdbobo';
         const giteeOwner = 'JaridLi';
         const repo = 'chat-in-one';
-        
+
         // 1. 如果在 CN，优先试 Gitee
         if (isCN) {
             try {
@@ -375,7 +375,7 @@ ipcMain.handle('check-for-updates', async () => {
                 const release = await getGiteeLatestRelease(giteeOwner, repo);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
                 const currentVersion = app.getVersion();
-                
+
                 if (latestVersion && latestVersion > currentVersion) {
                     updateSource = 'gitee';
                     // 找到了 Gitee 更新，后续走手动下载流程
@@ -385,14 +385,14 @@ ipcMain.handle('check-for-updates', async () => {
             } catch (giteeErr) {
                 console.warn('Gitee update check skipped/failed:', giteeErr.message);
             }
-            
+
             // 2. 如果 Gitee 失败，在 CN 环境下尝试 GHProxy 检查 GitHub 
             try {
                 console.log('Testing GitHub via Proxy...');
                 const release = await getGithubLatestRelease(ghOwner, repo, true);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
                 const currentVersion = app.getVersion();
-                
+
                 if (latestVersion && latestVersion > currentVersion) {
                     updateSource = 'github-proxy';
                     handleGHProxyUpdate(release);
@@ -402,27 +402,27 @@ ipcMain.handle('check-for-updates', async () => {
                 console.warn('GitHub Proxy check failed:', proxyErr.message);
             }
         }
-        
+
         // 3. 默认尝试官方 checkForUpdates (GitHub)
         // 注意：在 CN 且上述都失败时，如果不希望直接卡死，可以在这里加个判断
         console.log('Using standard autoUpdater (GitHub)');
         updateSource = 'github';
-        
+
         // 为 autoUpdater 设置较短的超时，避免长时间等待
         const checkPromise = autoUpdater.checkForUpdates();
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('检查更新超时，请检查网络连接或代理设置')), 15000)
         );
-        
+
         await Promise.race([checkPromise, timeoutPromise]);
         return { ok: true, message: '检查更新已启动' };
-        
+
     } catch (e) {
         const errorMessage = e.message || String(e);
         const userFriendlyError = errorMessage.includes('TIMEOUT') || errorMessage.includes('Timed out') || errorMessage.includes('timed_out')
             ? '检查更新超时：GitHub 访问受限，请尝试开启代理或检查网络。'
             : errorMessage;
-            
+
         sendUpdateStatus({ type: 'error', message: userFriendlyError });
         return { ok: false, reason: userFriendlyError };
     }
@@ -431,24 +431,24 @@ ipcMain.handle('check-for-updates', async () => {
 // 处理 Gitee 更新逻辑 (原逻辑提取)
 async function handleGiteeUpdate(release) {
     try {
-        const asset = release.assets && release.assets.find(a => 
+        const asset = release.assets && release.assets.find(a =>
             a.name && (a.name.includes('Setup') || a.name.includes('exe')) && a.name.endsWith('.exe')
         );
-        
+
         if (!asset) throw new Error('未找到安装包');
-        
-        sendUpdateStatus({ 
-            type: 'available', 
-            version: release.tag_name, 
-            releaseNotes: release.body || '' 
+
+        sendUpdateStatus({
+            type: 'available',
+            version: release.tag_name,
+            releaseNotes: release.body || ''
         });
-        
+
         const downloadUrl = asset.browser_download_url;
         const userDataPath = app.getPath('userData');
         const updatePath = path.join(userDataPath, 'update.exe');
-        
+
         await downloadFile(downloadUrl, updatePath);
-        
+
         sendUpdateStatus({ type: 'downloaded', version: release.tag_name });
         global.updateInstallerPath = updatePath;
     } catch (err) {
@@ -459,15 +459,15 @@ async function handleGiteeUpdate(release) {
 // 获取 GHProxy 后的资源下载地址
 async function handleGHProxyUpdate(release) {
     try {
-        const asset = release.assets && release.assets.find(a => 
+        const asset = release.assets && release.assets.find(a =>
             a.name && a.name.endsWith('.exe')
         );
         if (!asset) throw new Error('未找到安装包');
 
-        sendUpdateStatus({ 
-            type: 'available', 
-            version: release.tag_name, 
-            releaseNotes: release.body || '' 
+        sendUpdateStatus({
+            type: 'available',
+            version: release.tag_name,
+            releaseNotes: release.body || ''
         });
 
         // 使用镜像下载资源
@@ -493,10 +493,10 @@ function downloadFile(url, savePath) {
                 // 处理重定向
                 return downloadFile(response.headers.location, savePath).then(resolve).catch(reject);
             }
-            
+
             const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
             let downloadedBytes = 0;
-            
+
             response.on('data', (chunk) => {
                 downloadedBytes += chunk.length;
                 if (totalBytes > 0) {
@@ -504,17 +504,17 @@ function downloadFile(url, savePath) {
                     sendUpdateStatus({ type: 'progress', percent });
                 }
             });
-            
+
             response.pipe(file);
             file.on('finish', () => {
                 file.close();
                 resolve();
             });
         }).on('error', (err) => {
-            fs.unlink(savePath, () => {});
+            fs.unlink(savePath, () => { });
             reject(err);
         }).setTimeout(90000, function () {
-            fs.unlink(savePath, () => {});
+            fs.unlink(savePath, () => { });
             reject(new Error('下载超时'));
         });
     });
@@ -525,13 +525,13 @@ ipcMain.handle('install-update', () => {
         // 使用手动下载的更新文件进行安装
         const { spawn } = require('child_process');
         const installerPath = global.updateInstallerPath;
-        
+
         // 启动安装程序并退出当前应用
         spawn(installerPath, ['/S'], {
             detached: true,
             stdio: 'ignore'
         }).unref();
-        
+
         app.quit();
     } else if (autoUpdater) {
         // 使用 electron-updater 的默认安装方式（GitHub）
@@ -730,8 +730,8 @@ ipcMain.handle('test-provider-connection', async (event, payload) => {
             latencyMs,
             model: usedModel,
             usage,
-                sample: content ? String(content).slice(0, 200) : '',
-                url: usedUrl
+            sample: content ? String(content).slice(0, 200) : '',
+            url: usedUrl
         };
     } catch (err) {
         const latencyMs = Date.now() - start;
@@ -887,13 +887,11 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             model: modelName,
             messages: apiMessages,
             stream: stream !== false,
-            stream_options: { include_usage: true },
             temperature: temperature || 0.7,
             top_p: top_p || 1,
-            max_tokens: max_tokens || undefined,
-            ...(enableThinking !== undefined ? { include_reasoning: enableThinking } : {}),
-            ...(enableSearch !== undefined ? { web_search: enableSearch, search: enableSearch, enable_search: enableSearch } : {})
+            max_tokens: max_tokens || undefined
         };
+
 
         if (tools.length > 0) {
             body.tools = tools.map(t => ({

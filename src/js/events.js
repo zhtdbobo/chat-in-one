@@ -142,7 +142,7 @@ function setupEvents() {
     if (messageContainer) {
         messageContainer.addEventListener('click', (e) => {
             if (e.__chatInOneCodeActionHandled) return;
-            
+
             // Handle Preview button
             const previewBtn = e.target.closest('.code-preview-btn');
             if (previewBtn) {
@@ -155,7 +155,7 @@ function setupEvents() {
                 }
                 return;
             }
-            
+
             // Handle Copy button
             const copyBtn = e.target.closest('.code-copy-btn');
             if (copyBtn) {
@@ -209,7 +209,7 @@ function setupEvents() {
         comparisonToggleBtn.addEventListener('click', () => {
             state.isComparisonMode = !state.isComparisonMode;
             updateComparisonToggleState();
-            
+
             // If turning off, revert UI
             if (!state.isComparisonMode) {
                 messageContainer.classList.remove('comparison-layout');
@@ -574,7 +574,7 @@ function setupEvents() {
         state.isStreaming = true;
         if (sendBtn) sendBtn.style.display = 'none';
         if (stopBtn) stopBtn.style.display = 'flex';
-        
+
         if (state.isComparisonMode && data.modelName) {
             // Find the model's column body using the modelId stored in data-model-id
             // The column's body id is built from the full modelId (providerId|modelName)
@@ -612,10 +612,10 @@ function setupEvents() {
     });
 
     window.api.onStreamChunk((data) => {
-        const streamDiv = (state.isComparisonMode && data.modelName) 
-            ? state.comparisonStreams[data.modelName] 
+        const streamDiv = (state.isComparisonMode && data.modelName)
+            ? state.comparisonStreams[data.modelName]
             : state.currentStreamDiv;
-            
+
         if (!streamDiv) return;
 
         try {
@@ -723,15 +723,39 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
     }
 
     // Meta info
-    const wordCount = rawContent.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = (rawContent || '').trim().split(/\s+/).filter(Boolean).length;
     const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
-    const latency = meta.firstTokenLatency != null ? `首词 ${meta.firstTokenLatency}ms · ` : '';
-    const metaStr = `${latency}${tokens} tokens · ${meta.time || ''}`;
+
+    // 获取服务商名称
+    const chat = state.chats.find(c => c.id === chatId);
+    let providerNameLabel = '';
+    if (chat && chat.model && chat.model.includes('|')) {
+        const pId = chat.model.split('|')[0];
+        const provider = state.settings.providers.find(p => p.id === pId);
+        if (provider) providerNameLabel = provider.name;
+    }
+
+    const latencyS = meta.firstTokenLatency != null ? (meta.firstTokenLatency / 1000).toFixed(1) + 's' : '';
+
+    const parts = [];
+    if (providerNameLabel) {
+        parts.push(`${providerNameLabel} (${meta.model || modelName})`);
+    } else {
+        parts.push(meta.model || modelName);
+    }
+    parts.push(`${tokens} tokens`);
+    parts.push(`${wordCount} words`);
+    if (latencyS) parts.push(latencyS);
+    if (meta.time) parts.push(meta.time);
+
+    const metaStr = parts.join(' · ');
+
     const existingMeta = streamDiv.querySelector('.message-meta');
     if (existingMeta) existingMeta.remove();
     if (scrollEl) {
         scrollEl.insertAdjacentHTML('afterend', `<div class="message-meta">${metaStr}</div>`);
     }
+
 
     // Update column header status  
     const col = streamDiv.closest('.comparison-column');
@@ -744,8 +768,8 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
     }
 
     // Save to chat state
-    const chat = state.chats.find(c => c.id === chatId);
     if (chat) {
+
         chat.messages.push({
             role: 'assistant',
             content: { content: rawContent, reasoning_content: rawReasoning },
@@ -812,16 +836,33 @@ function finalizeStream(chatId, meta) {
             scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
         }
 
-        // Append message meta (word count, tokens, latency, model, time)
+        // Append message meta
         const wordCount = (finalContent || '').trim().split(/\s+/).filter(Boolean).length;
-        const parts = [];
-        parts.push('word count: ' + wordCount);
         const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
-        parts.push('tokens used: ' + tokens);
-        parts.push(meta.firstTokenLatency != null ? 'first token latency: ' + meta.firstTokenLatency + 'ms' : null);
-        parts.push('model: ' + (meta.model || '—'));
-        parts.push('time: ' + (meta.time || '—'));
-        const metaStr = parts.filter(Boolean).join(', ');
+        const latencyS = meta.firstTokenLatency != null ? (meta.firstTokenLatency / 1000).toFixed(1) + 's' : '';
+
+        // 获取服务商名称
+        const chat = state.chats.find(c => c.id === chatId);
+        let providerNameLabel = '';
+        if (chat && chat.model && chat.model.includes('|')) {
+            const pId = chat.model.split('|')[0];
+            const provider = state.settings.providers.find(p => p.id === pId);
+            if (provider) providerNameLabel = provider.name;
+        }
+
+        const parts = [];
+        if (providerNameLabel) {
+            parts.push(`${providerNameLabel} (${meta.model || '—'})`);
+        } else {
+            parts.push(meta.model || '—');
+        }
+        parts.push(`${tokens} tokens`);
+        parts.push(`${wordCount} words`);
+        if (latencyS) parts.push(latencyS);
+        if (meta.time) parts.push(meta.time);
+
+        const metaStr = parts.join(' · ');
+
         const metaHtml = `<div class="message-meta">${metaStr}</div>`;
 
         const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
@@ -833,8 +874,8 @@ function finalizeStream(chatId, meta) {
             state.currentStreamDiv.insertAdjacentHTML('beforeend', metaHtml);
         }
 
-        const chat = state.chats.find(c => c.id === chatId);
         if (chat) {
+
             chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning }, model: meta.model });
 
             // Auto generate title for first message

@@ -29,7 +29,8 @@
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
     "highlight.js": "^11.9.0",
-    "marked": "^4.3.0"
+    "marked": "^4.3.0",
+    "node-fetch": "^3.3.2"
   },
   "build": {
     "appId": "com.chatinone.app",
