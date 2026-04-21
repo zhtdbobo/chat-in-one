@@ -314,7 +314,8 @@ function renderMessages(messages) {
                 const role = msg && typeof msg === 'object' && msg.role ? msg.role : 'assistant';
                 const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
 
-                const messageItem = renderMessageItem(role, payload);
+                // pass full msg object instead of just payload so we can get meta info
+                const messageItem = renderMessageItem(role, payload, msg);
                 if (messageItem) fragment.appendChild(messageItem);
             } catch (e) {
                 console.error('Failed to render message item:', e, msg);
@@ -356,7 +357,7 @@ function renderMarkdownSafe(text) {
     }
 }
 
-function renderMessageItem(role, content) {
+function renderMessageItem(role, content, fullMsgObj = null) {
     welcomeScreen.style.display = 'none';
 
     const wrapper = document.createElement('div');
@@ -433,6 +434,51 @@ function renderMessageItem(role, content) {
             ` : ''}
         </div>
     `;
+
+    // Attempt to render history meta info if available
+    if (fullMsgObj) {
+        const textRawForCount = typeof dataRaw === 'string' ? dataRaw : String(dataRaw || '');
+        const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+        const wordCount = zhCount + enCount;
+
+        if (role === 'assistant') {
+            const tokens = fullMsgObj.usage?.total_tokens ?? fullMsgObj.usage?.completion_tokens ?? fullMsgObj.usage?.output_tokens ?? '—';
+            const latencyS = fullMsgObj.firstTokenLatency != null ? (fullMsgObj.firstTokenLatency / 1000).toFixed(1) + 's' : '';
+            
+            let providerNameLabel = '';
+            if (fullMsgObj.model && state.chats) {
+                // Determine model provider name if available
+                const chat = state.chats.find(c => c.id === state.currentChatId);
+                if (chat && chat.model && chat.model.includes('|')) {
+                    const pId = chat.model.split('|')[0];
+                    const provider = state.settings.providers.find(p => p.id === pId);
+                    if (provider) providerNameLabel = provider.name;
+                }
+            }
+
+            const parts = [];
+            if (providerNameLabel) {
+                parts.push(`${providerNameLabel} (${fullMsgObj.model || '—'})`);
+            } else {
+                parts.push(fullMsgObj.model || '—');
+            }
+            if (tokens !== '—' || fullMsgObj.usage) parts.push(`${tokens} tokens`);
+            parts.push(`${wordCount} words`);
+            if (latencyS) parts.push(latencyS);
+            if (fullMsgObj.time) parts.push(fullMsgObj.time);
+
+            const metaStr = parts.join(' · ');
+            const messageContentEl = wrapper.querySelector('.message-content');
+            if (messageContentEl) messageContentEl.insertAdjacentHTML('beforeend', `<div class="message-meta">${metaStr}</div>`);
+        } else if (role === 'user') {
+            const parts = [`${wordCount} words`];
+            if (fullMsgObj.time) parts.push(fullMsgObj.time);
+            const metaStr = parts.join(' · ');
+            const messageContentEl = wrapper.querySelector('.message-content');
+            if (messageContentEl) messageContentEl.insertAdjacentHTML('beforeend', `<div class="message-meta" style="text-align:right;">${metaStr}</div>`);
+        }
+    }
 
     if (role === 'assistant' || role === 'user') {
         const copyBtn = wrapper.querySelector('.copy-btn');
@@ -679,8 +725,12 @@ function sendMessage() {
     }
 
     // Now commit the user message to UI/state
-    chat.messages.push({ role: 'user', content: messageContent });
-    const userMsgEl = renderMessageItem('user', messageContent);
+    const d = new Date();
+    const timeStr = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    
+    const userMsgObj = { role: 'user', content: messageContent, time: timeStr };
+    chat.messages.push(userMsgObj);
+    const userMsgEl = renderMessageItem('user', messageContent, userMsgObj);
     if (messagesList) {
         messagesList.appendChild(userMsgEl);
     } else {

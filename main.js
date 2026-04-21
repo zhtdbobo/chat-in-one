@@ -892,6 +892,10 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             max_tokens: max_tokens || undefined
         };
 
+        if (body.stream) {
+            body.stream_options = { include_usage: true };
+        }
+
 
         if (tools.length > 0) {
             body.tools = tools.map(t => ({
@@ -1103,7 +1107,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
         }
 
         const endTime = new Date();
-        const timeStr = String(endTime.getHours()).padStart(2, '0') + ':' + String(endTime.getMinutes()).padStart(2, '0');
+        const timeStr = String(endTime.getMonth() + 1).padStart(2, '0') + '-' + String(endTime.getDate()).padStart(2, '0') + ' ' + String(endTime.getHours()).padStart(2, '0') + ':' + String(endTime.getMinutes()).padStart(2, '0');
         event.reply('stream-end', { chatId, modelName, usage: lastUsage, model: lastModel, firstTokenLatency, time: timeStr });
     } catch (error) {
         if (error.name !== 'AbortError') {

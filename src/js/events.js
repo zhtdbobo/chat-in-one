@@ -723,7 +723,10 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
     }
 
     // Meta info
-    const wordCount = (rawContent || '').trim().split(/\s+/).filter(Boolean).length;
+    const textRawForCount = typeof rawContent === 'string' ? rawContent : String(rawContent || '');
+    const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = zhCount + enCount;
     const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
 
     // 获取服务商名称
@@ -774,7 +777,10 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
             role: 'assistant',
             content: { content: rawContent, reasoning_content: rawReasoning },
             model: meta.model || modelName,
-            comparisonModelName: modelName
+            comparisonModelName: modelName,
+            usage: meta.usage,
+            firstTokenLatency: meta.firstTokenLatency,
+            time: meta.time
         });
         saveChats();
     }
@@ -837,7 +843,10 @@ function finalizeStream(chatId, meta) {
         }
 
         // Append message meta
-        const wordCount = (finalContent || '').trim().split(/\s+/).filter(Boolean).length;
+        const textRawForCount = typeof finalContent === 'string' ? finalContent : String(finalContent || '');
+        const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+        const wordCount = zhCount + enCount;
         const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
         const latencyS = meta.firstTokenLatency != null ? (meta.firstTokenLatency / 1000).toFixed(1) + 's' : '';
 
@@ -876,7 +885,7 @@ function finalizeStream(chatId, meta) {
 
         if (chat) {
 
-            chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning }, model: meta.model });
+            chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning }, model: meta.model, usage: meta.usage, firstTokenLatency: meta.firstTokenLatency, time: meta.time });
 
             // Auto generate title for first message
             if (chat.messages.length === 2 && chat.title === '新对话') {
