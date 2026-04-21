@@ -3,8 +3,7 @@ name: Sync GitHub to Gitee
 on:
   push:
     branches: ["**"]
-    tags: ["*"]
-    # 注意：不监听 tags，避免与 release 事件重复触发
+    # 不再监听 tags 列表，交由 release 事件处理，避免重复触发
   release:
     types: [published]
   workflow_dispatch:
@@ -33,7 +32,6 @@ jobs:
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
           git push gitee --all --force
-          git push gitee --tags --force
 
   release:
     if: github.event_name == 'release'
