@@ -638,19 +638,44 @@ function setupEvents() {
         if (!streamDiv) return;
 
         try {
+            if (data.tool_call) {
+                streamDiv.dataset.toolStatus = data.tool_call;
+            }
             if (data.reasoning_content) {
                 const currentReasoning = streamDiv.dataset.reasoning || '';
                 streamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
+                // If we get reasoning, clear tool status
+                if (streamDiv.dataset.toolStatus) delete streamDiv.dataset.toolStatus;
             }
             if (data.content) {
                 const currentRaw = streamDiv.dataset.raw || '';
                 streamDiv.dataset.raw = currentRaw + data.content;
+                // If we get content, clear tool status
+                if (streamDiv.dataset.toolStatus) delete streamDiv.dataset.toolStatus;
             }
 
             const rawContent = streamDiv.dataset.raw || '';
             const rawReasoning = streamDiv.dataset.reasoning || '';
+            const toolStatus = streamDiv.dataset.toolStatus;
 
             let finalHtml = '';
+
+            if (toolStatus === 'calling') {
+                finalHtml += `
+                    <div class="tool-status">
+                        <i class="ph ph-spinner"></i>
+                        <span>正在调用工具...</span>
+                    </div>
+                `;
+            } else if (toolStatus === 'responding') {
+                finalHtml += `
+                    <div class="tool-status">
+                        <i class="ph ph-spinner"></i>
+                        <span>正在生成回答...</span>
+                    </div>
+                `;
+            }
+
             if (rawReasoning && state.settings.enableThinking !== false) {
                 const isStreamingComplete = !state.isStreaming;
                 const parsedReasoningHtml = marked.parse(rawReasoning);

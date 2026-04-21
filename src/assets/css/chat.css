@@ -574,3 +574,34 @@ body.light-theme .comparison-header .model-status.streaming {
     color: var(--text-muted);
     font-family: var(--font-mono, ui-monospace, monospace);
 }
+
+/* Tool Call Status Badge */
+.tool-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--brand-alpha, rgba(59, 130, 246, 0.1));
+    color: var(--bg-primary, #3b82f6);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.tool-status i {
+    font-size: 14px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}

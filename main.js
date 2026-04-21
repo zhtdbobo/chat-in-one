@@ -84,7 +84,9 @@ async function initStore() {
             { id: 'pm', name: '产品经理', desc: '需求拆解与方案评审', prompt: '你是一名资深产品经理。请帮助用户澄清需求、拆解任务、评估取舍、输出 PRD/验收标准/里程碑。' },
             { id: 'interviewer', name: '面试官', desc: '模拟面试与追问', prompt: '你是一名严谨的面试官。请根据用户目标岗位进行提问与追问，并在每轮后给出改进建议与参考答案。' }
         ],
-        mcpServers: []
+        mcpServers: [
+            { id: 'everything', name: 'Everything 官方测试工具箱', command: 'npx', args: '-y, @modelcontextprotocol/server-everything' }
+        ]
     };
 
     try {
@@ -374,7 +376,6 @@ ipcMain.handle('check-for-updates', async () => {
         if (isCN) {
             try {
                 sendUpdateStatus({ type: 'checking', message: '正在从 Gitee 获取更新信息…' });
-                console.log('Testing Gitee update source...');
                 const release = await getGiteeLatestRelease(giteeOwner, repo);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
                 const currentVersion = app.getVersion();
@@ -382,19 +383,20 @@ ipcMain.handle('check-for-updates', async () => {
                 if (latestVersion && latestVersion > currentVersion) {
                     updateSource = 'gitee';
                     sendUpdateStatus({ type: 'checking', message: `发现新版本 ${latestVersion} (Gitee)，准备下载…` });
-                    // 找到了 Gitee 更新，后续走手动下载流程
                     handleGiteeUpdate(release);
                     return { ok: true, message: '发现 Gitee 更新' };
+                } else {
+                    // 如果 Gitee 明确返回没有更新，则直接结束，不再去试 GitHub
+                    sendUpdateStatus({ type: 'not-available' });
+                    return { ok: true, message: '已经是最新版本 (Gitee)' };
                 }
             } catch (giteeErr) {
                 console.warn('Gitee update check skipped/failed:', giteeErr.message);
-                sendUpdateStatus({ type: 'checking', message: 'Gitee 检查失败，尝试其他来源…' });
             }
 
-            // 2. 如果 Gitee 失败，在 CN 环境下尝试 GHProxy 检查 GitHub 
+            // 2. 如果 Gitee 失败，在 CN 环境下尝试 GHProxy 镜像检查
             try {
                 sendUpdateStatus({ type: 'checking', message: '正在通过镜像代理检查 GitHub 更新…' });
-                console.log('Testing GitHub via Proxy...');
                 const release = await getGithubLatestRelease(ghOwner, repo, true);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
                 const currentVersion = app.getVersion();
@@ -404,20 +406,21 @@ ipcMain.handle('check-for-updates', async () => {
                     sendUpdateStatus({ type: 'checking', message: `发现新版本 ${latestVersion} (Mirror)，准备下载…` });
                     handleGHProxyUpdate(release);
                     return { ok: true, message: '发现 GitHub (代理) 更新' };
+                } else {
+                    // 通过镜像确认没有更新，直接结束
+                    sendUpdateStatus({ type: 'not-available' });
+                    return { ok: true, message: '已经是最新版本 (Mirror)' };
                 }
             } catch (proxyErr) {
                 console.warn('GitHub Proxy check failed:', proxyErr.message);
-                sendUpdateStatus({ type: 'checking', message: '镜像代理检查失败，尝试官方通道…' });
             }
         }
 
         // 3. 默认尝试官方 checkForUpdates (GitHub)
-        // 注意：在 CN 且上述都失败时，如果不希望直接卡死，可以在这里加个判断
+        // 只有当前面所有优化通道都不可用时才会走到这里
         sendUpdateStatus({ type: 'checking', message: '正在通过 GitHub 官方通道检查更新…' });
-        console.log('Using standard autoUpdater (GitHub)');
         updateSource = 'github';
 
-        // 为 autoUpdater 设置较短的超时，避免长时间等待
         const checkPromise = autoUpdater.checkForUpdates();
         const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('检查更新超时，请检查网络连接或代理设置')), 10000)
@@ -1018,9 +1021,9 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
 
         // Handle Tool Calls if any
         if (toolCalls.length > 0) {
-            event.reply('stream-chunk', { chatId, content: "\n\n*正在调用工具...*\n" });
+            event.reply('stream-chunk', { chatId, tool_call: "calling" });
             const toolResults = [];
-            for (const tc of toolCalls) {
+            for (const tc of toolCalls.filter(Boolean)) {
                 const serverId = toolNameToServerMap.get(tc.name);
                 const clientObj = mcpClients.find(c => c.id === serverId);
                 if (clientObj) {
@@ -1051,13 +1054,16 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                     body: JSON.stringify({
                         model: modelName,
-                        messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
+                        messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.filter(Boolean).map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
                         stream: true,
                         stream_options: { include_usage: true }
                     })
                 },
                 currentStreamController
             );
+
+            // Once the second request starts, we can clear the calling status
+            event.reply('stream-chunk', { chatId, tool_call: "responding" });
 
             const finalReader = finalResponse.body.getReader();
             let toolFirstTokenLatency = null;
@@ -1100,9 +1106,15 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     const delta = parsed.choices?.[0]?.delta;
                     if (parsed.model) toolLastModel = parsed.model;
                     if (parsed.usage && (parsed.usage.total_tokens != null || parsed.usage.output_tokens != null)) toolLastUsage = parsed.usage;
-                    if (delta?.content) {
-                        if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
-                        event.reply('stream-chunk', { chatId, modelName, content: delta.content });
+                    if (delta) {
+                        if (delta.reasoning_content && enableThinking !== false) {
+                            if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
+                            event.reply('stream-chunk', { chatId, modelName, reasoning_content: delta.reasoning_content });
+                        }
+                        if (delta.content) {
+                            if (toolFirstTokenLatency == null) toolFirstTokenLatency = Date.now() - toolStreamStart;
+                            event.reply('stream-chunk', { chatId, modelName, content: delta.content });
+                        }
                     }
                 } catch (e) {
                     if (!trimmedLine.includes('[DONE]')) {
