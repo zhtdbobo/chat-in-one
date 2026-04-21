@@ -431,6 +431,11 @@ function setupEvents() {
         let rafId = null;
 
         const renderTip = () => {
+            const currentChat = state.chats.find(c => c.id === state.currentChatId);
+            const modelInfo = (typeof getCurrentChatProviderAndModel === 'function') 
+                ? getCurrentChatProviderAndModel(currentChat) 
+                : { modelName: 'Unknown' };
+
             const est = (typeof getCurrentContextUsageEstimate === 'function')
                 ? getCurrentContextUsageEstimate({ includeDraftInput: true })
                 : null;
@@ -442,25 +447,39 @@ function setupEvents() {
 
             // Keep tooltip simple by default; show details only near limit.
             const used = est.msgTokens ?? 0; // so a fresh chat starts at 0
-            const usedPct = est.contextLimit ? Math.min(999, Math.round((used / est.contextLimit) * 100)) : 0;
-            const totalPct = est.contextLimit ? Math.min(999, Math.round((est.estimatedTotal / est.contextLimit) * 100)) : 0;
-            const cls = totalPct >= 98 ? 'bad' : (totalPct >= 85 ? 'warn' : '');
+            
+            // Calculate percentage with one decimal place for better precision
+            const calcPct = (val, limit) => limit ? (val / limit * 100).toFixed(limit > 100000 ? 2 : 1) : "0";
+            const usedPct = calcPct(used, est.contextLimit);
+            const totalPct = calcPct(est.estimatedTotal, est.contextLimit);
+            const totalPctNum = parseFloat(totalPct);
+            const cls = totalPctNum >= 98 ? 'bad' : (totalPctNum >= 85 ? 'warn' : '');
+
+            const usedStr = used.toLocaleString();
+            const limitStr = est.contextLimit.toLocaleString();
 
             const basic = `
-                <div><strong>上下文占用</strong></div>
-                <div class="${cls}">${usedPct}%（${used}/${est.contextLimit} tokens）</div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>上下文占用</strong>
+                    <span style="font-size:10px; opacity:0.7;">${modelInfo.modelName}</span>
+                </div>
+                <div class="${cls}" style="font-size: 13px; margin: 4px 0;">${usedPct}%（${usedStr}/${limitStr} tokens）</div>
                 <div class="muted">点击压缩早期对话</div>
             `;
 
-            if (totalPct < 85) {
+            if (totalPctNum < 85) {
                 ctxTip.innerHTML = basic;
                 return;
             }
 
+            const promptTokensStr = (est.promptTokens ?? 0).toLocaleString();
+            const outputReserveStr = est.outputReserve.toLocaleString();
+            const estimatedTotalStr = est.estimatedTotal.toLocaleString();
+
             ctxTip.innerHTML = `
                 ${basic}
-                <div class="muted" style="margin-top:6px;">
-                    细节：系统提示词 ${est.promptTokens ?? 0} · 预留输出 ${est.outputReserve} · 总计 ~ ${est.estimatedTotal}/${est.contextLimit}（${totalPct}%）
+                <div class="muted" style="margin-top:6px; font-size:11px; border-top:1px solid var(--border-subtle); padding-top:6px;">
+                    细节：系统词 ${promptTokensStr} · 预留 ${outputReserveStr} · 总计 ~ ${estimatedTotalStr}/${limitStr}（${totalPct}%）
                 </div>
             `;
         };

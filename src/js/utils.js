@@ -115,16 +115,48 @@ function getModelContextWindowTokens(modelName) {
     const id = String(modelName || '').toLowerCase();
     if (!id) return 8192;
 
-    // Prefer explicit "###k" patterns in model name
+    // 1. Prefer explicit "###k" patterns in model name (e.g. gpt-4-32k, moonshot-v1-128k)
     const kMatch = id.match(/(?:^|[^0-9])(\d{1,3})k(?:[^0-9]|$)/i);
     if (kMatch) {
         const k = parseInt(kMatch[1], 10);
         if (Number.isFinite(k) && k > 0) return k * 1000;
     }
 
-    // Common context hints
+    // 2. Gemini Series (Google)
+    if (id.includes('gemini-1.5-pro')) return 2097152;
+    if (id.includes('gemini-1.5-flash')) return 1048576;
+    if (id.includes('gemini-2.0-flash')) return 1048576;
+    if (id.includes('gemini-2.0-pro')) return 2097152;
+    if (id.includes('gemini-3-flash')) return 1048576; // Added for user's specific case
+    if (id.includes('gemini-pro') || id.includes('gemini-1.0-pro')) return 32768;
+
+    // 3. Claude Series (Anthropic)
+    if (id.includes('claude-3-5') || id.includes('claude-3.5')) return 200000;
+    if (id.includes('claude-3')) return 200000;
+    if (id.includes('claude-2')) return 100000;
+
+    // 4. GPT Series (OpenAI)
+    if (id.includes('gpt-4o') || id.includes('gpt-4-turbo')) return 128000;
+    if (id.includes('gpt-4-32k')) return 32768;
+    if (id.includes('gpt-4')) return 8192;
+    if (id.includes('o1-')) return 128000;
+    if (id.includes('o3-')) return 200000;
+    if (id.includes('gpt-3.5-turbo-16k')) return 16385;
+    if (id.includes('gpt-3.5-turbo')) return 4096;
+
+    // 5. DeepSeek Series
+    if (id.includes('deepseek-v3') || id.includes('deepseek-r1')) return 128000;
+    if (id.includes('deepseek-chat') || id.includes('deepseek-coder')) return 128000;
+
+    // 6. Qwen Series (Aliyun)
+    if (id.includes('qwen') && (id.includes('plus') || id.includes('max') || id.includes('long-context'))) return 128000;
+    if (id.includes('qwen-turbo')) return 32768;
+    if (id.includes('qwen') && (id.includes('72b') || id.includes('32b'))) return 32768;
+
+    // 7. Common context hints
     if (id.includes('128k')) return 128000;
     if (id.includes('200k')) return 200000;
+    if (id.includes('1m')) return 1000000;
     if (id.includes('32k')) return 32000;
     if (id.includes('16k')) return 16000;
     if (id.includes('8k')) return 8000;
