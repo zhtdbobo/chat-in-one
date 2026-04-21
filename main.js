@@ -217,8 +217,8 @@ const https = require('https');
 function isCNNetwork() {
     return new Promise((resolve) => {
         const testSites = [
-            { name: 'gitee', url: 'https://gitee.com', timeout: 3000 },
-            { name: 'github', url: 'https://github.com', timeout: 3000 }
+            { name: 'gitee', url: 'https://gitee.com', timeout: 5000 },
+            { name: 'github', url: 'https://github.com', timeout: 5000 }
         ];
         let completed = 0;
         const results = { gitee: Infinity, github: Infinity };
@@ -233,7 +233,7 @@ function isCNNetwork() {
         };
 
         // 整体超时保护
-        const overallTimeout = setTimeout(cleanup, 5000);
+        const overallTimeout = setTimeout(cleanup, 10000);
 
         testSites.forEach(site => {
             const startTime = Date.now();
@@ -274,7 +274,7 @@ async function getGiteeLatestRelease(owner, repo) {
     return new Promise((resolve, reject) => {
         const url = `https://gitee.com/api/v5/repos/${owner}/${repo}/releases/latest`;
         https.get(url, {
-            timeout: 5000,
+            timeout: 10000,
             headers: { 'User-Agent': 'chat-in-one-updater' }
         }, (res) => {
             if (res.statusCode !== 200) {
@@ -304,7 +304,7 @@ async function getGithubLatestRelease(owner, repo, useProxy = false) {
             : `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
 
         https.get(baseUrl, {
-            timeout: 8000,
+            timeout: 15000,
             headers: { 'User-Agent': 'chat-in-one-updater' }
         }, (res) => {
             if (res.statusCode !== 200) {
@@ -320,7 +320,7 @@ async function getGithubLatestRelease(owner, repo, useProxy = false) {
                     reject(new Error('Failed to parse GitHub release: ' + e.message));
                 }
             });
-        }).on('error', reject).setTimeout(8000, function () {
+        }).on('error', reject).setTimeout(15000, function () {
             reject(new Error('GitHub API timeout'));
         });
     });
@@ -368,9 +368,12 @@ ipcMain.handle('check-for-updates', async () => {
         const giteeOwner = 'JaridLi';
         const repo = 'chat-in-one';
 
+        sendUpdateStatus({ type: 'checking', message: '正在检测网络环境…' });
+
         // 1. 如果在 CN，优先试 Gitee
         if (isCN) {
             try {
+                sendUpdateStatus({ type: 'checking', message: '正在从 Gitee 获取更新信息…' });
                 console.log('Testing Gitee update source...');
                 const release = await getGiteeLatestRelease(giteeOwner, repo);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
@@ -378,16 +381,19 @@ ipcMain.handle('check-for-updates', async () => {
 
                 if (latestVersion && latestVersion > currentVersion) {
                     updateSource = 'gitee';
+                    sendUpdateStatus({ type: 'checking', message: `发现新版本 ${latestVersion} (Gitee)，准备下载…` });
                     // 找到了 Gitee 更新，后续走手动下载流程
                     handleGiteeUpdate(release);
                     return { ok: true, message: '发现 Gitee 更新' };
                 }
             } catch (giteeErr) {
                 console.warn('Gitee update check skipped/failed:', giteeErr.message);
+                sendUpdateStatus({ type: 'checking', message: 'Gitee 检查失败，尝试其他来源…' });
             }
 
             // 2. 如果 Gitee 失败，在 CN 环境下尝试 GHProxy 检查 GitHub 
             try {
+                sendUpdateStatus({ type: 'checking', message: '正在通过镜像代理检查 GitHub 更新…' });
                 console.log('Testing GitHub via Proxy...');
                 const release = await getGithubLatestRelease(ghOwner, repo, true);
                 const latestVersion = release.tag_name ? release.tag_name.replace(/^v/, '') : null;
@@ -395,23 +401,26 @@ ipcMain.handle('check-for-updates', async () => {
 
                 if (latestVersion && latestVersion > currentVersion) {
                     updateSource = 'github-proxy';
+                    sendUpdateStatus({ type: 'checking', message: `发现新版本 ${latestVersion} (Mirror)，准备下载…` });
                     handleGHProxyUpdate(release);
                     return { ok: true, message: '发现 GitHub (代理) 更新' };
                 }
             } catch (proxyErr) {
                 console.warn('GitHub Proxy check failed:', proxyErr.message);
+                sendUpdateStatus({ type: 'checking', message: '镜像代理检查失败，尝试官方通道…' });
             }
         }
 
         // 3. 默认尝试官方 checkForUpdates (GitHub)
         // 注意：在 CN 且上述都失败时，如果不希望直接卡死，可以在这里加个判断
+        sendUpdateStatus({ type: 'checking', message: '正在通过 GitHub 官方通道检查更新…' });
         console.log('Using standard autoUpdater (GitHub)');
         updateSource = 'github';
 
         // 为 autoUpdater 设置较短的超时，避免长时间等待
         const checkPromise = autoUpdater.checkForUpdates();
         const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('检查更新超时，请检查网络连接或代理设置')), 15000)
+            setTimeout(() => reject(new Error('检查更新超时，请检查网络连接或代理设置')), 10000)
         );
 
         await Promise.race([checkPromise, timeoutPromise]);
@@ -419,8 +428,8 @@ ipcMain.handle('check-for-updates', async () => {
 
     } catch (e) {
         const errorMessage = e.message || String(e);
-        const userFriendlyError = errorMessage.includes('TIMEOUT') || errorMessage.includes('Timed out') || errorMessage.includes('timed_out')
-            ? '检查更新超时：GitHub 访问受限，请尝试开启代理或检查网络。'
+        const userFriendlyError = errorMessage.includes('TIMEOUT') || errorMessage.includes('Timed out') || errorMessage.includes('timed_out') || errorMessage.includes('ERR_CONNECTION_TIMED_OUT')
+            ? '检查更新超时：GitHub/Gitee 访问受限，请尝试开启代理或检查网络。'
             : errorMessage;
 
         sendUpdateStatus({ type: 'error', message: userFriendlyError });

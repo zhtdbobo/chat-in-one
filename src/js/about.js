@@ -62,11 +62,16 @@ function handleUpdateStatus(data) {
             statusEl.textContent = '新版本已下载完成，点击下方按钮重启安装。';
             if (installBtn) installBtn.style.display = 'inline-flex';
             break;
+        case 'checking':
+            statusEl.classList.add('checking');
+            statusEl.textContent = data.message || '正在检查更新…';
+            break;
         case 'not-available':
-            statusEl.classList.remove('error');
+            statusEl.classList.remove('error', 'checking');
             statusEl.textContent = '当前已是最新版本';
             break;
         case 'error':
+            statusEl.classList.remove('checking');
             statusEl.classList.add('error');
             statusEl.textContent = '检查更新失败：' + (data.message || '未知错误');
             break;
