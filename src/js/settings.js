@@ -670,18 +670,21 @@ function renderProviderDetail() {
             btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> 请求中...';
 
             // 统一使用「短链接 Endpoint」，自动拼接常见 /v1/models 变体
-            const base = url.replace(/\/+$/, '');
+            // 改进：首先剥离可能存在的完整 chat 路径后缀，还原 Base URL
+            const base = url.replace(/\/(chat\/completions|completions|complete)\/?$/i, '').replace(/\/+$/, '');
             const lower = base.toLowerCase();
             const candidates = [];
 
-            // 如果用户已经带了 /v1，则优先尝试 /v1/models，其次 /models
+            // 如果用户填写的 Base 以 /v1 结尾
             if (lower.endsWith('/v1')) {
                 candidates.push(base + '/models');
-                candidates.push(base.replace(/\/v1$/i, '') + '/v1/models');
+                // 备选：万一服务商的 v1 不在模型路径里
+                candidates.push(base.replace(/\/v1$/i, '') + '/models');
             } else {
-                // 根域名形式: https://api.openai.com 或兼容 DashScope 等
+                // 根域名形式: 优先尝试 /v1/models (OpenAI 标准)
                 candidates.push(base + '/v1/models');
                 candidates.push(base + '/models');
+                // 如果用户其实填的是完整路径但没被正则匹配到，这里 base 已经是 trimmed 的了
             }
 
             let lastError = null;

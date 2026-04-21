@@ -1,7 +1,8 @@
-/* Searchable Select (Chat Area) */
 .searchable-select {
     position: relative;
-    width: 180px;
+    width: auto;
+    min-width: 120px;
+    max-width: 220px;
     user-select: none;
     -webkit-app-region: no-drag;
 }
@@ -19,6 +20,7 @@
     font-size: 13px;
     color: var(--text-secondary);
     transition: all var(--transition);
+    min-width: 0; /* Important for ellipsis truncation in flex */
 }
 
 .select-trigger:hover {
@@ -31,6 +33,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0; /* Important for ellipsis truncation in flex */
 }
 
 .select-dropdown {
@@ -99,6 +102,9 @@
     cursor: pointer;
     color: var(--text-secondary);
     transition: all var(--transition);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .select-option:hover {
