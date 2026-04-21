@@ -32,8 +32,8 @@ jobs:
       - name: Push to Gitee
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
-          git push gitee --all
-          
+          git push gitee --all --force
+          git push gitee --tags --force
 
   release:
     if: github.event_name == 'release'
@@ -57,7 +57,7 @@ jobs:
       - name: Push release tag to Gitee
         run: |
           git remote add gitee git@gitee.com:${{ secrets.GITEE_USER }}/${{ github.event.repository.name }}.git
-          git push gitee ${{ github.event.release.tag_name }} || echo "Tag may already exist on Gitee"
+          git push gitee ${{ github.event.release.tag_name }} --force || echo "Tag may already exist on Gitee"
 
       - name: Download GitHub Release Assets
         run: |
