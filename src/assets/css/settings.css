@@ -560,10 +560,10 @@
 .model-check-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    transition: background var(--transition);
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all var(--transition);
     cursor: pointer;
 }
 
@@ -572,7 +572,8 @@
 }
 
 .model-check-item input[type="checkbox"] {
-    width: auto;
+    width: 14px;
+    height: 14px;
     margin: 0;
     cursor: pointer;
 }
@@ -583,7 +584,27 @@
     cursor: pointer;
     flex: 1;
     user-select: none;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
+.model-check-item .delete-model-btn {
+    opacity: 0;
+    transition: opacity var(--transition);
+    padding: 4px;
+    height: 24px;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-check-item:hover .delete-model-btn {
+    opacity: 1;
+}
+
 
 .provider-model-tools {
     display: flex;

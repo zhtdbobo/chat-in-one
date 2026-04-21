@@ -614,13 +614,17 @@ function renderProviderDetail() {
             item.innerHTML = `
                 <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${modelId}" value="${modelId}" data-model='${JSON.stringify(m)}'>
                 <label for="chk-${modelId}">${modelId}</label>
-                <div class="model-capabilities-mini" style="display: flex; gap: 4px; margin-left: auto; font-size: 11px;">
+                <div class="model-capabilities-mini">
                     <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
                     <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
                     <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
                 </div>
+                <button type="button" class="btn btn-icon btn-ghost btn-sm delete-model-btn" title="从列表中移除此模型">
+                    <i class="ph ph-trash"></i>
+                </button>
             `;
-            // Toggle visibility when checkbox changes
+
+            // Toggle visibility
             item.querySelector('input').addEventListener('change', (e) => {
                 const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
                 if (e.target.checked) {
@@ -630,6 +634,23 @@ function renderProviderDetail() {
                     if (idx > -1) currentVisible.splice(idx, 1);
                 }
                 provider.visibleModels = currentVisible.join(', ');
+            });
+
+            // Delete model from allModels
+            item.querySelector('.delete-model-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                showConfirmDialog(`确认从本地列表中移除模型 ${modelId}？\n如果是服务商提供的模型，下次点击“获取模型”时仍会自动找回。`, () => {
+                    // Update allModels
+                    const newAllModels = allModels.filter(mod => (mod.id || mod) !== modelId);
+                    provider.allModels = JSON.stringify(newAllModels);
+
+                    // Also remove from visibleModels
+                    const visible = (provider.visibleModels || "").split(',').map(v => v.trim()).filter(v => v !== modelId);
+                    provider.visibleModels = visible.join(', ');
+
+                    renderChecklist();
+                });
             });
             checklist.appendChild(item);
         });
