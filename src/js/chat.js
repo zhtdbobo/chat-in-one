@@ -13,7 +13,7 @@ function createNewChat() {
     if (attachmentsPreview) attachmentsPreview.style.display = 'none';
     if (attachmentsList) attachmentsList.innerHTML = '';
     if (messageInput) messageInput.value = '';
-    
+
     // Reset upload inputs to allow re-uploading the same files
     const imageUploadInput = document.getElementById('image-upload-input');
     const fileUploadInput = document.getElementById('file-upload-input');
@@ -61,7 +61,7 @@ function switchChat(chatId) {
     if (attachmentsPreview) attachmentsPreview.style.display = 'none';
     if (attachmentsList) attachmentsList.innerHTML = '';
     if (messageInput) messageInput.value = '';
-    
+
     // Reset upload inputs to allow re-uploading the same files
     const imageUploadInput = document.getElementById('image-upload-input');
     const fileUploadInput = document.getElementById('file-upload-input');
@@ -265,16 +265,16 @@ function renderMessages(messages) {
                 const grid = document.createElement('div');
                 grid.className = 'comparison-grid';
                 grid.style.margin = '8px 0 24px 0'; // Add some vertical spacing
-                
+
                 compGroup.forEach(cMsg => {
                     const col = document.createElement('div');
                     col.className = 'comparison-column';
-                    
+
                     const pName = cMsg.comparisonModelName;
                     const cPayload = cMsg.content;
                     const cRaw = (cPayload && typeof cPayload === 'object' && cPayload.content !== undefined) ? cPayload.content : String(cPayload || '');
                     const cReasoning = (cPayload && typeof cPayload === 'object' && cPayload.reasoning_content) ? cPayload.reasoning_content : '';
-                    
+
                     let htmlContent = '';
                     if (cReasoning && state.settings.enableThinking !== false) {
                         htmlContent += `
@@ -287,7 +287,7 @@ function renderMessages(messages) {
                     if (cRaw) {
                         htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw), { ADD_TAGS: ['button'] })}</div>`;
                     }
-                    
+
                     col.innerHTML = `
                         <div class="comparison-header">
                             <div class="model-name"><i class="ph ph-cpu"></i> <span>${pName}</span></div>
@@ -302,7 +302,7 @@ function renderMessages(messages) {
                     `;
                     grid.appendChild(col);
                 });
-                
+
                 fragment.appendChild(grid);
                 continue; // 内层 while 已经增加了 i，跳过本次外层循环递增
             }
@@ -430,6 +430,7 @@ function renderMessageItem(role, content, fullMsgObj = null) {
                     <button class="message-action-btn copy-btn" title="复制内容">
                         <i class="ph ph-copy"></i>
                     </button>
+                    ${role === 'user' ? '<button class="message-action-btn edit-msg-btn" title="编辑并重新发送"><i class="ph ph-pencil-simple"></i></button>' : ''}
                 </div>
             ` : ''}
         </div>
@@ -445,7 +446,7 @@ function renderMessageItem(role, content, fullMsgObj = null) {
         if (role === 'assistant') {
             const tokens = fullMsgObj.usage?.total_tokens ?? fullMsgObj.usage?.completion_tokens ?? fullMsgObj.usage?.output_tokens ?? '—';
             const latencyS = fullMsgObj.firstTokenLatency != null ? (fullMsgObj.firstTokenLatency / 1000).toFixed(1) + 's' : '';
-            
+
             let providerNameLabel = '';
             if (fullMsgObj.model && state.chats) {
                 // Determine model provider name if available
@@ -484,6 +485,95 @@ function renderMessageItem(role, content, fullMsgObj = null) {
         const copyBtn = wrapper.querySelector('.copy-btn');
         const messageContentEl = wrapper.querySelector('.message-content');
         copyBtn.addEventListener('click', () => copyToClipboard(messageContentEl?.dataset?.raw || '', copyBtn));
+
+        // Edit & resend for user messages
+        const editBtn = wrapper.querySelector('.edit-msg-btn');
+        if (editBtn && role === 'user') {
+            editBtn.addEventListener('click', function handleEditClick() {
+                if (state.isStreaming) return;
+                const currentText = messageContentEl.dataset.raw || '';
+                const messageScroll = wrapper.querySelector('.message-scroll');
+                const actionsEl = wrapper.querySelector('.message-actions');
+                const metaEl = wrapper.querySelector('.message-meta');
+
+                // Build edit UI via DOM (avoids template literal nesting issues)
+                var editContainer = document.createElement('div');
+                editContainer.className = 'edit-message-container';
+
+                var ta = document.createElement('textarea');
+                ta.className = 'edit-msg-textarea';
+                ta.style.cssText = 'width:100%;max-height:300px;padding:0;border:none;background:transparent;color:var(--text-primary);font-family:inherit;font-size:14px;line-height:1.6;resize:none;outline:none;overflow:hidden;';
+                ta.value = currentText;
+
+                // Auto-resize textarea height to fit content
+                function autoResize() {
+                    ta.style.height = 'auto';
+                    ta.style.height = ta.scrollHeight + 'px';
+                }
+                ta.addEventListener('input', autoResize);
+
+                var btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px;padding-top:8px;border-top:1px solid var(--border-subtle);';
+
+                var cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-ghost';
+                cancelBtn.style.cssText = 'padding:5px 14px;font-size:12px;border-radius:6px;';
+                cancelBtn.textContent = '取消';
+
+                var submitBtn = document.createElement('button');
+                submitBtn.className = 'btn btn-primary';
+                submitBtn.style.cssText = 'padding:5px 14px;font-size:12px;border-radius:6px;';
+                submitBtn.textContent = '保存并发送';
+
+                btnRow.appendChild(cancelBtn);
+                btnRow.appendChild(submitBtn);
+                editContainer.appendChild(ta);
+                editContainer.appendChild(btnRow);
+
+                // Hide original display, show editor
+                messageScroll.style.display = 'none';
+                if (actionsEl) actionsEl.style.display = 'none';
+                if (metaEl) metaEl.style.display = 'none';
+                messageContentEl.appendChild(editContainer);
+
+                ta.focus();
+                ta.selectionStart = ta.selectionEnd = ta.value.length;
+                // Initial resize to fit existing content
+                requestAnimationFrame(autoResize);
+
+                cancelBtn.addEventListener('click', function() {
+                    editContainer.remove();
+                    messageScroll.style.display = '';
+                    if (actionsEl) actionsEl.style.display = '';
+                    if (metaEl) metaEl.style.display = '';
+                });
+
+                submitBtn.addEventListener('click', function() {
+                    var newText = ta.value.trim();
+                    if (!newText) return;
+
+                    var chat = state.chats.find(function(c) { return c.id === state.currentChatId; });
+                    if (!chat || !fullMsgObj) return;
+
+                    var msgIndex = chat.messages.indexOf(fullMsgObj);
+                    if (msgIndex === -1) {
+                        // fallback: find by reference equality via findIndex
+                        msgIndex = chat.messages.findIndex(function(m) { return m === fullMsgObj; });
+                    }
+                    if (msgIndex === -1) return;
+
+                    // Truncate history from this user message onward (remove it + all following)
+                    chat.messages.splice(msgIndex);
+                    saveChats();
+                    renderMessages(chat.messages);
+
+                    // Put edited text into the input box and send
+                    messageInput.value = newText;
+                    messageInput.style.height = 'auto';
+                    sendMessage();
+                });
+            });
+        }
     }
 
     const messageContentEl = wrapper.querySelector('.message-content');
@@ -553,13 +643,13 @@ function sendMessage() {
     if (attachments.length > 0) {
         // 检查模型vision能力
         const modelCapabilities = detectModelCapabilities(modelName, {});
-        
+
         if (!modelCapabilities.vision) {
             showNotification(`❌ 模型 "${modelName}" 不支持图片上传。请选择支持视觉能力的模型。`, 'error');
             console.warn(`Model ${modelName} does not support vision capabilities`);
             return;
         }
-        
+
         console.log(`✓ 模型 "${modelName}" 支持视觉能力，可以发送图片消息`);
     }
 
@@ -620,10 +710,10 @@ function sendMessage() {
 
                         // Add attachments in neutral format
                         msg.content.attachments.forEach(attachment => {
-                            const base64Data = attachment.data.includes(',') 
-                                ? attachment.data.split(',')[1] 
+                            const base64Data = attachment.data.includes(',')
+                                ? attachment.data.split(',')[1]
                                 : attachment.data;
-                            
+
                             contentArray.push({
                                 type: "image",
                                 source: {
@@ -727,7 +817,7 @@ function sendMessage() {
     // Now commit the user message to UI/state
     const d = new Date();
     const timeStr = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-    
+
     const userMsgObj = { role: 'user', content: messageContent, time: timeStr };
     chat.messages.push(userMsgObj);
     const userMsgEl = renderMessageItem('user', messageContent, userMsgObj);
@@ -771,7 +861,7 @@ function sendMessage() {
         if (attachmentsPreview) {
             attachmentsPreview.style.display = 'none';
         }
-        
+
         // Also reset upload inputs to allow uploading again immediately
         const imageUploadInput = document.getElementById('image-upload-input');
         const fileUploadInput = document.getElementById('file-upload-input');
@@ -783,10 +873,10 @@ function sendMessage() {
     if (state.isComparisonMode && state.selectedComparisonModels.length >= 2) {
         // Parallel multi-model comparison
         messageContainer.classList.add('comparison-layout');
-        
+
         // Reset streams tracking map
         state.comparisonStreams = {};
-        
+
         // Render columns FIRST so they exist when stream-start arrives
         renderComparisonEmptyState();
 
@@ -806,7 +896,7 @@ function sendMessage() {
             if (typeof convertMessageForProvider === 'function') {
                 try {
                     messagesForThisModel = convertMessageForProvider(pId, messagesForThisModel, prov.endpoint);
-                } catch(e) {
+                } catch (e) {
                     console.warn('Message format conversion failed for', pId, e);
                 }
             }

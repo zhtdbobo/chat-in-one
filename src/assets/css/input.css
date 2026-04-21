@@ -1,6 +1,6 @@
 /* Input Area */
 .input-area {
-    padding: 12px 24px 24px 24px;
+    padding: 12px 24px 16px 24px;
     background-color: var(--bg-base);
     position: relative;
     z-index: 100;
@@ -24,11 +24,12 @@
 
 .ai-disclaimer {
     max-width: 800px;
-    margin: 12px auto -12px auto;
+    margin: 8px auto 0 auto;
     text-align: center;
     color: var(--text-muted);
     font-size: 12px;
     user-select: none;
+    -webkit-app-region: no-drag;
 }
 
 .input-wrapper:focus-within {
