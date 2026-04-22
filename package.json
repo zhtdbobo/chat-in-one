@@ -1,6 +1,6 @@
 {
   "name": "chat-in-one",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
