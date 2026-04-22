@@ -107,6 +107,24 @@ async function initStore() {
             }
         });
     }
+
+    // Migration: Ensure new default fields exist in old stored settings
+    const currentSettings = store.get('settings') || {};
+    let settingsChanged = false;
+
+    if (!currentSettings.mcpServers || currentSettings.mcpServers.length === 0) {
+        currentSettings.mcpServers = defaultSettings.mcpServers;
+        settingsChanged = true;
+    }
+
+    if (!currentSettings.skills || currentSettings.skills.length === 0) {
+        currentSettings.skills = defaultSettings.skills;
+        settingsChanged = true;
+    }
+
+    if (settingsChanged) {
+        store.set('settings', currentSettings);
+    }
 }
 
 
@@ -533,21 +551,17 @@ function downloadFile(url, savePath) {
 }
 
 ipcMain.handle('install-update', () => {
+    isQuitting = true; 
     if ((updateSource === 'gitee' || updateSource === 'github-proxy') && global.updateInstallerPath && fs.existsSync(global.updateInstallerPath)) {
-        // 使用手动下载的更新文件进行安装
         const { spawn } = require('child_process');
         const installerPath = global.updateInstallerPath;
-
-        // 启动安装程序并退出当前应用
-        spawn(installerPath, ['/S'], {
-            detached: true,
-            stdio: 'ignore'
-        }).unref();
-
+        spawn(installerPath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
         app.quit();
     } else if (autoUpdater) {
-        // 使用 electron-updater 的默认安装方式（GitHub）
         autoUpdater.quitAndInstall(false, true);
+    } else {
+        // 开发模式或没有检测到下载时的兜底逻辑
+        app.quit();
     }
 });
 
