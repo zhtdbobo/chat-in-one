@@ -696,11 +696,11 @@ function renderProviderDetail() {
             const lower = base.toLowerCase();
             const candidates = [];
 
-            // 如果用户填写的 Base 以 /v1 结尾
-            if (lower.endsWith('/v1')) {
+            // 如果用户填写的 Base 以 /v1, /v2 等版本号结尾
+            if (lower.match(/\/v\d+$/i)) {
                 candidates.push(base + '/models');
-                // 备选：万一服务商的 v1 不在模型路径里
-                candidates.push(base.replace(/\/v1$/i, '') + '/models');
+                // 备选：万一服务商的版本号不在模型路径里 (兼容某些特殊代理)
+                candidates.push(base.replace(/\/v\d+$/i, '') + '/models');
             } else {
                 // 根域名形式: 优先尝试 /v1/models (OpenAI 标准)
                 candidates.push(base + '/v1/models');

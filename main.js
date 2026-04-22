@@ -645,7 +645,7 @@ function buildChatCompletionCandidates(ep) {
         }
     } else {
         // 2) 纯短 endpoint：按常见组合生成候选
-        if (base.endsWith('/v1')) {
+        if (base.match(/\/v\d+$/i)) {
             candidates.push(
                 `${base}/chat/completions`,
                 `${base}/completions`,
