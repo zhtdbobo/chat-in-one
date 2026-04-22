@@ -595,16 +595,26 @@ function setupEvents() {
         if (stopBtn) stopBtn.style.display = 'flex';
 
         if (state.isComparisonMode && data.modelName) {
-            // Find the model's column body using the modelId stored in data-model-id
-            // The column's body id is built from the full modelId (providerId|modelName)
+            // Find the model's column body
             const matchedModelId = state.selectedComparisonModels.find(id => id.endsWith('|' + data.modelName) || id === data.modelName);
             const safeId = (matchedModelId || data.modelName).replace(/[^a-zA-Z0-9]/g, '-');
             const colId = `comp-body-${safeId}`;
             const colBody = document.getElementById(colId);
 
             if (colBody) {
-                colBody.innerHTML = '<div class="message-content" data-raw="" data-reasoning=""><div class="message-scroll"></div></div>';
-                state.comparisonStreams[data.modelName] = colBody.querySelector('.message-content');
+                // Determine the model's display name for metadata
+                const [pId, mName] = (matchedModelId || '').split('|');
+
+                // In full column mode, we APPEND a message item to the column instead of clearing it.
+                // This preserves history while showing the new response.
+                const div = renderMessageItem('assistant', '');
+                div.classList.add('currently-streaming');
+                colBody.appendChild(div);
+                
+                state.comparisonStreams[data.modelName] = div.querySelector('.message-content');
+
+                // Scroll the column body to bottom
+                colBody.scrollTop = colBody.scrollHeight;
 
                 // Update header status
                 const col = colBody.closest('.comparison-column');

@@ -232,6 +232,7 @@ function saveChats() {
 // -----------------------------------------
 function renderMessages(messages) {
     if (!messagesList) return;
+    messagesList.innerHTML = '';
 
     const fragment = document.createDocumentFragment();
     const companionsPanel = document.getElementById('companions-panel');
@@ -245,103 +246,150 @@ function renderMessages(messages) {
             companionsPanel.style.display = (state.settings.showCompanionsInNewChat !== false) ? '' : 'none';
         }
     } else {
-        welcomeScreen.style.display = 'none';
-        if (companionsPanel) companionsPanel.style.display = 'none';
+        // --- Comparison Mode Full History Layout ---
+        if (state.isComparisonMode && state.selectedComparisonModels.length >= 2) {
+            welcomeScreen.style.display = 'none';
+            if (companionsPanel) companionsPanel.style.display = 'none';
 
-        let i = 0;
-        while (i < messages.length) {
-            const msg = messages[i];
+            const container = document.createElement('div');
+            container.className = 'comparison-grid-container';
+            
+            // For each model, create a column and render the full history (User messages + this Model's responses)
+            state.selectedComparisonModels.forEach(modelId => {
+                const [pId, mName] = modelId.split('|');
+                const provider = state.settings.providers.find(p => p.id === pId);
+                const providerName = provider ? provider.name : pId;
 
-            // 检查是否为对比模式的历史响应，需要打包成网格并排显示
-            if (msg && typeof msg === 'object' && msg.role === 'assistant' && msg.comparisonModelName) {
-                const compGroup = [];
-                // 收集这一轮对比中的所有模型回复
-                while (i < messages.length && messages[i] && typeof messages[i] === 'object' && messages[i].role === 'assistant' && messages[i].comparisonModelName) {
-                    compGroup.push(messages[i]);
-                    i++;
-                }
+                const col = document.createElement('div');
+                col.className = 'comparison-column';
+                col.dataset.modelId = modelId;
 
-                // 渲染为横向滚动的并排列
-                const grid = document.createElement('div');
-                grid.className = 'comparison-grid';
-                grid.style.margin = '8px 0 24px 0'; // Add some vertical spacing
+                // Column Header
+                const header = document.createElement('div');
+                header.className = 'comparison-header';
+                header.innerHTML = `
+                    <div class="model-name">
+                        <i class="ph ph-cpu"></i>
+                        <span title="${providerName} · ${mName}">${mName}</span>
+                    </div>
+                    <div class="model-status">就绪</div>
+                `;
+                col.appendChild(header);
 
-                compGroup.forEach(cMsg => {
-                    const col = document.createElement('div');
-                    col.className = 'comparison-column';
-
-                    const pName = cMsg.comparisonModelName;
-                    const cPayload = cMsg.content;
-                    const cRaw = (cPayload && typeof cPayload === 'object' && cPayload.content !== undefined) ? cPayload.content : String(cPayload || '');
-                    const cReasoning = (cPayload && typeof cPayload === 'object' && cPayload.reasoning_content) ? cPayload.reasoning_content : '';
-
-                    let htmlContent = '';
-                    if (cReasoning && state.settings.enableThinking !== false) {
-                        htmlContent += `
-                            <details class="thinking-block">
-                                <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                                <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning), { ADD_TAGS: ['button'] })}</div>
-                            </details>
-                        `;
+                // Column Body (List of messages)
+                const body = document.createElement('div');
+                body.className = 'comparison-body';
+                body.id = `comp-body-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                
+                // Render this specific model's timeline
+                messages.forEach(msg => {
+                    const role = msg.role || 'assistant';
+                    // Show every user message, but only assistant messages aimed at this specific model
+                    if (role === 'user' || (role === 'assistant' && (msg.comparisonModelName === mName || msg.comparisonModelName === modelId))) {
+                        const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
+                        const messageItem = renderMessageItem(role, payload, msg);
+                        if (messageItem) {
+                            messageItem.style.marginBottom = '20px'; // Add some spacing
+                            body.appendChild(messageItem);
+                        }
+                    } else if (role === 'system' && String(msg.content).includes('[对话摘要]')) {
+                        // Always show system summaries in all columns
+                        const messageItem = renderMessageItem('system', msg.content, msg);
+                        if (messageItem) body.appendChild(messageItem);
                     }
-                    if (cRaw) {
-                        htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw), { ADD_TAGS: ['button'] })}</div>`;
-                    }
-
-                    col.innerHTML = `
-                        <div class="comparison-header">
-                            <div class="model-name"><i class="ph ph-cpu"></i> <span>${pName}</span></div>
-                            <div class="model-status" style="border: none;">✓ 完成</div>
-                        </div>
-                        <div class="comparison-body">
-                            <div class="message-content" style="padding:0; background:transparent;">
-                                <div class="message-scroll">${htmlContent || '<div class="markdown-body"></div>'}</div>
-                                <div class="message-meta" style="margin-top: 16px;">模型: ${cMsg.model || pName}</div>
-                            </div>
-                        </div>
-                    `;
-                    grid.appendChild(col);
                 });
 
-                fragment.appendChild(grid);
-                continue; // 内层 while 已经增加了 i，跳过本次外层循环递增
-            }
+                col.appendChild(body);
+                container.appendChild(col);
+            });
 
-            try {
-                // msg 常见形态：
-                // - { role, content: string|object }
-                // - 早期版本可能直接是字符串/对象（无 role）
-                const role = msg && typeof msg === 'object' && msg.role ? msg.role : 'assistant';
-                const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
+            messagesList.appendChild(container);
+        } else {
+            // --- Normal Interleaved Layout ---
+            welcomeScreen.style.display = 'none';
+            if (companionsPanel) companionsPanel.style.display = 'none';
 
-                // pass full msg object instead of just payload so we can get meta info
-                const messageItem = renderMessageItem(role, payload, msg);
-                if (messageItem) fragment.appendChild(messageItem);
-            } catch (e) {
-                console.error('Failed to render message item:', e, msg);
+            let i = 0;
+            while (i < messages.length) {
+                const msg = messages[i];
+
+                // 检查是否为旧版对比模式的历史响应 (打包显示)
+                if (msg && typeof msg === 'object' && msg.role === 'assistant' && msg.comparisonModelName) {
+                    const compGroup = [];
+                    while (i < messages.length && messages[i] && typeof messages[i] === 'object' && messages[i].role === 'assistant' && messages[i].comparisonModelName) {
+                        compGroup.push(messages[i]);
+                        i++;
+                    }
+
+                    const grid = document.createElement('div');
+                    grid.className = 'comparison-grid';
+                    grid.style.margin = '8px 0 24px 0';
+                    grid.style.display = 'flex';
+                    grid.style.gap = '12px';
+                    grid.style.overflowX = 'auto';
+
+                    compGroup.forEach(cMsg => {
+                        const col = document.createElement('div');
+                        col.className = 'comparison-column';
+                        col.style.flex = '1 1 300px';
+                        col.style.minWidth = '300px';
+                        col.style.border = '1px solid var(--border-subtle)';
+                        col.style.borderRadius = '12px';
+                        col.style.display = 'flex';
+                        col.style.flexDirection = 'column';
+
+                        const pName = cMsg.comparisonModelName;
+                        const cPayload = cMsg.content;
+                        const cRaw = (cPayload && typeof cPayload === 'object' && cPayload.content !== undefined) ? cPayload.content : String(cPayload || '');
+                        const cReasoning = (cPayload && typeof cPayload === 'object' && cPayload.reasoning_content) ? cPayload.reasoning_content : '';
+
+                        let htmlContent = '';
+                        if (cReasoning && state.settings.enableThinking !== false) {
+                            htmlContent += `<details class="thinking-block"><summary><i class="ph ph-brain"></i> 思考过程</summary><div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning), { ADD_TAGS: ['button'] })}</div></details>`;
+                        }
+                        if (cRaw) {
+                            htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw), { ADD_TAGS: ['button'] })}</div>`;
+                        }
+
+                        col.innerHTML = `
+                            <div class="comparison-header" style="padding:10px 14px; background:var(--bg-surface-elevated); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:13px;">
+                                <div class="model-name"><strong>${pName}</strong></div>
+                                <div class="model-status" style="border:none;">✓ 完成</div>
+                            </div>
+                            <div class="comparison-body" style="padding:14px; flex:1; overflow-y:auto;">
+                                <div class="message-content" style="padding:0; background:transparent;">
+                                    ${htmlContent}
+                                    <div class="message-meta" style="margin-top:16px;">模型: ${cMsg.model || pName}</div>
+                                </div>
+                            </div>
+                        `;
+                        grid.appendChild(col);
+                    });
+                    fragment.appendChild(grid);
+                    continue;
+                }
+
+                try {
+                    const role = msg && typeof msg === 'object' && msg.role ? msg.role : 'assistant';
+                    const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
+                    const messageItem = renderMessageItem(role, payload, msg);
+                    if (messageItem) fragment.appendChild(messageItem);
+                } catch (e) {
+                    console.error('Failed to render message item:', e, msg);
+                }
+                i++;
             }
-            i++;
+            messagesList.appendChild(fragment);
         }
     }
 
-    // 核心改进：只清空消息列表，而不是整个消息容器
-    messagesList.innerHTML = '';
-    messagesList.appendChild(fragment);
-
-    // 手动触发代码高亮（仅当 hljs 可用时，避免在缺少高亮库时导致整段渲染失败）
+    // 后续逻辑保持不变
     if (typeof hljs !== 'undefined' && typeof hljs.highlightElement === 'function') {
         messagesList.querySelectorAll('pre code').forEach((block) => {
-            try {
-                hljs.highlightElement(block);
-            } catch (e) {
-                console.error('Highlight error:', e);
-            }
+            try { hljs.highlightElement(block); } catch (e) {}
         });
     }
-
-
     updateBadge();
-
     requestAnimationFrame(() => {
         scrollToBottom();
     });

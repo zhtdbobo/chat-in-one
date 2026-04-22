@@ -248,7 +248,8 @@ function confirmMultiModelSelection() {
 
     // Enter comparison layout
     messageContainer.classList.add('comparison-layout');
-    renderComparisonEmptyState();
+    const activeChat = state.chats.find(c => c.id === state.currentChatId);
+    renderMessages(activeChat ? activeChat.messages : []);
 
     // Automatically maximize window to present the best view for multi-column layout
     if (window.api && window.api.isMaximized) {
@@ -261,46 +262,10 @@ function confirmMultiModelSelection() {
 }
 
 function renderComparisonEmptyState() {
-    // Find or create the comparison grid
-    let grid = messagesList.querySelector('.comparison-grid');
-    if (!grid) {
-        grid = document.createElement('div');
-        grid.className = 'comparison-grid';
-        messagesList.appendChild(grid);
-    } else {
-        grid.innerHTML = '';
-    }
-
-    const fragment = document.createDocumentFragment();
-
-    state.selectedComparisonModels.forEach(modelId => {
-        const [providerId, modelName] = modelId.split('|');
-        const provider = state.settings.providers.find(p => p.id === providerId);
-        const providerName = provider ? provider.name : providerId;
-
-        const col = document.createElement('div');
-        col.className = 'comparison-column';
-        col.dataset.modelId = modelId;
-        col.innerHTML = `
-            <div class="comparison-header">
-                <div class="model-name">
-                    <i class="ph ph-cpu"></i>
-                    <span title="${providerName} · ${modelName}">${modelName}</span>
-                </div>
-                <div class="model-status">等待中</div>
-            </div>
-            <div class="comparison-body" id="comp-body-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}">
-                <div class="empty-state">
-                    <i class="ph ph-chat-circle-dots"></i>
-                    <p>等待发送消息</p>
-                </div>
-            </div>
-        `;
-        fragment.appendChild(col);
-    });
-
-    grid.appendChild(fragment);
-    scrollToBottom();
+    // This is now handled by the logic in renderMessages() which populates columns.
+    // We just trigger a re-render to ensure columns are set up correctly.
+    const activeChat = state.chats.find(c => c.id === state.currentChatId);
+    renderMessages(activeChat ? activeChat.messages : []);
 }
 
 // -----------------------------------------

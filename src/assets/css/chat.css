@@ -144,8 +144,8 @@ body.light-theme .companions-panel-list .companion-item {
    Comparison View Layout
    ============================================ */
 .message-container.comparison-layout {
-    overflow-x: auto;
-    padding: 16px;
+    overflow-x: hidden;
+    padding: 0;
 }
 
 /* The user question appears as normal message above the grid */
@@ -157,34 +157,28 @@ body.light-theme .companions-panel-list .companion-item {
     min-width: fit-content;
 }
 
-/* The grid holding all model columns */
-.comparison-grid {
+/* The grid holding all model columns - Full View */
+.comparison-grid-container {
     display: flex;
     flex-direction: row;
-    gap: 14px;
-    align-items: start;
-    padding-bottom: 8px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
     width: 100%;
+    height: 100%;
+    overflow-x: auto;
+    background: var(--bg-base);
 }
 
-/* Individual model column */
 .comparison-column {
     display: flex;
     flex-direction: column;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg, 12px);
-    overflow: hidden;
-    min-height: 200px;
-    flex: 1 1 320px;
+    min-height: 0;
+    flex: 1 1 0;
     min-width: 320px;
-    max-width: 100%;
-    scroll-snap-align: start;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-    transition: box-shadow 0.2s ease;
-    animation: slideUp 0.3s ease-out;
+    border-right: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+}
+
+.comparison-column:last-child {
+    border-right: none;
 }
 
 .comparison-column:hover {
@@ -256,7 +250,20 @@ body.light-theme .comparison-header .model-status.streaming {
     padding: 14px 16px;
 }
 
-.comparison-body .message-content {
+.comparison-body .message.user {
+    justify-content: flex-start; /* Right aligned due to row-reverse */
+}
+
+.comparison-body .message.user .message-content {
+    /* Restore bubble look for user messages */
+    max-width: 85%;
+    width: fit-content;
+    background-color: var(--bg-chat-user);
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+}
+
+.comparison-body .message.assistant .message-content {
     background: transparent;
     padding: 0;
     max-width: 100%;
