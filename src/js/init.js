@@ -81,11 +81,6 @@ async function initApp() {
         state.settings.showCompanionsInNewChat = true;
     }
 
-    if (!state.settings.skills || state.settings.skills.length === 0) {
-        // 初始化默认技能
-        state.settings.skills = [];
-        window.api.saveSettings(state.settings);
-    }
 
     updateSearchBtnState();
     renderMcpSelectionDropdown();
