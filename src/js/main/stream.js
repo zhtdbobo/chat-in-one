@@ -6,17 +6,40 @@ let mcpClients = [];
 let toolNameToServerMap = new Map();
 let currentStreamController = null;
 
+async function cleanupMcpClients() {
+    for (const c of mcpClients) {
+        try {
+            if (c.client) {
+                await c.client.disconnect();
+            }
+        } catch (disconnectErr) {
+            console.error(`Error disconnecting MCP client:`, disconnectErr);
+        }
+        try {
+            if (c.transport) {
+                await c.transport.close();
+            }
+        } catch (closeErr) {
+            console.error(`Error closing MCP transport:`, closeErr);
+        }
+    }
+    mcpClients = [];
+    toolNameToServerMap.clear();
+}
+
 async function getMcpTools(servers) {
     const allTools = [];
     toolNameToServerMap.clear();
     for (const server of servers) {
         if (!server.command) continue;
+        let transport = null;
+        let client = null;
         try {
-            const transport = new StdioClientTransport({
+            transport = new StdioClientTransport({
                 command: server.command,
                 args: (server.args || '').split(',').map(a => a.trim())
             });
-            const client = new Client({ name: "chat-in-one-client", version: "1.0.0" }, { capabilities: {} });
+            client = new Client({ name: "chat-in-one-client", version: "1.0.0" }, { capabilities: {} });
             await client.connect(transport);
             const tools = await client.listTools();
             allTools.push(...tools.tools.map(t => ({ ...t, serverId: server.id })));
@@ -26,6 +49,21 @@ async function getMcpTools(servers) {
             mcpClients.push({ id: server.id, client, transport });
         } catch (e) {
             console.error(`Failed to connect to MCP server ${server.name}:`, e);
+            // 清理资源
+            if (client) {
+                try {
+                    await client.disconnect();
+                } catch (disconnectErr) {
+                    console.error(`Error disconnecting MCP client:`, disconnectErr);
+                }
+            }
+            if (transport) {
+                try {
+                    await transport.close();
+                } catch (closeErr) {
+                    console.error(`Error closing MCP transport:`, closeErr);
+                }
+            }
         }
     }
     return allTools;
@@ -81,8 +119,7 @@ async function handleStreamRequest(event, requestData) {
     try {
         // Cleanup old clients (only on non-comparison to avoid cancelling siblings)
         if (!requestData.isComparisonStream) {
-            for (const c of mcpClients) await c.transport.close();
-            mcpClients = [];
+            await cleanupMcpClients();
         }
 
         // Create AbortController for this stream and register it
@@ -356,6 +393,10 @@ async function handleStreamRequest(event, requestData) {
         if (global.activeStreamControllers) {
             global.activeStreamControllers = global.activeStreamControllers.filter(c => c !== thisController);
         }
+        // Cleanup MCP clients when stream ends (only for non-comparison mode)
+        if (!requestData.isComparisonStream) {
+            await cleanupMcpClients();
+        }
     }
 }
 
@@ -375,5 +416,6 @@ module.exports = {
     handleStreamRequest,
     stopStream,
     getMcpTools,
-    buildModelRequestConfig
+    buildModelRequestConfig,
+    cleanupMcpClients
 };

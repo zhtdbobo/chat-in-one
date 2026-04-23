@@ -7,6 +7,7 @@ const { initStore } = require('./src/js/main/store');
 const { createWindow, createTray, setIsQuitting, getIsQuitting } = require('./src/js/main/window');
 const { initAutoUpdater } = require('./src/js/main/updater');
 const { setupIpcHandlers } = require('./src/js/main/ipc');
+const { cleanupMcpClients } = require('./src/js/main/stream');
 
 // Ignore SSL errors (e.g. net_error -100) on startup for proxy or local environments
 app.commandLine.appendSwitch('ignore-certificate-errors');
@@ -40,6 +41,11 @@ app.on('window-all-closed', function () {
     if (process.platform === 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
     setIsQuitting(true);
+    try {
+        await cleanupMcpClients();
+    } catch (error) {
+        console.error('Error cleaning up MCP clients:', error);
+    }
 });
