@@ -252,10 +252,13 @@ function confirmMultiModelSelection() {
     const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
     closeMultiModelModal();
 
+    const selectedModelsBackup = [...state.selectedComparisonModels];
+
     // 1. 判断是否需要新建对话
     const currentChat = state.chats.find(c => c.id === state.currentChatId);
     if (currentChat && currentChat.messages.length > 0) {
         if (typeof createNewChat === 'function') createNewChat();
+        state.selectedComparisonModels = [...selectedModelsBackup];
     }
     
     // 2. 获取真正的活跃对话（新建的或原本就在使用的）
@@ -264,7 +267,7 @@ function confirmMultiModelSelection() {
     // 3. 配置核心对比属性 & 标题
     if (activeChat) {
         activeChat.isComparisonMode = true;
-        activeChat.comparisonModels = [...state.selectedComparisonModels];
+        activeChat.comparisonModels = [...selectedModelsBackup];
         activeChat.title = "模型对比: " + names.join(' vs ');
         currentChatTitle.textContent = activeChat.title;
         if (typeof saveChats === 'function') saveChats();
