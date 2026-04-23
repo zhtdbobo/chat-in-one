@@ -889,6 +889,49 @@ async function getMcpTools(servers) {
     return allTools;
 }
 
+function buildModelRequestConfig(modelName, req = {}) {
+    const model = String(modelName || '').trim().toLowerCase();
+    const cfg = {
+        temperature: req.temperature,
+        top_p: req.top_p,
+        n: 1
+    };
+
+    // Moonshot Kimi k2.6: fixed sampling params + thinking control.
+    if (model === 'kimi-k2.6') {
+        delete cfg.temperature;
+        cfg.top_p = 0.95;
+        cfg.n = 1;
+        cfg.presence_penalty = 0;
+        cfg.frequency_penalty = 0;
+        cfg.thinking = { type: req.enableThinking === false ? 'disabled' : 'enabled' };
+        return cfg;
+    }
+
+    if (model.startsWith('kimi-k2-thinking')) {
+        cfg.temperature = (req.temperature != null ? req.temperature : 1.0);
+        cfg.top_p = 1.0;
+        return cfg;
+    }
+
+    if (model.startsWith('kimi-k2')) {
+        cfg.temperature = (req.temperature != null ? req.temperature : 0.6);
+        cfg.top_p = 1.0;
+        return cfg;
+    }
+
+    if (model.startsWith('moonshot-v1')) {
+        cfg.temperature = (req.temperature != null ? req.temperature : 0.0);
+        cfg.top_p = 1.0;
+        return cfg;
+    }
+
+    // Generic OpenAI-compatible fallback.
+    cfg.temperature = (req.temperature != null ? req.temperature : 0.7);
+    cfg.top_p = (req.top_p != null ? req.top_p : 1);
+    return cfg;
+}
+
 ipcMain.on('send-message-stream', async (event, requestData) => {
     const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers } = requestData;
 
@@ -916,12 +959,17 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
             ...messages.map(m => ({ role: m.role, content: m.content }))
         ];
 
+        const modelConfig = buildModelRequestConfig(modelName, {
+            temperature,
+            top_p,
+            enableThinking
+        });
+
         const body = {
             model: modelName,
             messages: apiMessages,
             stream: stream !== false,
-            temperature: temperature || 0.7,
-            top_p: top_p || 1,
+            ...modelConfig,
             max_tokens: max_tokens || undefined
         };
 
@@ -1068,6 +1116,11 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
 
             // Send tool results back to LLM for final answer（沿用相同 endpoint 及回退机制）
             const toolStreamStart = Date.now();
+            const toolRoundModelConfig = buildModelRequestConfig(modelName, {
+                temperature,
+                top_p,
+                enableThinking
+            });
             const { response: finalResponse } = await fetchChatCompletionWithFallback(
                 endpoint,
                 {
@@ -1076,6 +1129,7 @@ ipcMain.on('send-message-stream', async (event, requestData) => {
                     body: JSON.stringify({
                         model: modelName,
                         messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.filter(Boolean).map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],
+                        ...toolRoundModelConfig,
                         stream: true,
                         stream_options: { include_usage: true }
                     })
