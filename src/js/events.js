@@ -234,10 +234,12 @@ function setupEvents() {
 
             updateComparisonToggleState();
 
-            // If turning off, revert UI (handled via switchChat to ensure full reset)
+            // If turning off, create a new chat
             if (!state.isComparisonMode) {
                 messageContainer.classList.remove('comparison-layout');
-                if (chat) switchChat(chat.id);
+                if (typeof createNewChat === 'function') {
+                    createNewChat();
+                }
             // If turning on
             } else {
                 if (state.selectedComparisonModels.length < 2) {
