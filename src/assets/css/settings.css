@@ -425,7 +425,7 @@
 }
 
 .sidebar-header-row {
-    padding: 12px 16px;
+    padding: 12px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -433,6 +433,7 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 #providers-list-menu {

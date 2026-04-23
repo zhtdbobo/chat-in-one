@@ -998,6 +998,64 @@ function renderProviderDetail() {
     }
 }
 
+function exportProviders() {
+    saveCurrentProviderData();
+    if (tempProviders.length === 0) {
+        if (typeof showNotification === 'function') showNotification("没有可导出的服务商配置", "info");
+        else alert("没有可导出的服务商配置");
+        return;
+    }
+    const dataStr = JSON.stringify(tempProviders, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `providers_export_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (typeof showNotification === 'function') showNotification("导出成功", "success");
+}
+
+function importProviders(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+        try {
+            const imported = JSON.parse(event.target.result);
+            if (!Array.isArray(imported)) {
+                throw new Error("Invalid format");
+            }
+
+            const existingIds = new Set(tempProviders.map(p => p.id));
+            imported.forEach(p => {
+                if (!p.name) return;
+                // Basic validation and ID regeneration if needed
+                if (existingIds.has(p.id) || !p.id) {
+                    p.id = generateId();
+                }
+                tempProviders.push(p);
+                existingIds.add(p.id);
+            });
+
+            currentProviderIndex = tempProviders.length - 1;
+            renderProvidersSidebar();
+            renderProviderDetail();
+            if (typeof showNotification === 'function') showNotification("导入成功！已添加到列表末尾", "success");
+            else alert("导入成功！");
+        } catch (error) {
+            if (typeof showNotification === 'function') showNotification("文件格式不正确，导入失败", "error");
+            else alert("文件格式不正确，导入失败");
+            console.error(error);
+        }
+        e.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
 function closeSettings() {
     settingsModal.style.display = 'none';
 }

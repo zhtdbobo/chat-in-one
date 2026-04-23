@@ -464,10 +464,21 @@
                                 <div class="providers-sidebar">
                                     <div class="sidebar-header-row">
                                         <span>服务商列表</span>
-                                        <button type="button" id="add-provider-btn"
-                                            class="btn btn-icon btn-ghost btn-sm" title="添加服务商">
-                                            <i class="ph ph-plus"></i>
-                                        </button>
+                                        <div style="display: flex; gap: 2px;">
+                                            <button type="button" id="export-providers-btn"
+                                                class="btn btn-icon btn-ghost btn-sm" title="导出服务商配置">
+                                                <i class="ph ph-arrow-square-out" style="color: #10b981;"></i>
+                                            </button>
+                                            <button type="button" id="import-providers-btn"
+                                                class="btn btn-icon btn-ghost btn-sm" title="导入服务商配置">
+                                                <i class="ph ph-arrow-square-in" style="color: #3b82f6;"></i>
+                                            </button>
+                                            <button type="button" id="add-provider-btn"
+                                                class="btn btn-icon btn-ghost btn-sm" title="添加服务商">
+                                                <i class="ph ph-plus"></i>
+                                            </button>
+                                        </div>
+                                        <input type="file" id="import-providers-input" accept=".json" style="display: none;">
                                     </div>
                                     <div id="providers-list-menu">
                                         <!-- List of providers will be injected here -->

@@ -105,6 +105,19 @@ function setupEvents() {
         document.getElementById('import-file-input').click();
     });
     document.getElementById('import-file-input').addEventListener('change', importChats);
+    
+    // Model Provider Import / Export
+    const exportProvBtn = document.getElementById('export-providers-btn');
+    if (exportProvBtn) exportProvBtn.addEventListener('click', exportProviders);
+
+    const importProvBtn = document.getElementById('import-providers-btn');
+    if (importProvBtn) {
+        importProvBtn.addEventListener('click', () => {
+            document.getElementById('import-providers-input').click();
+        });
+    }
+    const importProvInput = document.getElementById('import-providers-input');
+    if (importProvInput) importProvInput.addEventListener('change', importProviders);
 
     // Removed old currentModelSelect listener since it's now handled by the custom select
 
