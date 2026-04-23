@@ -9,13 +9,6 @@ let currentStreamController = null;
 async function cleanupMcpClients() {
     for (const c of mcpClients) {
         try {
-            if (c.client) {
-                await c.client.disconnect();
-            }
-        } catch (disconnectErr) {
-            console.error(`Error disconnecting MCP client:`, disconnectErr);
-        }
-        try {
             if (c.transport) {
                 await c.transport.close();
             }
@@ -50,13 +43,6 @@ async function getMcpTools(servers) {
         } catch (e) {
             console.error(`Failed to connect to MCP server ${server.name}:`, e);
             // 清理资源
-            if (client) {
-                try {
-                    await client.disconnect();
-                } catch (disconnectErr) {
-                    console.error(`Error disconnecting MCP client:`, disconnectErr);
-                }
-            }
             if (transport) {
                 try {
                     await transport.close();

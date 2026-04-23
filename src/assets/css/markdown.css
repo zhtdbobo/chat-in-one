@@ -12,6 +12,10 @@
     margin-bottom: 0;
 }
 
+.thinking-content .markdown-body p {
+    margin-bottom: 0;
+}
+
 .markdown-body a {
     color: var(--bg-primary);
     text-decoration: none;

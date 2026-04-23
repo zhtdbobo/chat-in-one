@@ -497,7 +497,7 @@ body.light-theme .comparison-header .model-status.streaming {
 
 .assistant .message-content {
     background-color: var(--bg-chat-assistant);
-    padding: 8px 0;
+    padding: 12px 18px;
 }
 
 .assistant .message-actions {
