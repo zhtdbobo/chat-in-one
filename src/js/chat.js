@@ -43,6 +43,20 @@ function createNewChat() {
 
     state.activeSkillId = null; // 同时也重置全局激活的搭档状态
 
+    // -------------------------------------------------------------
+    // 重置对比模式状态，确保新对话开始时是干净的
+    // -------------------------------------------------------------
+    state.isComparisonMode = false;
+    state.selectedComparisonModels = [];
+    messageContainer.classList.remove('comparison-layout');
+    if (typeof updateComparisonToggleState === 'function') updateComparisonToggleState();
+    
+    // 同时也尝试还原窗口（如果之前是对比模式强制最大化的）
+    if (state.wasMaximizedBeforeComparison === false && window.api && window.api.unmaximizeWindow) {
+        window.api.unmaximizeWindow();
+        state.wasMaximizedBeforeComparison = null;
+    }
+
     state.chats.unshift(newChat); // Add to top
     state.isNewFreshChat = true;
     state._newlyCreatedId = newChat.id; // temporary tracker
@@ -127,6 +141,43 @@ function switchChat(chatId) {
 
         // Sync model dropdown
         renderSearchableModelSelect();
+
+        // -------------------------------------------------------------
+        // NEW: Per-chat Multi-Model Comparison Handling
+        // -------------------------------------------------------------
+        const wasComparison = state.isComparisonMode;
+        
+        // Check if the chat we are switching to has comparison enabled
+        if (chat.isComparisonMode && chat.comparisonModels && chat.comparisonModels.length >= 2) {
+            state.isComparisonMode = true;
+            state.selectedComparisonModels = [...chat.comparisonModels];
+            messageContainer.classList.add('comparison-layout');
+            
+            // Sync toggle button and select btn
+            if (typeof updateComparisonToggleState === 'function') updateComparisonToggleState();
+            const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
+            if (multiModelSelectBtn) multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
+
+            // Force maximize for best view (with restoration support)
+            if (window.api && window.api.isMaximized) {
+                window.api.isMaximized().then(isMax => {
+                    // Only record original state if we weren't already in comparison mode
+                    if (!wasComparison) state.wasMaximizedBeforeComparison = isMax;
+                    if (!isMax) window.api.maximizeWindow();
+                });
+            }
+        } else {
+            // Revert comparison mode if switching to a normal chat
+            state.isComparisonMode = false;
+            messageContainer.classList.remove('comparison-layout');
+            if (typeof updateComparisonToggleState === 'function') updateComparisonToggleState();
+
+            // Restore window if we previously forced maximize for comparison
+            if (wasComparison && state.wasMaximizedBeforeComparison === false && window.api && window.api.unmaximizeWindow) {
+                window.api.unmaximizeWindow();
+                state.wasMaximizedBeforeComparison = null; // reset
+            }
+        }
     }
 
     renderChatList(); // Update active class

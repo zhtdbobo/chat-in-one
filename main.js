@@ -593,6 +593,13 @@ ipcMain.handle('maximize-window', () => {
     }
     return true;
 });
+
+ipcMain.handle('unmaximize-window', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+    }
+    return true;
+});
 // IPC Handlers for Settings
 ipcMain.handle('get-settings', () => {
     return store.get('settings');

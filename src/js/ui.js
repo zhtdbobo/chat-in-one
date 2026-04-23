@@ -18,6 +18,15 @@ function updateComparisonToggleState() {
             comparisonToggleBtn.classList.add('active');
             comparisonToggleBtn.title = '关闭模型对比模式';
             multiModelSelectBtn.style.display = 'flex';
+            
+            // 同步按钮文字
+            if (state.selectedComparisonModels && state.selectedComparisonModels.length > 0) {
+                const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
+                multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
+            } else {
+                multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> 未选择模型`;
+            }
+
             const modelSelect = document.getElementById('model-searchable-select');
             if (modelSelect) modelSelect.style.display = 'none';
         } else {
@@ -240,23 +249,43 @@ function confirmMultiModelSelection() {
         return;
     }
 
-    // Update button label
     const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
-    multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
-
     closeMultiModelModal();
 
-    // Enter comparison layout
-    messageContainer.classList.add('comparison-layout');
+    // 1. 判断是否需要新建对话
+    const currentChat = state.chats.find(c => c.id === state.currentChatId);
+    if (currentChat && currentChat.messages.length > 0) {
+        if (typeof createNewChat === 'function') createNewChat();
+    }
+    
+    // 2. 获取真正的活跃对话（新建的或原本就在使用的）
     const activeChat = state.chats.find(c => c.id === state.currentChatId);
-    renderMessages(activeChat ? activeChat.messages : []);
 
-    // Automatically maximize window to present the best view for multi-column layout
+    // 3. 配置核心对比属性 & 标题
+    if (activeChat) {
+        activeChat.isComparisonMode = true;
+        activeChat.comparisonModels = [...state.selectedComparisonModels];
+        activeChat.title = "模型对比: " + names.join(' vs ');
+        currentChatTitle.textContent = activeChat.title;
+        if (typeof saveChats === 'function') saveChats();
+        if (typeof renderChatList === 'function') renderChatList();
+    }
+
+    // 4. 应用 UI 状态
+    state.isComparisonMode = true;
+    messageContainer.classList.add('comparison-layout');
+    updateComparisonToggleState();
+    
+    // 5. 渲染基础视图
+    if (typeof renderMessages === 'function') {
+        renderMessages(activeChat ? activeChat.messages || [] : []);
+    }
+
+    // 6. 窗口最大化处理
     if (window.api && window.api.isMaximized) {
         window.api.isMaximized().then(isMax => {
-            if (!isMax) {
-                window.api.maximizeWindow();
-            }
+            state.wasMaximizedBeforeComparison = isMax;
+            if (!isMax) window.api.maximizeWindow();
         });
     }
 }

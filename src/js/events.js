@@ -221,21 +221,32 @@ function setupEvents() {
     if (comparisonToggleBtn) {
         comparisonToggleBtn.addEventListener('click', () => {
             state.isComparisonMode = !state.isComparisonMode;
+            
+            // Update the state of the specific chat
+            const chat = state.chats.find(c => c.id === state.currentChatId);
+            if (chat) {
+                chat.isComparisonMode = state.isComparisonMode;
+                if (state.isComparisonMode) {
+                    chat.comparisonModels = [...state.selectedComparisonModels];
+                }
+                saveChats();
+            }
+
             updateComparisonToggleState();
 
-            // If turning off, revert UI
+            // If turning off, revert UI (handled via switchChat to ensure full reset)
             if (!state.isComparisonMode) {
                 messageContainer.classList.remove('comparison-layout');
-                const chat = state.chats.find(c => c.id === state.currentChatId);
                 if (chat) switchChat(chat.id);
+            // If turning on
             } else {
-                // If turning on and chat is empty, show empty comparison state
-                const chat = state.chats.find(c => c.id === state.currentChatId);
-                if (chat && chat.messages.length === 0 && state.selectedComparisonModels.length >= 2) {
-                    messageContainer.classList.add('comparison-layout');
-                    renderComparisonEmptyState();
-                } else if (state.selectedComparisonModels.length < 2) {
+                if (state.selectedComparisonModels.length < 2) {
                     openMultiModelModal();
+                } else {
+                    // 已有模型，直接开启。逻辑收拢到 confirm 函数中执行以保证原子性
+                    if (typeof confirmMultiModelSelection === 'function') {
+                        confirmMultiModelSelection();
+                    }
                 }
             }
         });

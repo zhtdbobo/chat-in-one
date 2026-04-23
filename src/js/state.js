@@ -14,7 +14,8 @@ let state = {
     isNewFreshChat: false,
     isComparisonMode: false,
     selectedComparisonModels: [], // array of "providerId|modelName"
-    comparisonStreams: {} // modelName -> DOM element mapping
+    comparisonStreams: {}, // modelName -> DOM element mapping
+    wasMaximizedBeforeComparison: false
 };
 
 // DOM Elements

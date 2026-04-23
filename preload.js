@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('api', {
     // Window Management API
     isMaximized: () => ipcRenderer.invoke('is-maximized'),
     maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+    unmaximizeWindow: () => ipcRenderer.invoke('unmaximize-window'),
 
     // Listeners
     onStreamStart: (callback) => ipcRenderer.on('stream-start', (event, data) => callback(data)),
