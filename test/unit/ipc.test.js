@@ -19,7 +19,7 @@ jest.mock('../../src/js/main/store', () => ({
 
 jest.mock('../../src/js/main/updater', () => ({
     checkForUpdates: jest.fn().mockResolvedValue({ ok: true }),
-    installUpdate: jest.fn()
+    installUpdate: jest.fn().mockReturnValue('auto-updater')
 }));
 
 jest.mock('../../src/js/main/stream', () => ({
@@ -100,10 +100,11 @@ describe('IPC Module', () => {
         expect(installUpdateCall).toBeDefined();
         
         const handler = installUpdateCall[1];
-        handler();
+        const result = handler();
         
         expect(setIsQuitting).toHaveBeenCalledWith(true);
         expect(installUpdate).toHaveBeenCalled();
+        expect(result).toBe('auto-updater');
     });
 
     test('should handle get-settings correctly', () => {

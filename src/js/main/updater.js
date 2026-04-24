@@ -8,6 +8,33 @@ let autoUpdater = null;
 let updateSource = 'github'; // 'github' or 'gitee'
 let updateInstallerPath = null;
 
+function runInstallUpdate({
+    source,
+    installerPath,
+    existsSync,
+    spawnInstaller,
+    quitAndInstall,
+    quitApp
+}) {
+    const useCustomInstaller = (source === 'gitee' || source === 'github-proxy')
+        && !!installerPath
+        && existsSync(installerPath);
+
+    if (useCustomInstaller) {
+        spawnInstaller(installerPath);
+        quitApp();
+        return 'custom-installer';
+    }
+
+    if (quitAndInstall) {
+        quitAndInstall(false, true);
+        return 'auto-updater';
+    }
+
+    quitApp();
+    return 'quit-fallback';
+}
+
 function sendUpdateStatus(payload) {
     const { BrowserWindow } = require('electron');
     const win = BrowserWindow.getAllWindows()[0];
@@ -339,20 +366,22 @@ async function checkForUpdates() {
 
 // 安装更新
 function installUpdate(isQuitting) {
-    if ((updateSource === 'gitee' || updateSource === 'github-proxy') && updateInstallerPath && fs.existsSync(updateInstallerPath)) {
-        spawn(updateInstallerPath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
-        app.quit();
-    } else if (autoUpdater) {
-        autoUpdater.quitAndInstall(false, true);
-    } else {
-        // 开发模式或没有检测到下载时的兜底逻辑
-        app.quit();
-    }
+    return runInstallUpdate({
+        source: updateSource,
+        installerPath: updateInstallerPath,
+        existsSync: fs.existsSync,
+        spawnInstaller: (installerPath) => {
+            spawn(installerPath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
+        },
+        quitAndInstall: autoUpdater ? (isSilent, isForceRunAfter) => autoUpdater.quitAndInstall(isSilent, isForceRunAfter) : null,
+        quitApp: () => app.quit()
+    });
 }
 
 module.exports = {
     initAutoUpdater,
     checkForUpdates,
     installUpdate,
-    sendUpdateStatus
+    sendUpdateStatus,
+    runInstallUpdate
 };

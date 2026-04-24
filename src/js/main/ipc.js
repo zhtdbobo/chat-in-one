@@ -13,7 +13,7 @@ function setupIpcHandlers() {
     ipcMain.handle('check-for-updates', checkForUpdates);
     ipcMain.handle('install-update', () => {
         setIsQuitting(true);
-        installUpdate();
+        return installUpdate();
     });
 
     // Settings API

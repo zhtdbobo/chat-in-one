@@ -4,7 +4,7 @@ const fs = require('fs');
 
 // 导入模块
 const { initStore } = require('./src/js/main/store');
-const { createWindow, createTray, setIsQuitting, getIsQuitting } = require('./src/js/main/window');
+const { createWindow, createTray, setIsQuitting, getTray } = require('./src/js/main/window');
 const { initAutoUpdater } = require('./src/js/main/updater');
 const { setupIpcHandlers } = require('./src/js/main/ipc');
 const { cleanupMcpClients } = require('./src/js/main/stream');
@@ -44,6 +44,11 @@ app.on('window-all-closed', function () {
 app.on('before-quit', async () => {
     setIsQuitting(true);
     try {
+        const tray = getTray();
+        if (tray) {
+            tray.removeAllListeners();
+            tray.destroy();
+        }
         await cleanupMcpClients();
     } catch (error) {
         console.error('Error cleaning up MCP clients:', error);

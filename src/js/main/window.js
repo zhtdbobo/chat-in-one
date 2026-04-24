@@ -47,6 +47,10 @@ function createWindow() {
         }
     });
 
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+
     return mainWindow;
 }
 
@@ -56,14 +60,14 @@ function createTray() {
     tray.setToolTip('chat-in-one');
 
     const showMainWindow = () => {
-        if (!mainWindow) return;
+        if (!mainWindow || mainWindow.isDestroyed()) return;
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
         mainWindow.focus();
     };
 
     const toggleWindow = () => {
-        if (!mainWindow) return;
+        if (!mainWindow || mainWindow.isDestroyed()) return;
         if (mainWindow.isVisible()) mainWindow.hide();
         else showMainWindow();
     };
