@@ -1002,7 +1002,7 @@ function sendMessage() {
 
             window.api.sendMessageStream({
                 endpoint: prov.endpoint,
-                apiKey: prov.apiKey,
+                providerId: prov.id,
                 modelName: mName,
                 systemPrompt: finalSystemPrompt,
                 messages: messagesForThisModel,
@@ -1023,7 +1023,7 @@ function sendMessage() {
         // Normal single model sending
         window.api.sendMessageStream({
             endpoint: provider.endpoint,
-            apiKey: provider.apiKey,
+            providerId: provider.id,
             modelName: modelName,
             systemPrompt: finalSystemPrompt,
             messages: messagesForModel,
@@ -1228,7 +1228,7 @@ async function compressCurrentChatContext() {
 
     const res = await window.api.summarizeChat({
         endpoint: provider.endpoint,
-        apiKey: provider.apiKey,
+        providerId: provider.id,
         modelName,
         systemPrompt: 'You are a helpful assistant.',
         temperature: 0.2,

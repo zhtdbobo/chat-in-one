@@ -1,6 +1,7 @@
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 const { fetchChatCompletionWithFallback } = require('./network');
+const { getStore } = require('./store');
 
 let mcpClients = [];
 let toolNameToServerMap = new Map();
@@ -99,7 +100,15 @@ function buildModelRequestConfig(modelName, req = {}) {
 }
 
 async function handleStreamRequest(event, requestData) {
-    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers } = requestData;
+    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers, providerId } = requestData;
+
+    // Resolve API key from store if masked (keys never persist in renderer)
+    let resolvedApiKey = apiKey;
+    if (!resolvedApiKey || resolvedApiKey === '__MASKED__') {
+        const settings = getStore().get('settings');
+        const provider = settings?.providers?.find(p => p.id === (providerId || ''));
+        resolvedApiKey = provider?.apiKey || '';
+    }
 
     let thisController;
     try {
@@ -162,7 +171,7 @@ async function handleStreamRequest(event, requestData) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Authorization': `Bearer ${resolvedApiKey}`
                 },
                 body: JSON.stringify(body)
             },
@@ -290,7 +299,7 @@ async function handleStreamRequest(event, requestData) {
                 endpoint,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resolvedApiKey}` },
                     body: JSON.stringify({
                         model: modelName,
                         messages: [...apiMessages, { role: "assistant", tool_calls: toolCalls.filter(Boolean).map(tc => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } })) }, ...toolResults],

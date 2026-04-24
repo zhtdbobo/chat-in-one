@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
     testProviderConnection: (payload) => ipcRenderer.invoke('test-provider-connection', payload),
     summarizeChat: (payload) => ipcRenderer.invoke('summarize-chat', payload),
+    getProviderApiKey: (providerId) => ipcRenderer.invoke('get-provider-api-key', providerId),
 
     // Chats API
     getChats: () => ipcRenderer.invoke('get-chats'),

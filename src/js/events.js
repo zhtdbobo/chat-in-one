@@ -755,7 +755,7 @@ function setupEvents() {
             if (streamDiv) {
                 const scrollEl = streamDiv.querySelector('.message-scroll');
                 if (scrollEl) {
-                    scrollEl.innerHTML = `<div class="markdown-body"><span style="color:var(--color-error, #ef4444)">❌ 发生错误: ${data.error}</span></div>`;
+                    scrollEl.innerHTML = `<div class="markdown-body"><span style="color:var(--color-error, #ef4444)">❌ 发生错误: ${escapeHtml(data.error)}</span></div>`;
                 }
             }
             finalizeComparisonColumn(data.chatId, data.modelName, {});
@@ -763,7 +763,7 @@ function setupEvents() {
             if (state.currentStreamDiv) {
                 const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
                 if (scrollEl) {
-                    scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${data.error}]</span>`;
+                    scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${escapeHtml(data.error)}]</span>`;
                 }
             } else {
                 renderMessageItem('system', `API 连接错误: ${data.error}`);

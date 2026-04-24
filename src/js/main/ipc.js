@@ -16,15 +16,32 @@ function setupIpcHandlers() {
         return installUpdate();
     });
 
-    // Settings API
+    // Settings API — API keys stay in main process only
     ipcMain.handle('get-settings', () => {
         const store = getStore();
-        return store.get('settings');
+        const settings = JSON.parse(JSON.stringify(store.get('settings')));
+        // Mask API keys so they never reach the renderer memory
+        if (settings && settings.providers) {
+            for (const p of settings.providers) {
+                if (p.apiKey) p.apiKey = '__MASKED__';
+            }
+        }
+        return settings;
     });
 
-    ipcMain.handle('save-settings', (event, settings) => {
+    ipcMain.handle('save-settings', (event, newSettings) => {
         const store = getStore();
-        store.set('settings', settings);
+        const oldSettings = store.get('settings');
+        // Restore masked API keys from stored settings
+        if (newSettings && newSettings.providers) {
+            for (const p of newSettings.providers) {
+                if (p.apiKey === '__MASKED__') {
+                    const oldP = oldSettings?.providers?.find(op => op.id === p.id);
+                    if (oldP && oldP.apiKey) p.apiKey = oldP.apiKey;
+                }
+            }
+        }
+        store.set('settings', newSettings);
         return true;
     });
 
@@ -43,6 +60,14 @@ function setupIpcHandlers() {
     // Stream Chat API
     ipcMain.on('send-message-stream', handleStreamRequest);
     ipcMain.handle('stop-stream', stopStream);
+
+    // Provider API key lookup (for settings page operations only)
+    ipcMain.handle('get-provider-api-key', (event, providerId) => {
+        const store = getStore();
+        const settings = store.get('settings');
+        const provider = settings?.providers?.find(p => p.id === providerId);
+        return provider?.apiKey || '';
+    });
     ipcMain.on('update-titlebar-theme', (event, theme) => {
         updateTitlebarTheme(theme);
     });
@@ -77,10 +102,18 @@ function setupIpcHandlers() {
 
     // Connection test (for providers that may not support /models)
     ipcMain.handle('test-provider-connection', async (event, payload) => {
-        const { endpoint, apiKey, modelName } = payload || {};
+        const { endpoint, apiKey, modelName, providerId } = payload || {};
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
-        if (!apiKey) return { ok: false, error: 'Missing apiKey' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
+
+        let resolvedKey = apiKey;
+        if (!resolvedKey || resolvedKey === '__MASKED__') {
+            const store = getStore();
+            const settings = store.get('settings');
+            const provider = settings?.providers?.find(p => p.id === (providerId || ''));
+            resolvedKey = provider?.apiKey || '';
+        }
+        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
 
         const controller = new AbortController();
         const timeoutMs = 12000;
@@ -94,7 +127,7 @@ function setupIpcHandlers() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Authorization': `Bearer ${resolvedKey}`
                     },
                     body: JSON.stringify({
                         model: modelName,
@@ -150,9 +183,18 @@ function setupIpcHandlers() {
 
     // One-shot summarization (context compression)
     ipcMain.handle('summarize-chat', async (event, payload) => {
-        const { endpoint, apiKey, modelName, systemPrompt, messages, max_tokens, temperature } = payload || {};
+        const { endpoint, apiKey, modelName, providerId, systemPrompt, messages, max_tokens, temperature } = payload || {};
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
-        if (!apiKey) return { ok: false, error: 'Missing apiKey' };
+        if (!modelName) return { ok: false, error: 'Missing modelName' };
+
+        let resolvedKey = apiKey;
+        if (!resolvedKey || resolvedKey === '__MASKED__') {
+            const store = getStore();
+            const settings = store.get('settings');
+            const provider = settings?.providers?.find(p => p.id === (providerId || ''));
+            resolvedKey = provider?.apiKey || '';
+        }
+        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
 
         const controller = new AbortController();
@@ -172,7 +214,7 @@ function setupIpcHandlers() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
+                        'Authorization': `Bearer ${resolvedKey}`
                     },
                     body: JSON.stringify({
                         model: modelName,

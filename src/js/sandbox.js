@@ -65,6 +65,7 @@ function ensureSandboxFallback() {
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'width:100%;height:calc(100% - 44px);border:none;background:#fff;';
     iframe.setAttribute('sandbox', 'allow-scripts');
+    iframe.setAttribute('csp', "script-src 'unsafe-inline'");
 
     overlay.appendChild(header);
     overlay.appendChild(iframe);

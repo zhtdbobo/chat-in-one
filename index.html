@@ -4,6 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        font-src 'self' data:;
+        img-src 'self' data: blob:;
+        connect-src *;
+        object-src 'none';
+        frame-ancestors 'none';
+        base-uri 'none';
+        form-action 'self';
+    ">
     <title>chat-in-one</title>
 
     <!-- Local Fonts -->
@@ -385,7 +397,7 @@
                 </div>
             </div>
             <div class="sandbox-content">
-                <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+                <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals" csp="script-src 'unsafe-inline'"></iframe>
             </div>
         </aside>
     </div> <!-- End of app-container -->

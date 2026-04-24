@@ -684,7 +684,10 @@ function renderProviderDetail() {
         saveCurrentProviderData();
 
         const url = (provider.endpoint || '').trim();
-        const key = provider.apiKey;
+        let key = provider.apiKey;
+        if (key === '__MASKED__' && provider.id) {
+            key = await window.api.getProviderApiKey(provider.id);
+        }
         if (!url) { showNotification("请先填写Endpoint", "error"); return; }
 
         try {
@@ -948,6 +951,7 @@ function renderProviderDetail() {
                     const res = await window.api.testProviderConnection({
                         endpoint: provider.endpoint,
                         apiKey: provider.apiKey,
+                        providerId: provider.id,
                         modelName: modelToTest
                     });
 

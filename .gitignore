@@ -23,6 +23,7 @@ build/
 
 # IDEs and Editors
 .vscode/*
+.lingma/*
 !.vscode/extensions.json
 .idea/
 *.suo
