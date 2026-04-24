@@ -39,6 +39,7 @@ function parseDataFile(filePath, defaults) {
 async function initStore() {
     const defaultSettings = {
         theme: "light",
+        ignoreCertificateErrors: false,
         systemPrompt: "You are a helpful assistant.",
         providers: [
             {

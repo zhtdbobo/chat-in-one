@@ -1,16 +1,31 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('fs');
+const os = require('os');
 
 // 导入模块
-const { initStore } = require('./src/js/main/store');
+const { initStore, parseDataFile } = require('./src/js/main/store');
 const { createWindow, createTray, setIsQuitting, getTray } = require('./src/js/main/window');
 const { initAutoUpdater } = require('./src/js/main/updater');
 const { setupIpcHandlers } = require('./src/js/main/ipc');
 const { cleanupMcpClients } = require('./src/js/main/stream');
 
-// Ignore SSL errors (e.g. net_error -100) on startup for proxy or local environments
-app.commandLine.appendSwitch('ignore-certificate-errors');
+// 在 app ready 前读取配置文件，决定是否忽略证书错误
+try {
+    // 预估 userData 路径（app.getPath 需要 ready 后才可用）
+    const userDataPath = process.env.APPDATA
+        ? path.join(process.env.APPDATA, 'chat-in-one')
+        : path.join(os.homedir(), '.config', 'chat-in-one');
+    const configPath = path.join(userDataPath, 'config.json');
+    if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        if (config?.settings?.ignoreCertificateErrors) {
+            app.commandLine.appendSwitch('ignore-certificate-errors');
+        }
+    }
+} catch (e) {
+    // 读取失败时默认安全行为——不忽略证书错误
+}
 
 // Work around Windows cache permission issues (0x5).
 // Force Chromium cache directories to a writable userData subfolder.
