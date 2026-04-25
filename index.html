@@ -398,6 +398,17 @@
             </div>
             <div class="sandbox-content">
                 <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals" csp="script-src 'unsafe-inline'"></iframe>
+                <div class="sandbox-console" id="sandbox-console">
+                    <div class="sandbox-console-header">
+                        <button id="sandbox-console-toggle" class="sandbox-console-toggle">控制台</button>
+                        <div class="sandbox-console-actions">
+                            <button id="sandbox-console-clear" class="btn btn-icon btn-ghost" title="清空">
+                                <i class="ph ph-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sandbox-console-output" id="sandbox-console-output"></div>
+                </div>
             </div>
         </aside>
     </div> <!-- End of app-container -->

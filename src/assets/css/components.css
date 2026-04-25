@@ -404,7 +404,7 @@
 /* Notification System */
 #notification-container {
     position: fixed;
-    top: 20px;
+    top: 45px;
     right: 20px;
     z-index: 10001;
     display: flex;

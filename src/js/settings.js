@@ -968,19 +968,15 @@ async function exportProviders() {
         else alert("没有可导出的服务商配置");
         return;
     }
-    // Resolve real API keys via main process before exporting
-    const resolved = await window.api.exportProviders(tempProviders);
-    const dataStr = JSON.stringify(resolved, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `providers_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    if (typeof showNotification === 'function') showNotification("导出成功", "success");
+    // Save via native dialog — notification only fires after user confirms save location
+    const result = await window.api.exportProvidersToFile(tempProviders);
+    if (result.canceled) return;
+    if (result.ok) {
+        if (typeof showNotification === 'function') showNotification("导出成功", "success");
+    } else {
+        if (typeof showNotification === 'function') showNotification("导出失败: " + (result.error || '未知错误'), "error");
+        else alert("导出失败: " + (result.error || '未知错误'));
+    }
 }
 
 function importProviders(e) {

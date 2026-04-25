@@ -1,4 +1,5 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, dialog } = require('electron');
+const fs = require('fs');
 const { getStore, resolveApiKey } = require('./store');
 const { checkForUpdates, installUpdate } = require('./updater');
 const { handleStreamRequest, stopStream } = require('./stream');
@@ -328,6 +329,62 @@ function setupIpcHandlers() {
             }
             return resolved;
         });
+    });
+
+    // Generic: save arbitrary JSON data to a file via native save dialog
+    ipcMain.handle('save-json-file', async (event, { data, defaultName, title }) => {
+        const win = event.sender.getOwnerBrowserWindow?.() || null;
+        const result = await dialog.showSaveDialog(win, {
+            title: title || '保存文件',
+            defaultPath: defaultName || `export_${new Date().toISOString().slice(0, 10)}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { ok: false, canceled: true };
+        }
+
+        try {
+            fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
+            return { ok: true, filePath: result.filePath };
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
+    });
+
+    // Save resolved providers to a file via native save dialog
+    ipcMain.handle('export-providers-to-file', async (event, providers) => {
+        if (!Array.isArray(providers) || providers.length === 0) {
+            return { ok: false, error: 'No providers to export' };
+        }
+
+        // Resolve masked keys
+        const resolved = providers.map(p => {
+            if (!p) return p;
+            const r = { ...p };
+            if (r.apiKey === '__MASKED__') {
+                r.apiKey = resolveApiKey(p.id);
+            }
+            return r;
+        });
+
+        const win = event.sender.getOwnerBrowserWindow?.() || null;
+        const result = await dialog.showSaveDialog(win, {
+            title: '导出服务商配置',
+            defaultPath: `providers_export_${new Date().toISOString().slice(0, 10)}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { ok: false, canceled: true };
+        }
+
+        try {
+            fs.writeFileSync(result.filePath, JSON.stringify(resolved, null, 2), 'utf-8');
+            return { ok: true, filePath: result.filePath };
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
     });
 }
 
