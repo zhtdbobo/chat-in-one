@@ -113,7 +113,7 @@ function escapeHtml(str) {
 
 function getModelContextWindowTokens(modelName) {
     const id = String(modelName || '').toLowerCase();
-    if (!id) return 8192;
+    if (!id) return 131072;
 
     // 1. Prefer explicit "###k" patterns in model name (e.g. gpt-4-32k, moonshot-v1-128k)
     const kMatch = id.match(/(?:^|[^0-9])(\d{1,3})k(?:[^0-9]|$)/i);
@@ -122,48 +122,147 @@ function getModelContextWindowTokens(modelName) {
         if (Number.isFinite(k) && k > 0) return k * 1000;
     }
 
-    // 2. Gemini Series (Google)
+    // 2. Exact "1m" or "1m+" suffix pattern (e.g. gpt-4.1, gemini-2.5-pro-001)
+    if (/\b1m(?!\d)/.test(id)) return 1000000;
+
+    // 3. Claude Series (Anthropic) — all Claude 3+ models support 200K
+    if (/claude-(3|4|5)/.test(id)) return 200000;
+    if (id.includes('claude-2') || id.includes('claude-instant')) return 100000;
+
+    // 4. Gemini Series (Google)
+    //    Gemini 3 series (2026)
+    if (id.includes('gemini-3') || id.includes('gemini-2.5')) return 1048576;
     if (id.includes('gemini-1.5-pro')) return 2097152;
     if (id.includes('gemini-1.5-flash')) return 1048576;
-    if (id.includes('gemini-2.0-flash')) return 1048576;
-    if (id.includes('gemini-2.0-pro')) return 2097152;
-    if (id.includes('gemini-3-flash')) return 1048576; // Added for user's specific case
-    if (id.includes('gemini-pro') || id.includes('gemini-1.0-pro')) return 32768;
+    //    Gemini 2.0 (DB may use gemini-2.x or gemini-2.0.x)
+    if (id.includes('gemini-2.0-pro') || id.includes('gemini-2-pro') || id.includes('gemini-2-ultra')) return 2097152;
+    if (id.includes('gemini-2.')) return 1048576;    // all other gemini-2.x variants
+    if (id.includes('gemini-2-flash')) return 1048576;
+    if (id.includes('gemini-pro') || id.includes('gemini-1.0-pro') || id.includes('gemini-ultra')) return 32768;
+    if (id.includes('gemini-vision')) return 32768;
 
-    // 3. Claude Series (Anthropic)
-    if (id.includes('claude-3-5') || id.includes('claude-3.5')) return 200000;
-    if (id.includes('claude-3')) return 200000;
-    if (id.includes('claude-2')) return 100000;
-
-    // 4. GPT Series (OpenAI)
-    if (id.includes('gpt-4o') || id.includes('gpt-4-turbo')) return 128000;
+    // 5. GPT Series (OpenAI) — order matters: check specific before generic
+    //    GPT-5 series (2025): 128K
+    if (id.includes('gpt-5') || id.includes('gpt_5')) return 128000;
+    //    GPT-4.1 series: 1M context
+    if (id.includes('gpt-4.1') || id.includes('gpt-4_1')) return 1000000;
+    //    GPT-4 Vision is based on Turbo (128K), not base GPT-4 (8K)
+    if (id.includes('gpt-4-vision') || id.includes('gpt-4-turbo')) return 128000;
+    if (id.includes('gpt-4o')) return 128000;
     if (id.includes('gpt-4-32k')) return 32768;
     if (id.includes('gpt-4')) return 8192;
-    if (id.includes('o1-')) return 128000;
-    if (id.includes('o3-')) return 200000;
     if (id.includes('gpt-3.5-turbo-16k')) return 16385;
-    if (id.includes('gpt-3.5-turbo')) return 4096;
+    if (id.includes('gpt-3.5')) return 4096;  // covers gpt-3.5-turbo and gpt-3.5
 
-    // 5. DeepSeek Series
-    if (id.includes('deepseek-v3') || id.includes('deepseek-r1')) return 128000;
+    // 6. O Series (OpenAI reasoning) — o1/o3/o4 all support 200K
+    if (/\bo[1-9]/.test(id)) {
+        if (id.includes('mini') || id.includes('preview')) return 128000;
+        return 200000;
+    }
+
+    // 7. DeepSeek Series
+    if (id.includes('deepseek-v3')) return 1000000;
+    if (id.includes('deepseek-r1')) return 128000;
     if (id.includes('deepseek-chat') || id.includes('deepseek-coder')) return 128000;
+    if (id.includes('deepseek-vl2')) return 131072; // VL2: 128K
+    if (id.includes('deepseek-vl')) return 4096;    // original VL: 4K
+    if (id.includes('deepseek-math')) return 4096;
 
-    // 6. Qwen Series (Aliyun)
-    if (id.includes('qwen') && (id.includes('plus') || id.includes('max') || id.includes('long-context'))) return 128000;
+    // 8. Qwen Series (Aliyun)
+    //    Qwen 3.5+ series (2025-2026): 128K
+    if (/qwen[-.]?3\.5/.test(id)) return 131072;
+    if (/\bqwen[-.]?3\b/.test(id) || /\bqwen3\b/.test(id)) return 131072;
+    if (/qwq/.test(id)) return 131072;
+    //    Qwen 2.5: 128K for all size variants
+    if (id.includes('qwen2.5')) return 131072;
+    //    Qwen VL/vision variants must come before generic qwen2- rule
+    if (id.includes('qwen-vl') || id.includes('qwen2-vl') || id.includes('qwen2.5-vl')) return 131072;
+    //    Qwen 2 base: 32K
+    if (id.includes('qwen2-')) return 32768;
+    if (id.includes('qwen') && (id.includes('plus') || id.includes('max') || id.includes('long-context'))) return 131072;
     if (id.includes('qwen-turbo')) return 32768;
-    if (id.includes('qwen') && (id.includes('72b') || id.includes('32b'))) return 32768;
 
-    // 7. Common context hints
-    if (id.includes('128k')) return 128000;
+    // 9. Kimi / Moonshot Series
+    if (id.includes('kimi-k')) return 128000;
+    if (id.includes('moonshot')) return 128000;
+
+    // 10. Grok Series (xAI)
+    if (id.includes('grok-4') || id.includes('grok-3')) return 131072;
+    if (id.includes('grok-2')) return 131072;
+
+    // 11. Llama Series (Meta) — 3.1+ is 128K, 3.0 is 8K, 2 is 4K
+    if (/llama[-.]?3\.(1|2)/.test(id)) return 131072;   // Llama 3.1 / 3.2: 128K
+    if (/llama[-.]?3\b/.test(id)) return 8192;           // Llama 3.0: 8K
+    if (/llama[-.]?2/.test(id)) return 4096;
+
+    // 12. Mistral Series
+    if (/mistral-large/.test(id)) return 131072;
+    if (/mistral-medium/.test(id)) return 32768;
+    if (/mistral-small/.test(id)) return 32768;
+    if (/mixtral/.test(id)) return 32768;
+    if (id.includes('codestral')) return 32768;
+
+    // 13. Ernie Series (Baidu) — 4.x: 128K, 3.5: 32K, older: 8K
+    if (/ernie[-.]?4\.5/.test(id)) return 131072;
+    if (/ernie[-.]?4/.test(id)) return 131072;
+    if (/ernie[-.]?3\.5/.test(id)) return 32768;
+    if (/ernie[-.]?3/.test(id)) return 32768;
+    if (id.includes('ernie-pro') || id.includes('ernie-lite') || id.includes('ernie-speed') || id.includes('ernie-text')) return 8192;
+
+    // 14. Hunyuan Series (Tencent)
+    if (/hunyuan[-.]?2/.test(id)) return 131072;
+    if (/hunyuan/.test(id)) return 32768;
+
+    // 15. Yi Series (01.AI) — large/vision/lightning: 128K, medium/spark: 16K
+    if (id.includes('yi-large') || id.includes('yi-vision') || id.includes('yi-lightning')) return 131072;
+    if (id.includes('yi-medium') || id.includes('yi-spark')) return 16384;
+
+    // 16. Doubao Series (ByteDance)
+    if (id.includes('doubao')) return 131072;
+
+    // 17. MiniMax Series — MiniMax-01: 1M, abab: 128K
+    if (id.includes('minimax-01') || id.includes('minimax-vl-01') || id.includes('minimax-text-01')) return 1048576;
+    if (id.includes('minimax')) return 131072;
+
+    // 18. Cohere Command-R Series
+    if (id.includes('command-r') || id.includes('command-a') || id.includes('command-nightly')) return 131072;
+
+    // 19. Perplexity Sonar Series
+    if (id.includes('sonar')) return 131072;
+
+    // 20. 360GPT Series
+    if (id.includes('360gpt')) return 131072;
+
+    // 21. StepFun Series
+    if (id.includes('step-1v') || id.includes('step-2')) return 131072;
+
+    // 22. Baichuan Series
+    if (id.includes('baichuan-3') || id.includes('baichuan-4')) return 131072;
+
+    // 23. InternLM Series
+    if (id.includes('internlm2.5') || id.includes('internlm-xcomposer2')) return 32768;
+
+    // 24. Fireworks / Function-calling models
+    if (id.includes('firefunction')) return 32768;
+
+    // 25. Open-source legacy models (low context)
+    if (id.includes('llava') || id.includes('cogvlm')) return 4096;
+    if (id.includes('falcon')) return 2048;
+    if (id.includes('vicuna') || id.includes('alpaca')) return 2048;
+    if (id.includes('mpt-30b') || id.includes('mpt-7b')) return 8192;
+    if (id.includes('starling')) return 8192;
+
+    // 26. Common context hints (catch-all for model names with explicit size)
+    if (id.includes('128k')) return 131072;
     if (id.includes('200k')) return 200000;
     if (id.includes('1m')) return 1000000;
-    if (id.includes('32k')) return 32000;
-    if (id.includes('16k')) return 16000;
-    if (id.includes('8k')) return 8000;
-    if (id.includes('4k')) return 4000;
+    if (id.includes('32k')) return 32768;
+    if (id.includes('16k')) return 16384;
+    if (id.includes('8k')) return 8192;
+    if (id.includes('4k')) return 4096;
 
-    // Reasonable modern default
-    return 8192;
+    // Modern default: 128K for current-generation models
+    return 131072;
 }
 
 function estimateTokensFromText(text) {

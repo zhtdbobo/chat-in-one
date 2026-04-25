@@ -476,7 +476,7 @@ function renderProvidersSidebar() {
         item.className = `provider-menu-item ${index === currentProviderIndex ? 'active' : ''}`;
         item.innerHTML = `
             <i class="ph ph-cloud"></i>
-            <span>${p.name || '未命名服务商'}</span>
+            <span>${escapeHtml(p.name || '未命名服务商')}</span>
         `;
         item.addEventListener('click', () => {
             saveCurrentProviderData();
@@ -532,18 +532,18 @@ function renderProviderDetail() {
         </div>
         <div class="form-group">
             <label>服务商名称</label>
-            <input type="text" class="prov-name" value="${provider.name || ''}" placeholder="例如: OpenAI">
+            <input type="text" class="prov-name" value="${escapeHtml(provider.name || '')}" placeholder="例如: OpenAI">
         </div>
         <div class="form-group">
             <label>API Key</label>
-            <input type="password" class="prov-apikey" value="${provider.apiKey || ''}" placeholder="sk-...">
+            <input type="password" class="prov-apikey" value="${escapeHtml(provider.apiKey || '')}" placeholder="sk-...">
         </div>
         <div class="form-group">
             <label>API Endpoint</label>
             <input
                 type="url"
                 class="prov-endpoint"
-                value="${provider.endpoint || ''}"
+                value="${escapeHtml(provider.endpoint || '')}"
                 placeholder="例如: https://api.openai.com/v1 或 https://dashscope.aliyuncs.com/v1">
         </div>
         
@@ -614,8 +614,8 @@ function renderProviderDetail() {
             const item = document.createElement('div');
             item.className = 'model-check-item';
             item.innerHTML = `
-                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${modelId}" value="${modelId}" data-model='${JSON.stringify(m)}'>
-                <label for="chk-${modelId}">${modelId}</label>
+                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${escapeHtml(modelId)}" value="${escapeHtml(modelId)}" data-model='${JSON.stringify(m).replace(/'/g, "&#039;")}'>
+                <label for="chk-${escapeHtml(modelId)}">${escapeHtml(modelId)}</label>
                 <div class="model-capabilities-mini">
                     <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
                     <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
@@ -684,10 +684,6 @@ function renderProviderDetail() {
         saveCurrentProviderData();
 
         const url = (provider.endpoint || '').trim();
-        let key = provider.apiKey;
-        if (key === '__MASKED__' && provider.id) {
-            key = await window.api.getProviderApiKey(provider.id);
-        }
         if (!url) { showNotification("请先填写Endpoint", "error"); return; }
 
         try {
@@ -695,57 +691,18 @@ function renderProviderDetail() {
             btn.disabled = true;
             btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> 请求中...';
 
-            // 统一使用「短链接 Endpoint」，自动拼接常见 /v1/models 变体
-            // 改进：首先剥离可能存在的完整 chat 路径后缀，还原 Base URL
-            const base = url.replace(/\/(chat\/completions|completions|complete)\/?$/i, '').replace(/\/+$/, '');
-            const lower = base.toLowerCase();
-            const candidates = [];
+            // Fetch models via main process (API key stays server-side)
+            const result = await window.api.fetchProviderModels({
+                endpoint: provider.endpoint,
+                apiKey: provider.apiKey,
+                providerId: provider.id
+            });
 
-            // 如果用户填写的 Base 以 /v1, /v2 等版本号结尾
-            if (lower.match(/\/v\d+$/i)) {
-                candidates.push(base + '/models');
-                // 备选：万一服务商的版本号不在模型路径里 (兼容某些特殊代理)
-                candidates.push(base.replace(/\/v\d+$/i, '') + '/models');
-            } else {
-                // 根域名形式: 优先尝试 /v1/models (OpenAI 标准)
-                candidates.push(base + '/v1/models');
-                candidates.push(base + '/models');
-                // 如果用户其实填的是完整路径但没被正则匹配到，这里 base 已经是 trimmed 的了
+            if (!result.ok) {
+                throw new Error(result.error || '获取模型列表失败');
             }
 
-            let lastError = null;
-            let data = null;
-
-            for (const fetchPath of Array.from(new Set(candidates))) {
-                try {
-                    const req = await fetch(fetchPath, { headers: { 'Authorization': 'Bearer ' + key } });
-                    if (!req.ok) {
-                        lastError = new Error("HTTP " + req.status + " @ " + fetchPath);
-                        continue;
-                    }
-                    data = await req.json();
-                    break;
-                } catch (err) {
-                    lastError = err;
-                }
-            }
-
-            // 支持多种响应格式
-            let models = [];
-
-            if (data.data && Array.isArray(data.data)) {
-                // 标准 OpenAI 格式: { data: [{id: 'model-1'}, ...] }
-                models = data.data;
-            } else if (Array.isArray(data)) {
-                // 某些服务商直接返回数组: [{id: 'model-1'}, ...]
-                models = data;
-            } else if (data.models && Array.isArray(data.models)) {
-                // 另一种常见格式: { models: [...] }
-                models = data.models;
-            } else if (data.object === 'list' && Array.isArray(data.data)) {
-                // OpenAI 标准格式确认
-                models = data.data;
-            }
+            const models = result.models || [];
 
             // 规范化模型对象结构，提取 id 并检测能力
             const normalizedModels = models.map(m => {
@@ -784,7 +741,7 @@ function renderProviderDetail() {
             }).filter(m => m !== null);
 
             if (normalizedModels.length === 0) {
-                throw lastError || new Error("未能从任何候选地址获取模型列表，或返回格式不支持");
+                throw new Error("未能从任何候选地址获取模型列表，或返回格式不支持");
             }
 
             // Store all models as JSON in allModels
@@ -850,7 +807,7 @@ function renderProviderDetail() {
                 const item = document.createElement('div');
                 item.className = 'model-selection-item';
                 item.style.cursor = 'pointer';
-                item.innerHTML = `<span class="model-name">${m}</span><span style="font-size:12px; color:var(--text-muted);">点击测试</span>`;
+                item.innerHTML = `<span class="model-name">${escapeHtml(m)}</span><span style="font-size:12px; color:var(--text-muted);">点击测试</span>`;
                 item.addEventListener('click', () => {
                     close();
                     onPick(m);
@@ -1004,14 +961,16 @@ function renderProviderDetail() {
     }
 }
 
-function exportProviders() {
+async function exportProviders() {
     saveCurrentProviderData();
     if (tempProviders.length === 0) {
         if (typeof showNotification === 'function') showNotification("没有可导出的服务商配置", "info");
         else alert("没有可导出的服务商配置");
         return;
     }
-    const dataStr = JSON.stringify(tempProviders, null, 2);
+    // Resolve real API keys via main process before exporting
+    const resolved = await window.api.exportProviders(tempProviders);
+    const dataStr = JSON.stringify(resolved, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

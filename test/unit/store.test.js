@@ -14,7 +14,7 @@ jest.mock('fs', () => ({
 }));
 
 const fs = require('fs');
-const { SimpleStore, parseDataFile } = require('../../src/js/main/store');
+const { SimpleStore, parseDataFile, resolveApiKey } = require('../../src/js/main/store');
 
 describe('Store Module', () => {
     beforeEach(() => {
@@ -91,5 +91,17 @@ describe('Store Module', () => {
             store.set('test', 'new value');
             expect(console.error).toHaveBeenCalledWith('Failed to write to store:', expect.any(Error));
         });
+    });
+});
+
+describe('resolveApiKey', () => {
+    test('should return empty string if no providerId given', () => {
+        const result = resolveApiKey('');
+        expect(result).toBe('');
+    });
+
+    test('should return empty string if store is not initialized', () => {
+        const result = resolveApiKey('some-id');
+        expect(result).toBe('');
     });
 });

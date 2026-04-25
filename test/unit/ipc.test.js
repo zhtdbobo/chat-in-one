@@ -12,8 +12,22 @@ jest.mock('electron', () => ({
 // 模拟其他模块
 jest.mock('../../src/js/main/store', () => ({
     getStore: jest.fn().mockReturnValue({
-        get: jest.fn().mockReturnValue({ test: 'value' }),
+        get: jest.fn().mockImplementation((key) => {
+            if (key === 'settings') {
+                return {
+                    providers: [
+                        { id: 'p1', name: 'Provider 1', apiKey: 'real-key-1' },
+                        { id: 'p2', name: 'Provider 2', apiKey: 'real-key-2' }
+                    ]
+                };
+            }
+            return { test: 'value' };
+        }),
         set: jest.fn()
+    }),
+    resolveApiKey: jest.fn().mockImplementation((providerId) => {
+        const map = { p1: 'real-key-1', p2: 'real-key-2' };
+        return map[providerId] || '';
     })
 }));
 
@@ -107,19 +121,22 @@ describe('IPC Module', () => {
         expect(result).toBe('auto-updater');
     });
 
-    test('should handle get-settings correctly', () => {
+    test('should handle get-settings and mask API keys', () => {
         setupIpcHandlers();
-        
+
         // 找到get-settings的处理函数
         const getSettingsCall = ipcMain.handle.mock.calls.find(call => call[0] === 'get-settings');
         expect(getSettingsCall).toBeDefined();
-        
+
         const handler = getSettingsCall[1];
         const result = handler();
-        
+
         expect(getStore).toHaveBeenCalled();
         expect(getStore().get).toHaveBeenCalledWith('settings');
-        expect(result).toEqual({ test: 'value' });
+        // API keys should be masked
+        expect(result.providers[0].apiKey).toBe('__MASKED__');
+        expect(result.providers[1].apiKey).toBe('__MASKED__');
+        expect(result.providers[0].name).toBe('Provider 1');
     });
 
     test('should handle save-settings correctly', () => {
@@ -150,5 +167,63 @@ describe('IPC Module', () => {
         handler(null, theme);
         
         expect(updateTitlebarTheme).toHaveBeenCalledWith(theme);
+    });
+
+    test('should restore masked API keys on save-settings', () => {
+        setupIpcHandlers();
+
+        const saveSettingsCall = ipcMain.handle.mock.calls.find(call => call[0] === 'save-settings');
+        expect(saveSettingsCall).toBeDefined();
+        const handler = saveSettingsCall[1];
+
+        const newSettings = {
+            providers: [
+                { id: 'p1', name: 'Provider 1', apiKey: '__MASKED__' },
+                { id: 'p2', name: 'Provider 2', apiKey: '__MASKED__' },
+                { id: 'p3', name: 'Provider 3', apiKey: 'new-key-3' }
+            ]
+        };
+        const result = handler(null, newSettings);
+
+        // p1 and p2 should have their keys restored from old settings; p3 should keep its new key
+        expect(getStore().set).toHaveBeenCalledWith('settings', {
+            providers: [
+                { id: 'p1', name: 'Provider 1', apiKey: 'real-key-1' },
+                { id: 'p2', name: 'Provider 2', apiKey: 'real-key-2' },
+                { id: 'p3', name: 'Provider 3', apiKey: 'new-key-3' }
+            ]
+        });
+        expect(result).toBe(true);
+    });
+
+    test('should handle export-providers resolving masked keys', () => {
+        setupIpcHandlers();
+
+        const exportCall = ipcMain.handle.mock.calls.find(call => call[0] === 'export-providers');
+        expect(exportCall).toBeDefined();
+        const handler = exportCall[1];
+
+        const providers = [
+            { id: 'p1', name: 'Provider 1', apiKey: '__MASKED__' },
+            { id: 'p2', name: 'Provider 2', apiKey: 'already-real-key' }
+        ];
+        const result = handler(null, providers);
+
+        expect(result[0].apiKey).toBe('real-key-1');
+        expect(result[1].apiKey).toBe('already-real-key');
+    });
+
+    test('should handle fetch-provider-models with missing endpoint', () => {
+        setupIpcHandlers();
+
+        const fetchCall = ipcMain.handle.mock.calls.find(call => call[0] === 'fetch-provider-models');
+        expect(fetchCall).toBeDefined();
+        const handler = fetchCall[1];
+
+        // No endpoint → should immediately fail
+        return handler(null, { apiKey: 'test', providerId: 'p1' }).then(result => {
+            expect(result.ok).toBe(false);
+            expect(result.error).toContain('Missing endpoint');
+        });
     });
 });

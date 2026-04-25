@@ -1,7 +1,7 @@
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 const { fetchChatCompletionWithFallback } = require('./network');
-const { getStore } = require('./store');
+const { getStore, resolveApiKey } = require('./store');
 
 let mcpClients = [];
 let toolNameToServerMap = new Map();
@@ -103,12 +103,7 @@ async function handleStreamRequest(event, requestData) {
     const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers, providerId } = requestData;
 
     // Resolve API key from store if masked (keys never persist in renderer)
-    let resolvedApiKey = apiKey;
-    if (!resolvedApiKey || resolvedApiKey === '__MASKED__') {
-        const settings = getStore().get('settings');
-        const provider = settings?.providers?.find(p => p.id === (providerId || ''));
-        resolvedApiKey = provider?.apiKey || '';
-    }
+    let resolvedApiKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
 
     let thisController;
     try {
