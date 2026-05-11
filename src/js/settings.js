@@ -316,6 +316,7 @@ function detectModelCapabilities(modelId, modelObj = {}) {
         "kimi-k2.5": { vision: true, reasoning: true, tools: true },
         "kimi-k2-vision": { vision: true, reasoning: true, tools: true },
         "kimi-k2.5-vision": { vision: true, reasoning: true, tools: true },
+        "kimi-k2.6": { vision: true, reasoning: true, tools: true },
         // 01.AI（零一万物）
         "yi-large": { vision: false, reasoning: false, tools: true },
         "yi-vision": { vision: true, reasoning: false, tools: true },

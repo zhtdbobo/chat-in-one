@@ -256,3 +256,39 @@ function estimateConversationTokens({ systemPrompt, messages, maxOutputTokens, m
         outputReserve
     };
 }
+
+/**
+ * Get effective model parameters for display in conversation settings UI.
+ * Mirrors buildModelRequestConfig() in stream.js for the renderer side.
+ * Returns what parameters will actually be sent to the API for a given model.
+ */
+function getEffectiveModelParams(modelName, params = {}) {
+    const model = String(modelName || '').trim().toLowerCase();
+    const { temperature, top_p, enableThinking } = params;
+
+    // Kimi k2.6: fixed sampling params + thinking control
+    if (model === 'kimi-k2.6') {
+        return {
+            temperature: null,
+            top_p: 0.95,
+            presence_penalty: 0,
+            frequency_penalty: 0,
+            thinking: enableThinking !== false
+        };
+    }
+
+    if (model.startsWith('kimi-k2-thinking')) {
+        return { temperature: temperature ?? 1.0, top_p: 1.0 };
+    }
+
+    if (model.startsWith('kimi-k2')) {
+        return { temperature: temperature ?? 0.6, top_p: 1.0 };
+    }
+
+    if (model.startsWith('moonshot-v1')) {
+        return { temperature: temperature ?? 0.0, top_p: 1.0 };
+    }
+
+    // Generic OpenAI-compatible fallback
+    return { temperature: temperature ?? 0.7, top_p: top_p ?? 1.0 };
+}

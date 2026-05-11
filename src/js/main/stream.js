@@ -71,7 +71,11 @@ function buildModelRequestConfig(modelName, req = {}) {
         cfg.n = 1;
         cfg.presence_penalty = 0;
         cfg.frequency_penalty = 0;
-        cfg.thinking = { type: req.enableThinking === false ? 'disabled' : 'enabled' };
+        if (req.enableThinking === false) {
+            // 不发送 thinking 参数，兼容不支持 thinking 的 API 端点
+        } else {
+            cfg.thinking = { type: 'enabled' };
+        }
         return cfg;
     }
 

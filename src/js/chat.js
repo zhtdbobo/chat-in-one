@@ -767,6 +767,9 @@ function sendMessage() {
     if (maxOutputTokens >= 8100) maxOutputTokens = 0;
     const streamOutput = chat.streamOutput !== false;
 
+    // Per-chat enableThinking override (falls back to global setting)
+    const enableThinking = chat.enableThinking ?? state.settings.enableThinking !== false;
+
     // Skill Override
     if (state.activeSkillId) {
         chat.skillId = state.activeSkillId; // 把搭档关联到当前对话
@@ -1008,7 +1011,7 @@ function sendMessage() {
                 messages: messagesForThisModel,
                 chatId: chat.id,
                 isComparisonStream: true,  // Flag to prevent aborting sibling streams
-                enableThinking: state.settings.enableThinking !== false,
+                enableThinking: enableThinking,
                 enableSearch: !!state.settings.enableSearch,
                 temperature: temperature,
                 top_p: topP,
@@ -1028,7 +1031,7 @@ function sendMessage() {
             systemPrompt: finalSystemPrompt,
             messages: messagesForModel,
             chatId: chat.id,
-            enableThinking: state.settings.enableThinking !== false,
+            enableThinking: enableThinking,
             enableSearch: !!state.settings.enableSearch,
             temperature: temperature,
             top_p: topP,

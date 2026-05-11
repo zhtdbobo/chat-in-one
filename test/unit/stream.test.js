@@ -88,7 +88,15 @@ describe('Stream Module', () => {
             const config = buildModelRequestConfig('kimi-k2.6', {
                 enableThinking: false
             });
-            expect(config.thinking.type).toBe('disabled');
+            // When thinking is disabled, the thinking parameter should not be sent
+            // to maintain compatibility with endpoints that don't support it
+            expect(config).toEqual({
+                top_p: 0.95,
+                n: 1,
+                presence_penalty: 0,
+                frequency_penalty: 0
+            });
+            expect(config.thinking).toBeUndefined();
         });
     });
 

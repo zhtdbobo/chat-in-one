@@ -986,6 +986,19 @@ function openConversationSettings() {
         // Get current chat
         const activeChat = state.chats.find(c => c.id === state.currentChatId);
         if (activeChat) {
+            // Extract model name from chat.model (format: "providerId|modelName")
+            let modelName = '';
+            if (activeChat.model && activeChat.model.includes('|')) {
+                modelName = activeChat.model.split('|').map(s => s.trim())[1];
+            }
+
+            // Get effective model parameters for the current model
+            const effectiveParams = getEffectiveModelParams(modelName, {
+                temperature: activeChat.temperature,
+                top_p: activeChat.topP,
+                enableThinking: activeChat.enableThinking ?? state.settings.enableThinking !== false
+            });
+
             // Set conversation name
             const nameInput = document.getElementById('conversation-name');
             if (nameInput) {
@@ -1007,22 +1020,39 @@ function openConversationSettings() {
                 maxMessageCountValue.textContent = value === 15 ? '无限制' : value;
             }
 
-            // Set temperature
+            // Set temperature — show effective value or "不可用" if not sent
             const temperatureSlider = document.getElementById('temperature');
             const temperatureValue = document.getElementById('temperature-value');
             if (temperatureSlider && temperatureValue) {
-                const value = activeChat.temperature || 0.7;
-                temperatureSlider.value = value;
-                temperatureValue.textContent = value;
+                if (effectiveParams.temperature === null) {
+                    temperatureSlider.value = 1;
+                    temperatureSlider.disabled = true;
+                    temperatureSlider.title = '该模型固定此参数，不可调整';
+                    temperatureValue.textContent = '不可用';
+                } else {
+                    temperatureSlider.disabled = false;
+                    temperatureSlider.title = '';
+                    const value = activeChat.temperature ?? effectiveParams.temperature;
+                    temperatureSlider.value = value;
+                    temperatureValue.textContent = value;
+                }
             }
 
-            // Set top P
+            // Set top P — show effective value
             const topPSlider = document.getElementById('top-p');
             const topPValue = document.getElementById('top-p-value');
             if (topPSlider && topPValue) {
-                const value = activeChat.topP || 1;
-                topPSlider.value = value;
-                topPValue.textContent = value;
+                const effectiveTopP = effectiveParams.top_p;
+                const savedTopP = activeChat.topP;
+                // If effective top_p is fixed (model override), show it but keep slider adjustable
+                if (savedTopP && savedTopP !== effectiveTopP && effectiveParams.temperature !== null) {
+                    // User has a saved value that differs from model's effective default
+                    topPSlider.value = savedTopP;
+                    topPValue.textContent = savedTopP;
+                } else {
+                    topPSlider.value = effectiveTopP;
+                    topPValue.textContent = effectiveTopP;
+                }
             }
 
             // Set max output tokens
@@ -1039,6 +1069,18 @@ function openConversationSettings() {
             const streamOutputToggle = document.getElementById('stream-output');
             if (streamOutputToggle) {
                 streamOutputToggle.checked = activeChat.streamOutput !== false;
+            }
+
+            // Show/hide thinking toggle based on model support
+            const thinkingSetting = document.getElementById('thinking-setting');
+            const thinkingToggle = document.getElementById('enable-thinking');
+            if (thinkingSetting && thinkingToggle) {
+                if (effectiveParams.thinking !== undefined) {
+                    thinkingSetting.style.display = '';
+                    thinkingToggle.checked = activeChat.enableThinking ?? state.settings.enableThinking !== false;
+                } else {
+                    thinkingSetting.style.display = 'none';
+                }
             }
         }
 
@@ -1099,6 +1141,13 @@ function saveConversationSettings() {
             activeChat.streamOutput = streamOutputToggle.checked;
         }
 
+        // Save enableThinking (per-chat override) if thinking setting is visible
+        const thinkingSetting = document.getElementById('thinking-setting');
+        const thinkingToggle = document.getElementById('enable-thinking');
+        if (thinkingSetting && thinkingToggle && thinkingSetting.style.display !== 'none') {
+            activeChat.enableThinking = thinkingToggle.checked;
+        }
+
         // Save changes
         saveChats();
         renderChatList();
@@ -1146,5 +1195,10 @@ function resetModelSettings() {
     const streamOutputToggle = document.getElementById('stream-output');
     if (streamOutputToggle) {
         streamOutputToggle.checked = true;
+    }
+
+    const thinkingToggle = document.getElementById('enable-thinking');
+    if (thinkingToggle) {
+        thinkingToggle.checked = true;
     }
 }
