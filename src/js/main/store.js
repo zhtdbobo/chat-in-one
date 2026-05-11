@@ -109,9 +109,19 @@ function getStore() {
     return store;
 }
 
+function resolveApiKey(providerId) {
+    if (!providerId) return '';
+    const s = getStore();
+    if (!s) return '';
+    const settings = s.get('settings');
+    const provider = settings?.providers?.find(p => p.id === providerId);
+    return provider?.apiKey || '';
+}
+
 module.exports = {
     initStore,
     getStore,
     SimpleStore,
-    parseDataFile
+    parseDataFile,
+    resolveApiKey
 };

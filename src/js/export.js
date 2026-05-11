@@ -47,16 +47,18 @@ function confirmExport() {
     }
 
     const chatsToExport = state.chats.filter(c => selectedIds.includes(c.id));
-    const dataStr = JSON.stringify(chatsToExport, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chats_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.api.saveJsonFile({
+        data: chatsToExport,
+        defaultName: `chats_export_${new Date().toISOString().slice(0, 10)}.json`,
+        title: '导出对话'
+    }).then(result => {
+        if (result.canceled) return;
+        if (result.ok) {
+            if (typeof showNotification === 'function') showNotification("导出成功", "success");
+        } else {
+            alert("导出失败: " + (result.error || '未知错误'));
+        }
+    });
 
     exitExportMode();
 }
@@ -69,16 +71,18 @@ function exportChats() {
         alert("没有可导出的对话。");
         return;
     }
-    const dataStr = JSON.stringify(state.chats, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat_history_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.api.saveJsonFile({
+        data: state.chats,
+        defaultName: `chat_history_${new Date().toISOString().slice(0, 10)}.json`,
+        title: '导出全部对话'
+    }).then(result => {
+        if (result.canceled) return;
+        if (result.ok) {
+            if (typeof showNotification === 'function') showNotification("导出成功", "success");
+        } else {
+            alert("导出失败: " + (result.error || '未知错误'));
+        }
+    });
 }
 
 function importChats(e) {
@@ -124,16 +128,18 @@ function exportSingleChat(chatId) {
         alert("当前对话为空，无法导出。");
         return;
     }
-    const dataStr = JSON.stringify([chat], null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat_${chat.title}_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    window.api.saveJsonFile({
+        data: [chat],
+        defaultName: `chat_${chat.title}_${new Date().toISOString().slice(0, 10)}.json`,
+        title: '导出单个对话'
+    }).then(result => {
+        if (result.canceled) return;
+        if (result.ok) {
+            if (typeof showNotification === 'function') showNotification("导出成功", "success");
+        } else {
+            alert("导出失败: " + (result.error || '未知错误'));
+        }
+    });
 }
 
 function showDeleteConfirm(chatItemEl, chatId) {

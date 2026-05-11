@@ -16,7 +16,12 @@ contextBridge.exposeInMainWorld('api', {
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
     testProviderConnection: (payload) => ipcRenderer.invoke('test-provider-connection', payload),
     summarizeChat: (payload) => ipcRenderer.invoke('summarize-chat', payload),
-    getProviderApiKey: (providerId) => ipcRenderer.invoke('get-provider-api-key', providerId),
+    fetchProviderModels: (payload) => ipcRenderer.invoke('fetch-provider-models', payload),
+    exportProviders: (providers) => ipcRenderer.invoke('export-providers', providers),
+    exportProvidersToFile: (providers) => ipcRenderer.invoke('export-providers-to-file', providers),
+
+    // Generic file save
+    saveJsonFile: (payload) => ipcRenderer.invoke('save-json-file', payload),
 
     // Chats API
     getChats: () => ipcRenderer.invoke('get-chats'),

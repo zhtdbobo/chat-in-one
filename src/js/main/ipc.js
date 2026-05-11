@@ -1,5 +1,6 @@
-const { ipcMain, app } = require('electron');
-const { getStore } = require('./store');
+const { ipcMain, app, dialog } = require('electron');
+const fs = require('fs');
+const { getStore, resolveApiKey } = require('./store');
 const { checkForUpdates, installUpdate } = require('./updater');
 const { handleStreamRequest, stopStream } = require('./stream');
 const { updateTitlebarTheme, setIsQuitting } = require('./window');
@@ -63,10 +64,7 @@ function setupIpcHandlers() {
 
     // Provider API key lookup (for settings page operations only)
     ipcMain.handle('get-provider-api-key', (event, providerId) => {
-        const store = getStore();
-        const settings = store.get('settings');
-        const provider = settings?.providers?.find(p => p.id === providerId);
-        return provider?.apiKey || '';
+        return resolveApiKey(providerId);
     });
     ipcMain.on('update-titlebar-theme', (event, theme) => {
         updateTitlebarTheme(theme);
@@ -106,13 +104,7 @@ function setupIpcHandlers() {
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
 
-        let resolvedKey = apiKey;
-        if (!resolvedKey || resolvedKey === '__MASKED__') {
-            const store = getStore();
-            const settings = store.get('settings');
-            const provider = settings?.providers?.find(p => p.id === (providerId || ''));
-            resolvedKey = provider?.apiKey || '';
-        }
+        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
         if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
 
         const controller = new AbortController();
@@ -187,15 +179,8 @@ function setupIpcHandlers() {
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
 
-        let resolvedKey = apiKey;
-        if (!resolvedKey || resolvedKey === '__MASKED__') {
-            const store = getStore();
-            const settings = store.get('settings');
-            const provider = settings?.providers?.find(p => p.id === (providerId || ''));
-            resolvedKey = provider?.apiKey || '';
-        }
+        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
         if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
-        if (!modelName) return { ok: false, error: 'Missing modelName' };
 
         const controller = new AbortController();
         const timeoutMs = 45000;
@@ -264,6 +249,141 @@ function setupIpcHandlers() {
             };
         } finally {
             clearTimeout(t);
+        }
+    });
+
+    // Fetch models from provider endpoint (resolves API key server-side)
+    ipcMain.handle('fetch-provider-models', async (event, payload) => {
+        const { endpoint, apiKey, providerId } = payload || {};
+        if (!endpoint) return { ok: false, error: 'Missing endpoint' };
+
+        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
+        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
+
+        try {
+            // Build model-list URL candidates from the short endpoint
+            const base = String(endpoint).trim()
+                .replace(/\/(chat\/completions|completions|complete)\/?$/i, '')
+                .replace(/\/+$/, '');
+            const lower = base.toLowerCase();
+            const candidates = [];
+
+            if (lower.match(/\/v\d+$/i)) {
+                candidates.push(base + '/models');
+                candidates.push(base.replace(/\/v\d+$/i, '') + '/models');
+            } else {
+                candidates.push(base + '/v1/models');
+                candidates.push(base + '/models');
+            }
+
+            let lastError = null;
+            let data = null;
+
+            for (const fetchPath of Array.from(new Set(candidates))) {
+                try {
+                    const resp = await fetch(fetchPath, {
+                        headers: { 'Authorization': 'Bearer ' + resolvedKey }
+                    });
+                    if (!resp.ok) {
+                        lastError = new Error('HTTP ' + resp.status + ' @ ' + fetchPath);
+                        continue;
+                    }
+                    data = await resp.json();
+                    lastError = null;
+                    break;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            if (!data || lastError) {
+                return { ok: false, error: lastError ? lastError.message : 'Failed to fetch models' };
+            }
+
+            // Support multiple response formats
+            let models = [];
+            if (data.data && Array.isArray(data.data)) {
+                models = data.data;
+            } else if (Array.isArray(data)) {
+                models = data;
+            } else if (data.models && Array.isArray(data.models)) {
+                models = data.models;
+            } else if (data.object === 'list' && Array.isArray(data.data)) {
+                models = data.data;
+            }
+
+            return { ok: true, models };
+        } catch (err) {
+            return { ok: false, error: err.message || String(err) };
+        }
+    });
+
+    // Export providers with real API keys resolved server-side
+    ipcMain.handle('export-providers', (event, providers) => {
+        if (!Array.isArray(providers)) return [];
+        return providers.map(p => {
+            if (!p) return p;
+            const resolved = { ...p };
+            if (resolved.apiKey === '__MASKED__') {
+                resolved.apiKey = resolveApiKey(p.id);
+            }
+            return resolved;
+        });
+    });
+
+    // Generic: save arbitrary JSON data to a file via native save dialog
+    ipcMain.handle('save-json-file', async (event, { data, defaultName, title }) => {
+        const win = event.sender.getOwnerBrowserWindow?.() || null;
+        const result = await dialog.showSaveDialog(win, {
+            title: title || '保存文件',
+            defaultPath: defaultName || `export_${new Date().toISOString().slice(0, 10)}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { ok: false, canceled: true };
+        }
+
+        try {
+            fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
+            return { ok: true, filePath: result.filePath };
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
+    });
+
+    // Save resolved providers to a file via native save dialog
+    ipcMain.handle('export-providers-to-file', async (event, providers) => {
+        if (!Array.isArray(providers) || providers.length === 0) {
+            return { ok: false, error: 'No providers to export' };
+        }
+
+        // Resolve masked keys
+        const resolved = providers.map(p => {
+            if (!p) return p;
+            const r = { ...p };
+            if (r.apiKey === '__MASKED__') {
+                r.apiKey = resolveApiKey(p.id);
+            }
+            return r;
+        });
+
+        const win = event.sender.getOwnerBrowserWindow?.() || null;
+        const result = await dialog.showSaveDialog(win, {
+            title: '导出服务商配置',
+            defaultPath: `providers_export_${new Date().toISOString().slice(0, 10)}.json`,
+            filters: [{ name: 'JSON', extensions: ['json'] }]
+        });
+
+        if (result.canceled || !result.filePath) {
+            return { ok: false, canceled: true };
+        }
+
+        try {
+            fs.writeFileSync(result.filePath, JSON.stringify(resolved, null, 2), 'utf-8');
+            return { ok: true, filePath: result.filePath };
+        } catch (err) {
+            return { ok: false, error: err.message };
         }
     });
 }

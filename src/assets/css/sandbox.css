@@ -61,6 +61,16 @@
     font-size: 16px;
 }
 
+.sandbox-type-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: var(--brand-alpha, rgba(99, 102, 241, 0.15));
+    color: var(--bg-primary, #6366f1);
+    letter-spacing: 0.3px;
+}
+
 .sandbox-actions {
     display: flex;
     gap: 4px;
@@ -83,13 +93,132 @@
     padding: 0;
     overflow: hidden;
     position: relative;
-    background: #ffffff; /* Typically sandboxes render assuming a white background for apps */
+    background: #ffffff;
 }
 
 /* iframe setup */
 #sandbox-iframe {
     width: 100%;
-    height: 100%;
+    flex: 1;
     border: none;
     background: transparent;
+    min-height: 0;
+}
+
+/* ----------------------------------------- */
+/* Console panel embedded in sandbox          */
+/* ----------------------------------------- */
+.sandbox-console {
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-surface-elevated, #0f172a);
+    display: flex;
+    flex-direction: column;
+    max-height: 200px;
+    min-height: 28px;
+    transition: max-height 0.2s ease;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.sandbox-console.collapsed {
+    max-height: 28px;
+}
+
+.sandbox-console.collapsed .sandbox-console-output {
+    display: none;
+}
+
+.sandbox-console-header {
+    height: 28px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    user-select: none;
+}
+
+.sandbox-console-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.sandbox-console-toggle:hover {
+    color: var(--text-primary, #e2e8f0);
+}
+
+.sandbox-console-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.sandbox-console-actions .btn {
+    padding: 3px;
+    height: 20px;
+    width: 20px;
+}
+
+.sandbox-console-actions .btn i {
+    font-size: 12px;
+}
+
+.sandbox-console-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px 8px;
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--bg-surface, #111827);
+    min-height: 0;
+}
+
+/* Console entries */
+.console-entry {
+    padding: 1px 4px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.console-entry:last-child {
+    border-bottom: none;
+}
+
+.console-log {
+    color: #e2e8f0;
+}
+
+.console-info {
+    color: #60a5fa;
+}
+
+.console-warn {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.console-error {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.06);
+}
+
+/* Scrollbar styling for console */
+.sandbox-console-output::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sandbox-console-output::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sandbox-console-output::-webkit-scrollbar-thumb {
+    background: var(--border-subtle, #334155);
+    border-radius: 2px;
 }
