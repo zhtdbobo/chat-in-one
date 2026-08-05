@@ -2,6 +2,11 @@
 jest.mock('electron', () => ({
     app: {
         getPath: jest.fn().mockReturnValue('C:\\test\\userData')
+    },
+    safeStorage: {
+        isEncryptionAvailable: jest.fn().mockReturnValue(true),
+        encryptString: jest.fn(value => Buffer.from(`encrypted:${value}`, 'utf8')),
+        decryptString: jest.fn(buffer => buffer.toString('utf8').replace(/^encrypted:/, ''))
     }
 }));
 
@@ -14,7 +19,15 @@ jest.mock('fs', () => ({
 }));
 
 const fs = require('fs');
-const { SimpleStore, parseDataFile, resolveApiKey } = require('../../src/js/main/store');
+const {
+    SimpleStore,
+    parseDataFile,
+    protectApiKey,
+    unprotectApiKey,
+    resolveApiKey,
+    normalizeHttpEndpoint,
+    resolveProviderRequestFromSettings
+} = require('../../src/js/main/store');
 
 describe('Store Module', () => {
     beforeEach(() => {
@@ -103,5 +116,38 @@ describe('resolveApiKey', () => {
     test('should return empty string if store is not initialized', () => {
         const result = resolveApiKey('some-id');
         expect(result).toBe('');
+    });
+});
+
+describe('API key protection', () => {
+    test('encrypts and decrypts API keys using Electron safeStorage', () => {
+        const protectedValue = protectApiKey('secret-key');
+
+        expect(protectedValue).toMatch(/^safe:v1:/);
+        expect(unprotectApiKey(protectedValue)).toBe('secret-key');
+    });
+
+    test('only releases a stored key to its saved endpoint', () => {
+        const encryptedKey = protectApiKey('secret-key');
+        const settings = {
+            providers: [{ id: 'p1', endpoint: 'https://api.example.com/v1/', apiKey: encryptedKey }]
+        };
+
+        expect(resolveProviderRequestFromSettings(settings, {
+            providerId: 'p1',
+            endpoint: 'https://api.example.com/v1',
+            apiKey: '__MASKED__'
+        })).toEqual({ endpoint: 'https://api.example.com/v1', apiKey: 'secret-key' });
+
+        expect(resolveProviderRequestFromSettings(settings, {
+            providerId: 'p1',
+            endpoint: 'https://attacker.example/v1',
+            apiKey: '__MASKED__'
+        })).toEqual({ error: 'API endpoint does not match the saved provider' });
+    });
+
+    test('rejects non-HTTP API endpoints and embedded credentials', () => {
+        expect(normalizeHttpEndpoint('file:///tmp/config')).toBe('');
+        expect(normalizeHttpEndpoint('https://user:pass@example.com/v1')).toBe('');
     });
 });

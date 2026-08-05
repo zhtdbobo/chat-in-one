@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `npm start` — launch Electron app in dev mode
-- `npm test` — run all Jest tests (46 tests, 8 suites)
+- `npm test` — run all Jest tests (57 tests, 8 suites)
 - `npm run dist` — build Windows NSIS installer
 - `npm run pack` — build unpacked Windows directory
 - `npm run clean` — delete `dist/` (Windows `rd /s /q`)
@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `src/js/main/store.js` | Persistence via electron-store (fallback: SimpleStore JSON file I/O). Schema migration for new fields. |
 | `src/js/main/network.js` | URL fallback chain: generates 6+ candidate URLs from a short endpoint, tries each until success. |
 | `src/js/main/stream.js` | SSE parser, MCP tool integration (2-round: tool call → tool result → final answer), model-specific config builders. |
-| `src/js/main/updater.js` | Multi-source auto-update: Gitee → GHProxy mirror → GitHub electron-updater. |
+| `src/js/main/updater.js` | Auto-update via gh-proxy.com generic feed with GitHub electron-updater fallback. |
 | `src/js/main/ipc.js` | All IPC handler registration (invoke/handle + send/on patterns). |
 | `src/js/main/window.js` | BrowserWindow + Tray creation, titlebar theme, close-to-tray behavior. |
 | `src/js/chat.js` | Chat CRUD, message sending, markdown rendering pipeline. |

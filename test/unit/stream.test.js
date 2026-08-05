@@ -20,10 +20,16 @@ jest.mock('../../src/js/main/network', () => ({
     fetchChatCompletionWithFallback: jest.fn()
 }));
 
-const { buildModelRequestConfig, stopStream } = require('../../src/js/main/stream');
+const { buildModelRequestConfig, handleStreamRequest, stopStream } = require('../../src/js/main/stream');
 const { fetchChatCompletionWithFallback } = require('../../src/js/main/network');
+const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 
 describe('Stream Module', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        global.activeStreamControllers = [];
+    });
+
     describe('buildModelRequestConfig', () => {
         test('should return default config for unknown model', () => {
             const config = buildModelRequestConfig('unknown-model');
@@ -131,6 +137,67 @@ describe('Stream Module', () => {
             const result = stopStream();
             
             expect(result).toBe(true);
+        });
+    });
+
+    describe('handleStreamRequest', () => {
+        const baseRequest = {
+            endpoint: 'https://api.example.com/v1',
+            providerId: 'provider-1',
+            modelName: 'test-model',
+            systemPrompt: 'system',
+            messages: [],
+            chatId: 'chat-1',
+            apiKey: 'test-key',
+            stream: false
+        };
+
+        test('parses non-streaming JSON responses', async () => {
+            fetchChatCompletionWithFallback.mockResolvedValue({
+                url: 'https://api.example.com/v1/chat/completions',
+                response: {
+                    ok: true,
+                    status: 200,
+                    json: jest.fn().mockResolvedValue({
+                        model: 'test-model',
+                        choices: [{ message: { content: 'plain JSON answer' } }],
+                        usage: { total_tokens: 12 }
+                    })
+                }
+            });
+            const event = { reply: jest.fn() };
+
+            await handleStreamRequest(event, baseRequest);
+
+            expect(event.reply).toHaveBeenCalledWith('stream-chunk', expect.objectContaining({
+                chatId: 'chat-1',
+                content: 'plain JSON answer'
+            }));
+            expect(event.reply).toHaveBeenCalledWith('stream-end', expect.objectContaining({
+                chatId: 'chat-1',
+                usage: { total_tokens: 12 }
+            }));
+        });
+
+        test('ignores renderer-supplied MCP command objects', async () => {
+            fetchChatCompletionWithFallback.mockResolvedValue({
+                url: 'https://api.example.com/v1/chat/completions',
+                response: {
+                    ok: true,
+                    status: 200,
+                    json: jest.fn().mockResolvedValue({
+                        choices: [{ message: { content: 'safe' } }]
+                    })
+                }
+            });
+            const event = { reply: jest.fn() };
+
+            await handleStreamRequest(event, {
+                ...baseRequest,
+                mcpServers: [{ id: 'evil', command: 'powershell.exe', args: '-Command,calc' }]
+            });
+
+            expect(StdioClientTransport).not.toHaveBeenCalled();
         });
     });
 });

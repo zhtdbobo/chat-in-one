@@ -1,8 +1,79 @@
-const { app } = require('electron');
+const { app, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('node:path');
 
 let store;
+const ENCRYPTED_API_KEY_PREFIX = 'safe:v1:';
+
+function protectApiKey(apiKey) {
+    const value = String(apiKey || '');
+    if (!value || value.startsWith(ENCRYPTED_API_KEY_PREFIX)) return value;
+    if (!safeStorage?.isEncryptionAvailable?.()) return value;
+    try {
+        return ENCRYPTED_API_KEY_PREFIX + safeStorage.encryptString(value).toString('base64');
+    } catch (error) {
+        console.error('Failed to protect API key:', error);
+        return value;
+    }
+}
+
+function unprotectApiKey(apiKey) {
+    const value = String(apiKey || '');
+    if (!value.startsWith(ENCRYPTED_API_KEY_PREFIX)) return value;
+    if (!safeStorage?.isEncryptionAvailable?.()) return '';
+    try {
+        const encrypted = Buffer.from(value.slice(ENCRYPTED_API_KEY_PREFIX.length), 'base64');
+        return safeStorage.decryptString(encrypted);
+    } catch (error) {
+        console.error('Failed to decrypt API key:', error);
+        return '';
+    }
+}
+
+function normalizeHttpEndpoint(endpoint) {
+    try {
+        const parsed = new URL(String(endpoint || '').trim());
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+        if (parsed.username || parsed.password) return '';
+        parsed.hash = '';
+        return parsed.toString().replace(/\/+$/, '');
+    } catch (error) {
+        return '';
+    }
+}
+
+function getEndpointOrigin(endpoint) {
+    const normalized = normalizeHttpEndpoint(endpoint);
+    return normalized ? new URL(normalized).origin : '';
+}
+
+function resolveProviderRequestFromSettings(settings, { providerId, endpoint, apiKey }) {
+    const normalizedEndpoint = normalizeHttpEndpoint(endpoint);
+    if (!normalizedEndpoint) {
+        return { error: 'Invalid API endpoint' };
+    }
+
+    const suppliedKey = String(apiKey || '');
+    if (suppliedKey && suppliedKey !== '__MASKED__') {
+        return { endpoint: normalizedEndpoint, apiKey: suppliedKey };
+    }
+
+    const provider = settings?.providers?.find(p => p.id === providerId);
+    if (!provider) return { error: 'Unknown provider' };
+
+    const storedEndpoint = normalizeHttpEndpoint(provider.endpoint);
+    if (!storedEndpoint || storedEndpoint !== normalizedEndpoint) {
+        return { error: 'API endpoint does not match the saved provider' };
+    }
+
+    const resolvedKey = unprotectApiKey(provider.apiKey);
+    if (!resolvedKey) return { error: 'Missing apiKey' };
+    return { endpoint: storedEndpoint, apiKey: resolvedKey };
+}
+
+function resolveProviderRequest(request) {
+    return resolveProviderRequestFromSettings(getStore()?.get('settings'), request);
+}
 
 // Simple fallback JSON store in user paths if electron-store is not available during dev
 class SimpleStore {
@@ -39,7 +110,6 @@ function parseDataFile(filePath, defaults) {
 async function initStore() {
     const defaultSettings = {
         theme: "light",
-        ignoreCertificateErrors: false,
         systemPrompt: "You are a helpful assistant.",
         providers: [
             {
@@ -88,6 +158,21 @@ async function initStore() {
     const currentSettings = store.get('settings') || {};
     let settingsChanged = false;
 
+    // Removed: this Chromium-wide switch did not affect main-process API fetches
+    // and weakened TLS checks for every page loaded by the application.
+    if (Object.prototype.hasOwnProperty.call(currentSettings, 'ignoreCertificateErrors')) {
+        delete currentSettings.ignoreCertificateErrors;
+        settingsChanged = true;
+    }
+
+    for (const provider of currentSettings.providers || []) {
+        const protectedKey = protectApiKey(provider.apiKey);
+        if (protectedKey !== provider.apiKey) {
+            provider.apiKey = protectedKey;
+            settingsChanged = true;
+        }
+    }
+
     if (!currentSettings.mcpServers || currentSettings.mcpServers.length === 0) {
         currentSettings.mcpServers = defaultSettings.mcpServers;
         settingsChanged = true;
@@ -115,7 +200,7 @@ function resolveApiKey(providerId) {
     if (!s) return '';
     const settings = s.get('settings');
     const provider = settings?.providers?.find(p => p.id === providerId);
-    return provider?.apiKey || '';
+    return unprotectApiKey(provider?.apiKey);
 }
 
 module.exports = {
@@ -123,5 +208,11 @@ module.exports = {
     getStore,
     SimpleStore,
     parseDataFile,
-    resolveApiKey
+    resolveApiKey,
+    protectApiKey,
+    unprotectApiKey,
+    normalizeHttpEndpoint,
+    getEndpointOrigin,
+    resolveProviderRequestFromSettings,
+    resolveProviderRequest
 };

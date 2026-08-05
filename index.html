@@ -10,7 +10,7 @@
         style-src 'self' 'unsafe-inline';
         font-src 'self' data:;
         img-src 'self' data: blob:;
-        connect-src *;
+        connect-src 'none';
         object-src 'none';
         frame-ancestors 'none';
         base-uri 'none';
@@ -486,16 +486,6 @@
                                     默认开启联网搜索
                                     <span
                                         style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">开启后，模型将尝试通过搜索获取最新信息（需模型或插件支持）</span>
-                                </label>
-                            </div>
-                            <div class="form-group"
-                                style="display: flex; align-items: center; gap: 10px; margin-top: 12px;">
-                                <input type="checkbox" id="ignore-certificate-errors"
-                                    style="width: 16px; height: 16px; flex-shrink: 0;">
-                                <label for="ignore-certificate-errors" style="margin-bottom: 0; cursor: pointer;">
-                                    忽略 SSL 证书错误
-                                    <span
-                                        style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 2px;">用于自签名证书或代理环境，修改后需重启应用生效</span>
                                 </label>
                             </div>
                         </div>

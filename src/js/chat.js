@@ -156,7 +156,7 @@ function switchChat(chatId) {
             // Sync toggle button and select btn
             if (typeof updateComparisonToggleState === 'function') updateComparisonToggleState();
             const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
-            if (multiModelSelectBtn) multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
+            if (multiModelSelectBtn) multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${escapeHtml(names.join(' vs '))}`;
 
             // Force maximize for best view (with restoration support)
             if (window.api && window.api.isMaximized) {
@@ -206,7 +206,7 @@ function renderChatList() {
         }
 
         div.innerHTML = `
-            <input type="checkbox" class="chat-item-checkbox" data-id="${chat.id}">
+            <input type="checkbox" class="chat-item-checkbox" data-id="${escapeHtml(chat.id)}">
             ${iconHtml}
             <span class="chat-item-title">${escapeHtml(chat.title)}</span>
             <div class="chat-actions">
@@ -321,7 +321,7 @@ function renderMessages(messages) {
                 header.innerHTML = `
                     <div class="model-name">
                         <i class="ph ph-cpu"></i>
-                        <span title="${providerName} · ${mName}">${mName}</span>
+                        <span title="${escapeHtml(providerName)} · ${escapeHtml(mName)}">${escapeHtml(mName)}</span>
                     </div>
                     <div class="model-status">就绪</div>
                 `;
@@ -396,21 +396,21 @@ function renderMessages(messages) {
 
                         let htmlContent = '';
                         if (cReasoning && state.settings.enableThinking !== false) {
-                            htmlContent += `<details class="thinking-block"><summary><i class="ph ph-brain"></i> 思考过程</summary><div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(cReasoning), { ADD_TAGS: ['button'] })}</div></details>`;
+                            htmlContent += `<details class="thinking-block"><summary><i class="ph ph-brain"></i> 思考过程</summary><div class="thinking-content markdown-body">${renderMarkdownSafe(cReasoning)}</div></details>`;
                         }
                         if (cRaw) {
-                            htmlContent += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(cRaw), { ADD_TAGS: ['button'] })}</div>`;
+                            htmlContent += `<div class="markdown-body">${renderMarkdownSafe(cRaw)}</div>`;
                         }
 
                         col.innerHTML = `
                             <div class="comparison-header" style="padding:10px 14px; background:var(--bg-surface-elevated); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:13px;">
-                                <div class="model-name"><strong>${pName}</strong></div>
+                                <div class="model-name"><strong>${escapeHtml(pName)}</strong></div>
                                 <div class="model-status" style="border:none;">✓ 完成</div>
                             </div>
                             <div class="comparison-body" style="padding:14px; flex:1; overflow-y:auto;">
                                 <div class="message-content" style="padding:0; background:transparent;">
                                     ${htmlContent}
-                                    <div class="message-meta" style="margin-top:16px;">模型: ${cMsg.model || pName}</div>
+                                    <div class="message-meta" style="margin-top:16px;">模型: ${escapeHtml(cMsg.model || pName)}</div>
                                 </div>
                             </div>
                         `;
@@ -449,7 +449,10 @@ function renderMessages(messages) {
 function renderMarkdownSafe(text) {
     const raw = typeof text === 'string' ? text : String(text ?? '');
     try {
-        return DOMPurify.sanitize(marked.parse(raw), { ADD_TAGS: ['button'] });
+        return DOMPurify.sanitize(marked.parse(raw), {
+            FORBID_TAGS: ['button', 'form', 'input', 'textarea', 'select', 'option', 'style'],
+            FORBID_ATTR: ['id', 'name', 'style']
+        });
     } catch (e) {
         console.error('Markdown render error, fallback to plain text:', e);
         return `<pre class="markdown-body">${escapeHtml(raw)}</pre>`;
@@ -490,13 +493,19 @@ function renderMessageItem(role, content, fullMsgObj = null) {
         if (attachments.length > 0) {
             htmlContent += '<div class="attachments-container" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">';
             attachments.forEach(attachment => {
-                const isImage = attachment.type.startsWith('image/');
+                const attachmentType = String(attachment?.type || '');
+                const attachmentName = escapeHtml(attachment?.name || '附件');
+                const attachmentData = String(attachment?.data || '');
+                const isImage = attachmentType.startsWith('image/');
+                const safeImageData = /^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(attachmentData)
+                    ? escapeHtml(attachmentData)
+                    : '';
                 if (isImage) {
                     htmlContent += `
                         <div style="position: relative; width: 80px; height: 80px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle);">
-                            <img src="${attachment.data}" style="width: 100%; height: 100%; object-fit: cover;">
+                            ${safeImageData ? `<img src="${safeImageData}" style="width: 100%; height: 100%; object-fit: cover;">` : '<i class="ph ph-image-broken"></i>'}
                             <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.6); color: white; font-size: 10px; padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                ${attachment.name}
+                                ${attachmentName}
                             </div>
                         </div>
                     `;
@@ -505,7 +514,7 @@ function renderMessageItem(role, content, fullMsgObj = null) {
                         <div style="position: relative; width: 80px; height: 80px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); background: var(--bg-surface-elevated); display: flex; flex-direction: column; align-items: center; justify-content: center;">
                             <i class="ph ph-file" style="font-size: 24px; color: var(--text-muted);"></i>
                             <div style="font-size: 10px; color: var(--text-secondary); text-align: center; padding: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 90%;">
-                                ${attachment.name}
+                                ${attachmentName}
                             </div>
                         </div>
                     `;
@@ -570,13 +579,24 @@ function renderMessageItem(role, content, fullMsgObj = null) {
 
             const metaStr = parts.join(' · ');
             const messageContentEl = wrapper.querySelector('.message-content');
-            if (messageContentEl) messageContentEl.insertAdjacentHTML('beforeend', `<div class="message-meta">${metaStr}</div>`);
+            if (messageContentEl) {
+                const metaEl = document.createElement('div');
+                metaEl.className = 'message-meta';
+                metaEl.textContent = metaStr;
+                messageContentEl.appendChild(metaEl);
+            }
         } else if (role === 'user') {
             const parts = [`${wordCount} words`];
             if (fullMsgObj.time) parts.push(fullMsgObj.time);
             const metaStr = parts.join(' · ');
             const messageContentEl = wrapper.querySelector('.message-content');
-            if (messageContentEl) messageContentEl.insertAdjacentHTML('beforeend', `<div class="message-meta" style="text-align:right;">${metaStr}</div>`);
+            if (messageContentEl) {
+                const metaEl = document.createElement('div');
+                metaEl.className = 'message-meta';
+                metaEl.style.textAlign = 'right';
+                metaEl.textContent = metaStr;
+                messageContentEl.appendChild(metaEl);
+            }
         }
     }
 
@@ -1012,14 +1032,13 @@ function sendMessage() {
                 chatId: chat.id,
                 isComparisonStream: true,  // Flag to prevent aborting sibling streams
                 enableThinking: enableThinking,
-                enableSearch: !!state.settings.enableSearch,
                 temperature: temperature,
                 top_p: topP,
                 max_tokens: maxOutputTokens,
                 stream: streamOutput,
-                mcpServers: (state.settings.mcpServers || []).filter(s =>
+                mcpServerIds: (state.settings.mcpServers || []).filter(s =>
                     (state.enabledMcpServerIds || []).includes(s.id)
-                )
+                ).map(s => s.id)
             });
         });
     } else {
@@ -1032,14 +1051,13 @@ function sendMessage() {
             messages: messagesForModel,
             chatId: chat.id,
             enableThinking: enableThinking,
-            enableSearch: !!state.settings.enableSearch,
             temperature: temperature,
             top_p: topP,
             max_tokens: maxOutputTokens,
             stream: streamOutput,
-            mcpServers: (state.settings.mcpServers || []).filter(s =>
+            mcpServerIds: (state.settings.mcpServers || []).filter(s =>
                 (state.enabledMcpServerIds || []).includes(s.id)
-            )
+            ).map(s => s.id)
         });
     }
 }

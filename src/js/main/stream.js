@@ -1,29 +1,36 @@
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 const { fetchChatCompletionWithFallback } = require('./network');
-const { getStore, resolveApiKey } = require('./store');
+const { getStore, resolveProviderRequest } = require('./store');
 
-let mcpClients = [];
-let toolNameToServerMap = new Map();
-let currentStreamController = null;
+const activeMcpSessions = new Set();
 
-async function cleanupMcpClients() {
-    for (const c of mcpClients) {
+async function closeMcpSession(session) {
+    if (!session || session.closed) return;
+    session.closed = true;
+    for (const clientEntry of session.clients) {
         try {
-            if (c.transport) {
-                await c.transport.close();
-            }
+            await clientEntry.transport?.close();
         } catch (closeErr) {
-            console.error(`Error closing MCP transport:`, closeErr);
+            console.error('Error closing MCP transport:', closeErr);
         }
     }
-    mcpClients = [];
-    toolNameToServerMap.clear();
+    activeMcpSessions.delete(session);
+}
+
+async function cleanupMcpClients() {
+    await Promise.all(Array.from(activeMcpSessions, closeMcpSession));
 }
 
 async function getMcpTools(servers) {
     const allTools = [];
-    toolNameToServerMap.clear();
+    const session = {
+        clients: [],
+        toolNameToServerMap: new Map(),
+        closed: false
+    };
+    activeMcpSessions.add(session);
+
     for (const server of servers) {
         if (!server.command) continue;
         let transport = null;
@@ -36,11 +43,15 @@ async function getMcpTools(servers) {
             client = new Client({ name: "chat-in-one-client", version: "1.0.0" }, { capabilities: {} });
             await client.connect(transport);
             const tools = await client.listTools();
-            allTools.push(...tools.tools.map(t => ({ ...t, serverId: server.id })));
             for (const t of tools.tools) {
-                toolNameToServerMap.set(t.name, server.id);
+                if (session.toolNameToServerMap.has(t.name)) {
+                    console.warn(`Skipping duplicate MCP tool name: ${t.name}`);
+                    continue;
+                }
+                session.toolNameToServerMap.set(t.name, server.id);
+                allTools.push({ ...t, serverId: server.id });
             }
-            mcpClients.push({ id: server.id, client, transport });
+            session.clients.push({ id: server.id, client, transport });
         } catch (e) {
             console.error(`Failed to connect to MCP server ${server.name}:`, e);
             // 清理资源
@@ -53,7 +64,7 @@ async function getMcpTools(servers) {
             }
         }
     }
-    return allTools;
+    return { tools: allTools, session };
 }
 
 function buildModelRequestConfig(modelName, req = {}) {
@@ -104,27 +115,31 @@ function buildModelRequestConfig(modelName, req = {}) {
 }
 
 async function handleStreamRequest(event, requestData) {
-    const { endpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, enableSearch, temperature, top_p, max_tokens, stream, mcpServers, providerId } = requestData;
+    const { endpoint: requestedEndpoint, apiKey, modelName, systemPrompt, messages, chatId, enableThinking, temperature, top_p, max_tokens, stream, mcpServerIds, providerId } = requestData;
 
-    // Resolve API key from store if masked (keys never persist in renderer)
-    let resolvedApiKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
+    const credentials = resolveProviderRequest({ providerId, endpoint: requestedEndpoint, apiKey });
+    if (credentials.error) {
+        event.reply('stream-error', { chatId, modelName, error: credentials.error });
+        return;
+    }
+    const { endpoint, apiKey: resolvedApiKey } = credentials;
 
     let thisController;
+    let mcpSession = null;
     try {
-        // Cleanup old clients (only on non-comparison to avoid cancelling siblings)
-        if (!requestData.isComparisonStream) {
-            await cleanupMcpClients();
-        }
-
         // Create AbortController for this stream and register it
         thisController = new AbortController();
-        currentStreamController = thisController;
         if (!global.activeStreamControllers) global.activeStreamControllers = [];
         global.activeStreamControllers.push(thisController);
 
         let tools = [];
-        if (mcpServers && mcpServers.length > 0) {
-            tools = await getMcpTools(mcpServers);
+        const requestedMcpIds = Array.isArray(mcpServerIds) ? new Set(mcpServerIds.map(String)) : new Set();
+        if (requestedMcpIds.size > 0) {
+            const configuredServers = getStore()?.get('settings')?.mcpServers || [];
+            const selectedServers = configuredServers.filter(server => requestedMcpIds.has(String(server.id)));
+            const mcpResult = await getMcpTools(selectedServers);
+            tools = mcpResult.tools;
+            mcpSession = mcpResult.session;
         }
 
         const apiMessages = [
@@ -183,7 +198,6 @@ async function handleStreamRequest(event, requestData) {
             return;
         }
 
-        const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
 
         event.reply('stream-start', { chatId, modelName });
@@ -193,21 +207,43 @@ async function handleStreamRequest(event, requestData) {
         let lastUsage = null;
         let lastModel = modelName;
 
-        let buffer = '';
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                if (buffer.trim()) processSSELine(buffer, true);
-                break;
-            }
+        if (body.stream) {
+            const reader = response.body.getReader();
+            let buffer = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    if (buffer.trim()) processSSELine(buffer, true);
+                    break;
+                }
 
-            buffer += decoder.decode(value, { stream: true });
-            let lines = buffer.split(/\r?\n/);
-            buffer = lines.pop() || '';
+                buffer += decoder.decode(value, { stream: true });
+                let lines = buffer.split(/\r?\n/);
+                buffer = lines.pop() || '';
 
-            for (const line of lines) {
-                processSSELine(line);
+                for (const line of lines) {
+                    processSSELine(line);
+                }
             }
+        } else {
+            const parsed = await response.json();
+            const message = parsed.choices?.[0]?.message || {};
+            lastModel = parsed.model || modelName;
+            lastUsage = parsed.usage || null;
+            if (message.reasoning_content && enableThinking !== false) {
+                event.reply('stream-chunk', { chatId, modelName, reasoning_content: message.reasoning_content });
+            }
+            if (message.content) {
+                event.reply('stream-chunk', { chatId, modelName, content: message.content });
+            }
+            if (message.reasoning_content || message.content) {
+                firstTokenLatency = Date.now() - streamStartTime;
+            }
+            toolCalls = (message.tool_calls || []).map((tc) => ({
+                id: tc.id,
+                name: tc.function?.name || '',
+                args: tc.function?.arguments || '{}'
+            }));
         }
 
         function processSSELine(line, isFinal = false) {
@@ -266,8 +302,8 @@ async function handleStreamRequest(event, requestData) {
             event.reply('stream-chunk', { chatId, tool_call: "calling" });
             const toolResults = [];
             for (const tc of toolCalls.filter(Boolean)) {
-                const serverId = toolNameToServerMap.get(tc.name);
-                const clientObj = mcpClients.find(c => c.id === serverId);
+                const serverId = mcpSession?.toolNameToServerMap.get(tc.name);
+                const clientObj = mcpSession?.clients.find(c => c.id === serverId);
                 if (clientObj) {
                     try {
                         const result = await clientObj.client.callTool({
@@ -307,8 +343,18 @@ async function handleStreamRequest(event, requestData) {
                         stream_options: { include_usage: true }
                     })
                 },
-                currentStreamController
+                thisController
             );
+
+            if (!finalResponse.ok) {
+                const errorBody = await finalResponse.text();
+                event.reply('stream-error', {
+                    chatId,
+                    modelName,
+                    error: `Tool response API Error: ${finalResponse.status} - ${errorBody}`
+                });
+                return;
+            }
 
             // Once the second request starts, we can clear the calling status
             event.reply('stream-chunk', { chatId, tool_call: "responding" });
@@ -387,10 +433,7 @@ async function handleStreamRequest(event, requestData) {
         if (global.activeStreamControllers) {
             global.activeStreamControllers = global.activeStreamControllers.filter(c => c !== thisController);
         }
-        // Cleanup MCP clients when stream ends (only for non-comparison mode)
-        if (!requestData.isComparisonStream) {
-            await cleanupMcpClients();
-        }
+        await closeMcpSession(mcpSession);
     }
 }
 
@@ -398,10 +441,6 @@ function stopStream() {
     if (global.activeStreamControllers && global.activeStreamControllers.length > 0) {
         global.activeStreamControllers.forEach(c => c.abort());
         global.activeStreamControllers = [];
-    }
-    if (currentStreamController) {
-        currentStreamController.abort();
-        currentStreamController = null;
     }
     return true;
 }

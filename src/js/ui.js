@@ -22,7 +22,7 @@ function updateComparisonToggleState() {
             // 同步按钮文字
             if (state.selectedComparisonModels && state.selectedComparisonModels.length > 0) {
                 const names = state.selectedComparisonModels.map(id => id.split('|')[1]);
-                multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${names.join(' vs ')}`;
+                multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> ${escapeHtml(names.join(' vs '))}`;
             } else {
                 multiModelSelectBtn.innerHTML = `<i class="ph ph-columns"></i> 未选择模型`;
             }
@@ -205,10 +205,10 @@ function renderMultiModelList() {
                     margin-bottom: 4px;
                 `;
                 item.innerHTML = `
-                    <input type="checkbox" value="${modelId}" ${isChecked ? 'checked' : ''} style="width:15px;height:15px;flex-shrink:0;">
+                    <input type="checkbox" value="${escapeHtml(modelId)}" ${isChecked ? 'checked' : ''} style="width:15px;height:15px;flex-shrink:0;">
                     <div style="flex:1; min-width:0;">
-                        <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${m}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">${p.name}</div>
+                        <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(m)}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(p.name)}</div>
                     </div>
                 `;
 
@@ -370,16 +370,17 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
             const item = document.createElement('div');
             item.className = `model-selection-item ${isVisible ? 'selected' : ''}`;
             item.innerHTML = `
-                <span class="model-name">${modelId}</span>
+                <span class="model-name">${escapeHtml(modelId)}</span>
                 <div class="model-capabilities-indicators" style="display: flex; gap: 4px; font-size: 12px;">
                     <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
                     <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
                     <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
                 </div>
-                <button class="btn btn-sm model-toggle-btn ${isVisible ? 'btn-primary' : 'btn-ghost'}" data-model="${modelId}">
+                <button class="btn btn-sm model-toggle-btn ${isVisible ? 'btn-primary' : 'btn-ghost'}">
                     <i class="ph ${isVisible ? 'ph-eye' : 'ph-eye-slash'}"></i>
                 </button>
             `;
+            item.querySelector('button').dataset.model = modelId;
 
             item.querySelector('button').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -461,7 +462,7 @@ function showConfirmDialog(message, onConfirm, onCancel) {
     const dialog = document.createElement('div');
     dialog.className = 'simple-confirm-dialog';
     dialog.innerHTML = `
-        <div class="confirm-dialog-message">${message}</div>
+        <div class="confirm-dialog-message">${escapeHtml(message)}</div>
         <div class="confirm-dialog-buttons">
             <button class="btn btn-ghost btn-sm" id="confirm-cancel">取消</button>
             <button class="btn btn-danger btn-sm" id="confirm-ok">删除</button>
@@ -514,10 +515,10 @@ function showInputDialog(options) {
         panel.style.width = '90%';
 
         panel.innerHTML = `
-            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${title}</div>
+            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${escapeHtml(title)}</div>
             ${multiline
-                ? `<textarea class="model-search-input" placeholder="${placeholder}" rows="5" style="resize: vertical; min-height: 100px;">${defaultValue}</textarea>`
-                : `<input type="text" class="model-search-input" placeholder="${placeholder}" value="${defaultValue}">`
+                ? `<textarea class="model-search-input" placeholder="${escapeHtml(placeholder)}" rows="5" style="resize: vertical; min-height: 100px;">${escapeHtml(defaultValue)}</textarea>`
+                : `<input type="text" class="model-search-input" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(defaultValue)}">`
             }
             <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;">
                 <button class="btn btn-ghost btn-sm" id="input-dialog-cancel">取消</button>
@@ -586,7 +587,7 @@ function showCompanionDialog(options) {
         panel.style.width = '90%';
 
         panel.innerHTML = `
-            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${title}</div>
+            <div style="font-weight: 600; margin-bottom: 16px; font-size: 16px;">${escapeHtml(title)}</div>
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">名称</label>
                 <input type="text" id="companion-name-input" class="model-search-input" placeholder="请输入搭档名称" value="${escapeHtml(name)}">

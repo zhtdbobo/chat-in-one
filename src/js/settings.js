@@ -452,9 +452,6 @@ function openSettings() {
     if (systemPromptEl) systemPromptEl.value = state.settings.systemPrompt || '';
     if (enableThinkingEl) enableThinkingEl.checked = state.settings.enableThinking !== false;
     if (enableSearchEl) enableSearchEl.checked = !!state.settings.enableSearch;
-    const ignoreCertEl = document.getElementById('ignore-certificate-errors');
-    if (ignoreCertEl) ignoreCertEl.checked = !!state.settings.ignoreCertificateErrors;
-
     if (typeof initMCPSettings === 'function') {
         initMCPSettings();
     }
@@ -1028,26 +1025,24 @@ async function handleSettingsSave(e) {
     saveCurrentMCPServerData();
 
     // Use spread to preserve all existing settings (like lastUsedModel, theme, etc.)
-    const oldIgnoreCert = state.settings.ignoreCertificateErrors;
     const newSettings = {
         ...state.settings,
         systemPrompt: document.getElementById('system-prompt').value.trim(),
         enableThinking: document.getElementById('enable-thinking').checked,
         enableSearch: document.getElementById('enable-search').checked,
-        ignoreCertificateErrors: document.getElementById('ignore-certificate-errors')?.checked ?? state.settings.ignoreCertificateErrors,
         providers: tempProviders,
         mcpServers: tempMCPServers
     };
 
+    const saveResult = await window.api.saveSettings(newSettings);
+    if (saveResult?.ok === false) {
+        showNotification(saveResult.error || '设置保存失败', 'error');
+        return;
+    }
+
     state.settings = newSettings;
     updateSearchBtnState();
-    await window.api.saveSettings(newSettings);
 
-    // 提醒用户 SSL 设置需要重启生效
-    const newIgnoreCert = document.getElementById('ignore-certificate-errors')?.checked ?? false;
-    if (oldIgnoreCert !== newIgnoreCert && typeof showNotification === 'function') {
-        showNotification('SSL 证书忽略设置已保存，重启应用后生效', 'info');
-    }
     updateBadge();
     if (typeof renderSearchableModelSelect === 'function') {
         renderSearchableModelSelect();

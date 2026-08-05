@@ -2,6 +2,17 @@
 
 一个支持多家大模型服务商、OpenAI 兼容协议、MCP 工具和技能系统的本地桌面聊天应用，基于 Electron + 原生 JS 实现。
 
+当前版本：`v1.2.4`（Windows x64）
+
+### v1.2.4 更新
+
+- API Key 使用 Electron `safeStorage` 加密保存，并绑定到已保存的服务商地址
+- IPC 仅接受应用顶层页面调用，阻止远程页面和其他本地文件访问高权限接口
+- 加固 Markdown、服务商、模型、MCP、搭档、附件和历史消息渲染，降低持久化 XSS 风险
+- MCP 改为请求级独立会话，避免并发对话互相清理客户端或错误路由同名工具
+- 支持非流式 JSON 响应，并完善工具调用第二轮请求的错误处理
+- 自动更新优先通过 `gh-proxy.com` 下载 GitHub Release，失败后回退 GitHub 官方源
+
 ### 功能特性
 
 - **多服务商 / 多模型**
@@ -42,9 +53,9 @@
 
 #### 依赖
 
-- Node.js（建议 18+）
+- Node.js（建议 20+）
 - npm 或 pnpm
-- Windows / macOS / Linux（Electron 跨平台）
+- Windows 10/11 x64
 
 #### 安装依赖
 
@@ -62,15 +73,14 @@ npm start
 
 将启动 Electron 应用并加载本地前端。
 
-#### 打包（如有配置）
-
-如果 `package.json` 中配置了打包脚本，可以类似：
+#### 打包
 
 ```bash
-npm run build
+npm run pack
+npm run dist
 ```
 
-> 具体打包命令以 `package.json` 为准，如需可自行调整。
+`npm run pack` 生成免安装目录，`npm run dist` 生成 Windows NSIS 安装包。
 
 ---
 
@@ -143,6 +153,7 @@ npm run build
 ### 数据存储与导出
 
 - 所有设置与对话记录存储在用户目录下（通过 `electron-store` 或内置 JSON 存储）。
+- API Key 通过操作系统提供的 Electron `safeStorage` 加密后落盘；更换服务商域名时需要重新输入密钥。
 - 左侧侧边栏支持：
   - **导出对话**为 JSON
   - 从 JSON 文件 **导入对话**
@@ -169,5 +180,3 @@ npm run build
   - `preload.js`：向渲染进程暴露 `window.api`
   - `src/js/*.js`：渲染进程的 UI 与逻辑（聊天、设置、MCP、技能等）
 - UI 通过纯 HTML + CSS（在 `src/assets/css`）+ 少量 JS 动画实现，方便你根据喜好改主题或布局。
-
-# chat-in-one

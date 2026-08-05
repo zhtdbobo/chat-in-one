@@ -17,7 +17,6 @@ contextBridge.exposeInMainWorld('api', {
     testProviderConnection: (payload) => ipcRenderer.invoke('test-provider-connection', payload),
     summarizeChat: (payload) => ipcRenderer.invoke('summarize-chat', payload),
     fetchProviderModels: (payload) => ipcRenderer.invoke('fetch-provider-models', payload),
-    exportProviders: (providers) => ipcRenderer.invoke('export-providers', providers),
     exportProvidersToFile: (providers) => ipcRenderer.invoke('export-providers-to-file', providers),
 
     // Generic file save

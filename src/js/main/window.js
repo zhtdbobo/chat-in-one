@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require('electron');
 const path = require('node:path');
 
 let mainWindow = null;
@@ -29,9 +29,33 @@ function createWindow() {
             preload: path.join(__dirname, '../../../preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: true
+            sandbox: true,
+            navigateOnDragDrop: false
         },
         backgroundColor: '#ffffff'
+    });
+
+    // The privileged preload bridge is intended only for the packaged local UI.
+    // Never let user/model-generated links replace that UI with remote content.
+    const openExternalHttpUrl = (url) => {
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                void shell.openExternal(parsed.toString());
+            }
+        } catch (error) {
+            console.warn('Blocked invalid external URL:', url);
+        }
+    };
+
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        event.preventDefault();
+        openExternalHttpUrl(url);
+    });
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        openExternalHttpUrl(url);
+        return { action: 'deny' };
     });
 
     mainWindow.loadFile('index.html');

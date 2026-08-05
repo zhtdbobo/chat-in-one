@@ -16,8 +16,8 @@ jest.mock('../../src/js/main/store', () => ({
             if (key === 'settings') {
                 return {
                     providers: [
-                        { id: 'p1', name: 'Provider 1', apiKey: 'real-key-1' },
-                        { id: 'p2', name: 'Provider 2', apiKey: 'real-key-2' }
+                        { id: 'p1', name: 'Provider 1', endpoint: 'https://api.one.example/v1', apiKey: 'real-key-1' },
+                        { id: 'p2', name: 'Provider 2', endpoint: 'https://api.two.example/v1', apiKey: 'real-key-2' }
                     ]
                 };
             }
@@ -28,7 +28,23 @@ jest.mock('../../src/js/main/store', () => ({
     resolveApiKey: jest.fn().mockImplementation((providerId) => {
         const map = { p1: 'real-key-1', p2: 'real-key-2' };
         return map[providerId] || '';
-    })
+    }),
+    protectApiKey: jest.fn(value => value),
+    normalizeHttpEndpoint: jest.fn(value => {
+        try {
+            const url = new URL(value);
+            return ['http:', 'https:'].includes(url.protocol) ? url.toString().replace(/\/+$/, '') : '';
+        } catch (error) {
+            return '';
+        }
+    }),
+    getEndpointOrigin: jest.fn(value => {
+        try { return new URL(value).origin; } catch (error) { return ''; }
+    }),
+    resolveProviderRequest: jest.fn(({ endpoint, apiKey }) => ({
+        endpoint,
+        apiKey: apiKey && apiKey !== '__MASKED__' ? apiKey : 'stored-key'
+    }))
 }));
 
 jest.mock('../../src/js/main/updater', () => ({
@@ -63,6 +79,14 @@ const { checkForUpdates, installUpdate } = require('../../src/js/main/updater');
 const { handleStreamRequest, stopStream } = require('../../src/js/main/stream');
 const { updateTitlebarTheme, setIsQuitting, getMainWindow } = require('../../src/js/main/window');
 const { fetchChatCompletionWithFallback } = require('../../src/js/main/network');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const trustedEvent = {
+    senderFrame: {
+        url: pathToFileURL(path.resolve(__dirname, '../../index.html')).href,
+        parent: null
+    }
+};
 
 describe('IPC Module', () => {
     beforeEach(() => {
@@ -75,13 +99,13 @@ describe('IPC Module', () => {
 
         // 验证ipcMain.handle被调用
         expect(ipcMain.handle).toHaveBeenCalledWith('get-app-version', expect.any(Function));
-        expect(ipcMain.handle).toHaveBeenCalledWith('check-for-updates', checkForUpdates);
+        expect(ipcMain.handle).toHaveBeenCalledWith('check-for-updates', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('install-update', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('get-settings', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('save-settings', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('get-chats', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('save-chats', expect.any(Function));
-        expect(ipcMain.handle).toHaveBeenCalledWith('stop-stream', stopStream);
+        expect(ipcMain.handle).toHaveBeenCalledWith('stop-stream', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('is-maximized', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('maximize-window', expect.any(Function));
         expect(ipcMain.handle).toHaveBeenCalledWith('unmaximize-window', expect.any(Function));
@@ -89,7 +113,7 @@ describe('IPC Module', () => {
         expect(ipcMain.handle).toHaveBeenCalledWith('summarize-chat', expect.any(Function));
 
         // 验证ipcMain.on被调用
-        expect(ipcMain.on).toHaveBeenCalledWith('send-message-stream', handleStreamRequest);
+        expect(ipcMain.on).toHaveBeenCalledWith('send-message-stream', expect.any(Function));
         expect(ipcMain.on).toHaveBeenCalledWith('update-titlebar-theme', expect.any(Function));
     });
 
@@ -101,7 +125,7 @@ describe('IPC Module', () => {
         expect(getAppVersionCall).toBeDefined();
         
         const handler = getAppVersionCall[1];
-        const result = handler();
+        const result = handler(trustedEvent);
         expect(result).toBe('1.0.0');
         expect(app.getVersion).toHaveBeenCalled();
     });
@@ -114,7 +138,7 @@ describe('IPC Module', () => {
         expect(installUpdateCall).toBeDefined();
         
         const handler = installUpdateCall[1];
-        const result = handler();
+        const result = handler(trustedEvent);
         
         expect(setIsQuitting).toHaveBeenCalledWith(true);
         expect(installUpdate).toHaveBeenCalled();
@@ -129,7 +153,7 @@ describe('IPC Module', () => {
         expect(getSettingsCall).toBeDefined();
 
         const handler = getSettingsCall[1];
-        const result = handler();
+        const result = handler(trustedEvent);
 
         expect(getStore).toHaveBeenCalled();
         expect(getStore().get).toHaveBeenCalledWith('settings');
@@ -147,8 +171,8 @@ describe('IPC Module', () => {
         expect(saveSettingsCall).toBeDefined();
         
         const handler = saveSettingsCall[1];
-        const settings = { test: 'new value' };
-        const result = handler(null, settings);
+        const settings = { test: 'new value', providers: [] };
+        const result = handler(trustedEvent, settings);
         
         expect(getStore).toHaveBeenCalled();
         expect(getStore().set).toHaveBeenCalledWith('settings', settings);
@@ -164,7 +188,7 @@ describe('IPC Module', () => {
         
         const handler = updateTitlebarThemeCall[1];
         const theme = 'dark';
-        handler(null, theme);
+        handler(trustedEvent, theme);
         
         expect(updateTitlebarTheme).toHaveBeenCalledWith(theme);
     });
@@ -183,7 +207,7 @@ describe('IPC Module', () => {
                 { id: 'p3', name: 'Provider 3', apiKey: 'new-key-3' }
             ]
         };
-        const result = handler(null, newSettings);
+        const result = handler(trustedEvent, newSettings);
 
         // p1 and p2 should have their keys restored from old settings; p3 should keep its new key
         expect(getStore().set).toHaveBeenCalledWith('settings', {
@@ -196,21 +220,50 @@ describe('IPC Module', () => {
         expect(result).toBe(true);
     });
 
-    test('should handle export-providers resolving masked keys', () => {
+    test('should not expose an IPC handler that returns plaintext provider keys', () => {
         setupIpcHandlers();
 
         const exportCall = ipcMain.handle.mock.calls.find(call => call[0] === 'export-providers');
-        expect(exportCall).toBeDefined();
-        const handler = exportCall[1];
+        expect(exportCall).toBeUndefined();
+    });
 
-        const providers = [
-            { id: 'p1', name: 'Provider 1', apiKey: '__MASKED__' },
-            { id: 'p2', name: 'Provider 2', apiKey: 'already-real-key' }
-        ];
-        const result = handler(null, providers);
+    test('should reject IPC from remote pages', () => {
+        setupIpcHandlers();
+        const getSettingsCall = ipcMain.handle.mock.calls.find(call => call[0] === 'get-settings');
+        expect(() => getSettingsCall[1]({ senderFrame: { url: 'https://attacker.example/' } }))
+            .toThrow('Blocked IPC from untrusted sender');
+    });
 
-        expect(result[0].apiKey).toBe('real-key-1');
-        expect(result[1].apiKey).toBe('already-real-key');
+    test('should reject IPC from a different local file', () => {
+        setupIpcHandlers();
+        const getSettingsCall = ipcMain.handle.mock.calls.find(call => call[0] === 'get-settings');
+        expect(() => getSettingsCall[1]({ senderFrame: { url: 'file:///tmp/other.html', parent: null } }))
+            .toThrow('Blocked IPC from untrusted sender');
+    });
+
+    test('should restore normal close behavior if update installation throws', () => {
+        installUpdate.mockImplementationOnce(() => { throw new Error('install failed'); });
+        setupIpcHandlers();
+        const installCall = ipcMain.handle.mock.calls.find(call => call[0] === 'install-update');
+
+        expect(() => installCall[1](trustedEvent)).toThrow('install failed');
+        expect(setIsQuitting).toHaveBeenLastCalledWith(false);
+    });
+
+    test('should require the API key again when a saved provider host changes', () => {
+        setupIpcHandlers();
+        const saveCall = ipcMain.handle.mock.calls.find(call => call[0] === 'save-settings');
+        const result = saveCall[1](trustedEvent, {
+            providers: [{
+                id: 'p1',
+                name: 'Provider 1',
+                endpoint: 'https://attacker.example/v1',
+                apiKey: '__MASKED__'
+            }]
+        });
+
+        expect(result).toEqual(expect.objectContaining({ ok: false }));
+        expect(getStore().set).not.toHaveBeenCalled();
     });
 
     test('should handle fetch-provider-models with missing endpoint', () => {
@@ -221,7 +274,7 @@ describe('IPC Module', () => {
         const handler = fetchCall[1];
 
         // No endpoint → should immediately fail
-        return handler(null, { apiKey: 'test', providerId: 'p1' }).then(result => {
+        return handler(trustedEvent, { apiKey: 'test', providerId: 'p1' }).then(result => {
             expect(result.ok).toBe(false);
             expect(result.error).toContain('Missing endpoint');
         });

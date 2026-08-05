@@ -1,24 +1,73 @@
 const { ipcMain, app, dialog } = require('electron');
 const fs = require('fs');
-const { getStore, resolveApiKey } = require('./store');
+const path = require('node:path');
+const { fileURLToPath } = require('node:url');
+const {
+    getStore,
+    resolveApiKey,
+    protectApiKey,
+    getEndpointOrigin,
+    normalizeHttpEndpoint,
+    resolveProviderRequest
+} = require('./store');
 const { checkForUpdates, installUpdate } = require('./updater');
 const { handleStreamRequest, stopStream } = require('./stream');
 const { updateTitlebarTheme, setIsQuitting } = require('./window');
 const { fetchChatCompletionWithFallback } = require('./network');
 
+function isTrustedIpcSender(event) {
+    const senderFrame = event?.senderFrame;
+    if (!senderFrame || senderFrame.parent) return false;
+    try {
+        const senderPath = path.resolve(fileURLToPath(senderFrame.url));
+        const expectedPath = path.resolve(__dirname, '../../../index.html');
+        return process.platform === 'win32'
+            ? senderPath.toLowerCase() === expectedPath.toLowerCase()
+            : senderPath === expectedPath;
+    } catch (error) {
+        return false;
+    }
+}
+
+function handleTrusted(channel, handler) {
+    ipcMain.handle(channel, (event, ...args) => {
+        if (!isTrustedIpcSender(event)) {
+            throw new Error(`Blocked IPC from untrusted sender: ${channel}`);
+        }
+        return handler(event, ...args);
+    });
+}
+
+function onTrusted(channel, handler) {
+    ipcMain.on(channel, (event, ...args) => {
+        if (!isTrustedIpcSender(event)) {
+            console.warn(`Blocked IPC from untrusted sender: ${channel}`);
+            return;
+        }
+        return handler(event, ...args);
+    });
+}
+
 function setupIpcHandlers() {
     // App version (from Electron / package used at build)
-    ipcMain.handle('get-app-version', () => app.getVersion());
+    handleTrusted('get-app-version', () => app.getVersion());
 
     // Auto-update
-    ipcMain.handle('check-for-updates', checkForUpdates);
-    ipcMain.handle('install-update', () => {
+    handleTrusted('check-for-updates', checkForUpdates);
+    handleTrusted('install-update', () => {
         setIsQuitting(true);
-        return installUpdate();
+        try {
+            const result = installUpdate();
+            if (result === 'unavailable') setIsQuitting(false);
+            return result;
+        } catch (error) {
+            setIsQuitting(false);
+            throw error;
+        }
     });
 
     // Settings API — API keys stay in main process only
-    ipcMain.handle('get-settings', () => {
+    handleTrusted('get-settings', () => {
         const store = getStore();
         const settings = JSON.parse(JSON.stringify(store.get('settings')));
         // Mask API keys so they never reach the renderer memory
@@ -30,16 +79,30 @@ function setupIpcHandlers() {
         return settings;
     });
 
-    ipcMain.handle('save-settings', (event, newSettings) => {
+    handleTrusted('save-settings', (event, newSettings) => {
         const store = getStore();
         const oldSettings = store.get('settings');
+        if (!newSettings || !Array.isArray(newSettings.providers)) {
+            return { ok: false, error: 'Invalid settings payload' };
+        }
+
         // Restore masked API keys from stored settings
-        if (newSettings && newSettings.providers) {
-            for (const p of newSettings.providers) {
-                if (p.apiKey === '__MASKED__') {
-                    const oldP = oldSettings?.providers?.find(op => op.id === p.id);
-                    if (oldP && oldP.apiKey) p.apiKey = oldP.apiKey;
+        for (const p of newSettings.providers) {
+            const oldP = oldSettings?.providers?.find(op => op.id === p.id);
+            const newEndpoint = normalizeHttpEndpoint(p.endpoint);
+            if (p.endpoint && !newEndpoint) {
+                return { ok: false, error: `Invalid API endpoint for provider ${p.name || p.id || ''}` };
+            }
+
+            if (p.apiKey === '__MASKED__') {
+                const oldOrigin = getEndpointOrigin(oldP?.endpoint);
+                const newOrigin = getEndpointOrigin(p.endpoint);
+                if (oldP?.apiKey && oldOrigin && newOrigin && oldOrigin !== newOrigin) {
+                    return { ok: false, error: 'Changing a provider host requires re-entering its API key' };
                 }
+                p.apiKey = oldP?.apiKey || '';
+            } else if (p.apiKey) {
+                p.apiKey = protectApiKey(p.apiKey);
             }
         }
         store.set('settings', newSettings);
@@ -47,31 +110,27 @@ function setupIpcHandlers() {
     });
 
     // Chats API
-    ipcMain.handle('get-chats', () => {
+    handleTrusted('get-chats', () => {
         const store = getStore();
         return store.get('chats');
     });
 
-    ipcMain.handle('save-chats', (event, chats) => {
+    handleTrusted('save-chats', (event, chats) => {
         const store = getStore();
         store.set('chats', chats);
         return true;
     });
 
     // Stream Chat API
-    ipcMain.on('send-message-stream', handleStreamRequest);
-    ipcMain.handle('stop-stream', stopStream);
+    onTrusted('send-message-stream', handleStreamRequest);
+    handleTrusted('stop-stream', stopStream);
 
-    // Provider API key lookup (for settings page operations only)
-    ipcMain.handle('get-provider-api-key', (event, providerId) => {
-        return resolveApiKey(providerId);
-    });
-    ipcMain.on('update-titlebar-theme', (event, theme) => {
+    onTrusted('update-titlebar-theme', (event, theme) => {
         updateTitlebarTheme(theme);
     });
 
     // Window Management API
-    ipcMain.handle('is-maximized', () => {
+    handleTrusted('is-maximized', () => {
         const { getMainWindow } = require('./window');
         const mainWindow = getMainWindow();
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -80,7 +139,7 @@ function setupIpcHandlers() {
         return false;
     });
 
-    ipcMain.handle('maximize-window', () => {
+    handleTrusted('maximize-window', () => {
         const { getMainWindow } = require('./window');
         const mainWindow = getMainWindow();
         if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
@@ -89,7 +148,7 @@ function setupIpcHandlers() {
         return true;
     });
 
-    ipcMain.handle('unmaximize-window', () => {
+    handleTrusted('unmaximize-window', () => {
         const { getMainWindow } = require('./window');
         const mainWindow = getMainWindow();
         if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized()) {
@@ -99,13 +158,14 @@ function setupIpcHandlers() {
     });
 
     // Connection test (for providers that may not support /models)
-    ipcMain.handle('test-provider-connection', async (event, payload) => {
+    handleTrusted('test-provider-connection', async (event, payload) => {
         const { endpoint, apiKey, modelName, providerId } = payload || {};
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
 
-        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
-        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
+        const credentials = resolveProviderRequest({ providerId, endpoint, apiKey });
+        if (credentials.error) return { ok: false, error: credentials.error };
+        const { endpoint: resolvedEndpoint, apiKey: resolvedKey } = credentials;
 
         const controller = new AbortController();
         const timeoutMs = 12000;
@@ -114,7 +174,7 @@ function setupIpcHandlers() {
         const start = Date.now();
         try {
             const { response: resp, url: usedUrl } = await fetchChatCompletionWithFallback(
-                endpoint,
+                resolvedEndpoint,
                 {
                     method: 'POST',
                     headers: {
@@ -174,13 +234,14 @@ function setupIpcHandlers() {
     });
 
     // One-shot summarization (context compression)
-    ipcMain.handle('summarize-chat', async (event, payload) => {
+    handleTrusted('summarize-chat', async (event, payload) => {
         const { endpoint, apiKey, modelName, providerId, systemPrompt, messages, max_tokens, temperature } = payload || {};
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
         if (!modelName) return { ok: false, error: 'Missing modelName' };
 
-        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
-        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
+        const credentials = resolveProviderRequest({ providerId, endpoint, apiKey });
+        if (credentials.error) return { ok: false, error: credentials.error };
+        const { endpoint: resolvedEndpoint, apiKey: resolvedKey } = credentials;
 
         const controller = new AbortController();
         const timeoutMs = 45000;
@@ -194,7 +255,7 @@ function setupIpcHandlers() {
             ];
 
             const { response: resp, url: usedUrl } = await fetchChatCompletionWithFallback(
-                endpoint,
+                resolvedEndpoint,
                 {
                     method: 'POST',
                     headers: {
@@ -253,16 +314,19 @@ function setupIpcHandlers() {
     });
 
     // Fetch models from provider endpoint (resolves API key server-side)
-    ipcMain.handle('fetch-provider-models', async (event, payload) => {
+    handleTrusted('fetch-provider-models', async (event, payload) => {
         const { endpoint, apiKey, providerId } = payload || {};
         if (!endpoint) return { ok: false, error: 'Missing endpoint' };
 
-        let resolvedKey = (apiKey && apiKey !== '__MASKED__') ? apiKey : resolveApiKey(providerId);
-        if (!resolvedKey) return { ok: false, error: 'Missing apiKey' };
+        const credentials = resolveProviderRequest({ providerId, endpoint, apiKey });
+        if (credentials.error) return { ok: false, error: credentials.error };
+        const { endpoint: resolvedEndpoint, apiKey: resolvedKey } = credentials;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
         try {
             // Build model-list URL candidates from the short endpoint
-            const base = String(endpoint).trim()
+            const base = resolvedEndpoint
                 .replace(/\/(chat\/completions|completions|complete)\/?$/i, '')
                 .replace(/\/+$/, '');
             const lower = base.toLowerCase();
@@ -282,7 +346,8 @@ function setupIpcHandlers() {
             for (const fetchPath of Array.from(new Set(candidates))) {
                 try {
                     const resp = await fetch(fetchPath, {
-                        headers: { 'Authorization': 'Bearer ' + resolvedKey }
+                        headers: { 'Authorization': 'Bearer ' + resolvedKey },
+                        signal: controller.signal
                     });
                     if (!resp.ok) {
                         lastError = new Error('HTTP ' + resp.status + ' @ ' + fetchPath);
@@ -292,6 +357,7 @@ function setupIpcHandlers() {
                     lastError = null;
                     break;
                 } catch (err) {
+                    if (err?.name === 'AbortError') throw err;
                     lastError = err;
                 }
             }
@@ -314,25 +380,15 @@ function setupIpcHandlers() {
 
             return { ok: true, models };
         } catch (err) {
-            return { ok: false, error: err.message || String(err) };
+            const error = err?.name === 'AbortError' ? 'Timeout after 12000ms' : (err.message || String(err));
+            return { ok: false, error };
+        } finally {
+            clearTimeout(timeoutId);
         }
     });
 
-    // Export providers with real API keys resolved server-side
-    ipcMain.handle('export-providers', (event, providers) => {
-        if (!Array.isArray(providers)) return [];
-        return providers.map(p => {
-            if (!p) return p;
-            const resolved = { ...p };
-            if (resolved.apiKey === '__MASKED__') {
-                resolved.apiKey = resolveApiKey(p.id);
-            }
-            return resolved;
-        });
-    });
-
     // Generic: save arbitrary JSON data to a file via native save dialog
-    ipcMain.handle('save-json-file', async (event, { data, defaultName, title }) => {
+    handleTrusted('save-json-file', async (event, { data, defaultName, title }) => {
         const win = event.sender.getOwnerBrowserWindow?.() || null;
         const result = await dialog.showSaveDialog(win, {
             title: title || '保存文件',
@@ -353,7 +409,7 @@ function setupIpcHandlers() {
     });
 
     // Save resolved providers to a file via native save dialog
-    ipcMain.handle('export-providers-to-file', async (event, providers) => {
+    handleTrusted('export-providers-to-file', async (event, providers) => {
         if (!Array.isArray(providers) || providers.length === 0) {
             return { ok: false, error: 'No providers to export' };
         }
@@ -389,5 +445,6 @@ function setupIpcHandlers() {
 }
 
 module.exports = {
-    setupIpcHandlers
+    setupIpcHandlers,
+    isTrustedIpcSender
 };

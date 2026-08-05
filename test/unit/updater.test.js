@@ -1,71 +1,55 @@
 jest.mock('electron', () => ({
-    app: {
-        quit: jest.fn()
-    },
-    BrowserWindow: {
-        getAllWindows: jest.fn().mockReturnValue([])
-    }
+    app: { quit: jest.fn() },
+    BrowserWindow: { getAllWindows: jest.fn().mockReturnValue([]) }
 }));
 
-const { runInstallUpdate } = require('../../src/js/main/updater');
+const {
+    runInstallUpdate,
+    runUpdateCheckWithFallback,
+    setUpdateFeed,
+    UPDATE_FEEDS
+} = require('../../src/js/main/updater');
 
-describe('Updater install simulation', () => {
-    test('点击重启并更新：有本地安装包时拉起安装器并退出', () => {
-        const spawnInstaller = jest.fn();
-        const quitApp = jest.fn();
+describe('Updater install safety', () => {
+    test('uses only electron-updater for installation', () => {
         const quitAndInstall = jest.fn();
 
-        const result = runInstallUpdate({
-            source: 'gitee',
-            installerPath: 'C:/tmp/update.exe',
-            existsSync: () => true,
-            spawnInstaller,
-            quitAndInstall,
-            quitApp
-        });
-
-        expect(result).toBe('custom-installer');
-        expect(spawnInstaller).toHaveBeenCalledWith('C:/tmp/update.exe');
-        expect(quitApp).toHaveBeenCalledTimes(1);
-        expect(quitAndInstall).not.toHaveBeenCalled();
-    });
-
-    test('点击重启并更新：无本地安装包时走 autoUpdater.quitAndInstall', () => {
-        const spawnInstaller = jest.fn();
-        const quitApp = jest.fn();
-        const quitAndInstall = jest.fn();
-
-        const result = runInstallUpdate({
-            source: 'github',
-            installerPath: null,
-            existsSync: () => false,
-            spawnInstaller,
-            quitAndInstall,
-            quitApp
-        });
+        const result = runInstallUpdate({ quitAndInstall });
 
         expect(result).toBe('auto-updater');
         expect(quitAndInstall).toHaveBeenCalledWith(false, true);
-        expect(spawnInstaller).not.toHaveBeenCalled();
-        expect(quitApp).not.toHaveBeenCalled();
     });
 
-    test('点击重启并更新：无安装器且无 autoUpdater 时兜底退出', () => {
-        const spawnInstaller = jest.fn();
-        const quitApp = jest.fn();
+    test('does not quit or execute a fallback installer when updater is unavailable', () => {
+        expect(runInstallUpdate({ quitAndInstall: null })).toBe('unavailable');
+    });
 
-        const result = runInstallUpdate({
-            source: 'github',
-            installerPath: null,
-            existsSync: () => false,
-            spawnInstaller,
-            quitAndInstall: null,
-            quitApp
+    test('configures the gh-proxy.com generic feed for verified release downloads', () => {
+        const updater = { setFeedURL: jest.fn() };
+
+        setUpdateFeed(updater, 'proxy');
+
+        expect(updater.setFeedURL).toHaveBeenCalledWith({
+            provider: 'generic',
+            url: 'https://gh-proxy.com/https://github.com/zhtdbobo/chat-in-one/releases/latest/download'
         });
+        expect(UPDATE_FEEDS.github).toEqual(expect.objectContaining({ provider: 'github' }));
+    });
 
-        expect(result).toBe('quit-fallback');
-        expect(quitApp).toHaveBeenCalledTimes(1);
-        expect(spawnInstaller).not.toHaveBeenCalled();
+    test('falls back to the official GitHub feed when the proxy fails', async () => {
+        const updater = {
+            setFeedURL: jest.fn(),
+            checkForUpdates: jest.fn()
+                .mockRejectedValueOnce(new Error('proxy unavailable'))
+                .mockResolvedValueOnce({ downloadPromise: Promise.resolve() })
+        };
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const result = await runUpdateCheckWithFallback(updater);
+
+        expect(result).toEqual(expect.objectContaining({ ok: true, source: 'github' }));
+        expect(updater.setFeedURL).toHaveBeenNthCalledWith(1, UPDATE_FEEDS.proxy);
+        expect(updater.setFeedURL).toHaveBeenNthCalledWith(2, UPDATE_FEEDS.github);
+        console.warn.mockRestore();
     });
 });
-

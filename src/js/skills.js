@@ -54,7 +54,7 @@ function renderCompanionsList() {
         const iconInfo = getCompanionIconInfo(c.name);
         item.innerHTML = `
             <i class="ph-fill ${iconInfo.icon}" style="color: ${iconInfo.color}"></i>
-            <span class="companion-name">${c.name || '未命名搭档'}</span>
+            <span class="companion-name">${escapeHtml(c.name || '未命名搭档')}</span>
         `;
         item.title = c.desc || c.name || '';
         item.onclick = () => {

@@ -28,7 +28,7 @@ function renderMCPServers() {
             <div class="mcp-server-header">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span class="mcp-status-dot ${statusClass}"></span>
-                    <h4>服务器 #${index + 1}: ${server.name || '未命名'}</h4>
+                    <h4>服务器 #${index + 1}: ${escapeHtml(server.name || '未命名')}</h4>
                 </div>
                 <div style="display:flex; gap:4px;">
                     <button type="button" class="btn btn-icon btn-ghost btn-sm del-mcp-btn" data-index="${index}">
@@ -39,16 +39,16 @@ function renderMCPServers() {
             <div class="mcp-server-form">
                 <div class="form-group">
                     <label>名称 (可选)</label>
-                    <input type="text" class="mcp-name" value="${server.name || ''}" placeholder="例如: local-files">
+                    <input type="text" class="mcp-name" value="${escapeHtml(server.name || '')}" placeholder="例如: local-files">
                 </div>
                 <div class="mcp-server-row">
                     <div class="form-group" style="flex: 2;">
                         <label>执行命令 (Command)</label>
-                        <input type="text" class="mcp-command" value="${server.command || ''}" placeholder="npx, python, etc.">
+                        <input type="text" class="mcp-command" value="${escapeHtml(server.command || '')}" placeholder="npx, python, etc.">
                     </div>
                     <div class="form-group" style="flex: 3;">
                         <label>参数 (Arguments, 逗号分隔)</label>
-                        <input type="text" class="mcp-args" value="${server.args || ''}" placeholder="-y, @mcp/server-everything">
+                        <input type="text" class="mcp-args" value="${escapeHtml(server.args || '')}" placeholder="-y, @mcp/server-everything">
                     </div>
                 </div>
             </div>
@@ -80,15 +80,15 @@ function renderMcpSelectionDropdown() {
         state.enabledMcpServerIds = []; // Default ALL disabled as requested
     }
 
-    servers.forEach(server => {
+    servers.forEach((server, index) => {
         const item = document.createElement('div');
         item.className = 'mcp-item';
         const isEnabled = state.enabledMcpServerIds.includes(server.id);
         const statusClass = server.command ? 'status-online' : 'status-offline';
 
         item.innerHTML = `
-            <input type="checkbox" id="mcp-cb-${server.id}" ${isEnabled ? 'checked' : ''}>
-            <label for="mcp-cb-${server.id}">${server.name || server.command || '未命名服务器'}</label>
+            <input type="checkbox" id="mcp-cb-${index}" ${isEnabled ? 'checked' : ''}>
+            <label for="mcp-cb-${index}">${escapeHtml(server.name || server.command || '未命名服务器')}</label>
             <span class="mcp-status-dot ${statusClass}"></span>
         `;
 

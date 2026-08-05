@@ -131,10 +131,10 @@ function updateWelcomeScreen() {
                 <div class="logo-circle" style="background: ${info.color}15; border: 2px solid ${info.color}">
                     <i class="ph-fill ${info.icon}" style="color: ${info.color}; font-size: 40px;"></i>
                 </div>
-                <h1 style="color: ${info.color}">${skill.name}</h1>
-                <p style="font-weight: 500; opacity: 0.9;">${skill.desc || '已就绪'}</p>
+                <h1 style="color: ${info.color}">${escapeHtml(skill.name)}</h1>
+                <p style="font-weight: 500; opacity: 0.9;">${escapeHtml(skill.desc || '已就绪')}</p>
                 <div class="prompt-preview" style="margin-top: 20px; padding: 16px; background: var(--bg-surface-elevated); border-radius: 12px; border: 1px solid var(--border-subtle); max-width: 80%; width: 400px; text-align: left;">
-                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; font-style: italic;">"${skill.prompt}"</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; font-style: italic;">"${escapeHtml(skill.prompt)}"</div>
                 </div>
             `;
             return;

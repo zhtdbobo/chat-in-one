@@ -28,6 +28,11 @@ jest.mock('electron', () => {
             this.isMinimized = jest.fn(() => this.minimized);
             this.isVisible = jest.fn(() => this.visible);
             this.isDestroyed = jest.fn(() => this.destroyed);
+            this.webContents = {
+                handlers: {},
+                on: jest.fn((event, handler) => { this.webContents.handlers[event] = handler; }),
+                setWindowOpenHandler: jest.fn((handler) => { this.webContents.windowOpenHandler = handler; })
+            };
             browserWindowInstance = this;
         }
         on(event, handler) {
@@ -43,7 +48,8 @@ jest.mock('electron', () => {
         nativeImage: {
             createFromPath: jest.fn(() => ({})),
             createEmpty: jest.fn(() => ({}))
-        }
+        },
+        shell: { openExternal: jest.fn().mockResolvedValue() }
     };
 });
 
@@ -81,6 +87,18 @@ describe('Window tray safety', () => {
 
         expect(event.preventDefault).toHaveBeenCalled();
         expect(browserWindowInstance.hide).toHaveBeenCalled();
+    });
+
+    test('remote navigation is denied and opened outside the privileged window', () => {
+        const { shell } = require('electron');
+        const windowModule = require('../../src/js/main/window');
+        windowModule.createWindow();
+
+        const event = { preventDefault: jest.fn() };
+        browserWindowInstance.webContents.handlers['will-navigate'](event, 'https://example.com/path');
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(shell.openExternal).toHaveBeenCalledWith('https://example.com/path');
     });
 });
 

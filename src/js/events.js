@@ -487,7 +487,7 @@ function setupEvents() {
             const basic = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <strong>上下文占用</strong>
-                    <span style="font-size:10px; opacity:0.7;">${modelInfo.modelName}</span>
+                    <span style="font-size:10px; opacity:0.7;">${escapeHtml(modelInfo.modelName)}</span>
                 </div>
                 <div class="${cls}" style="font-size: 13px; margin: 4px 0;">${usedPct}%（${usedStr}/${limitStr} tokens）</div>
                 <div class="muted">点击压缩早期对话</div>
@@ -714,18 +714,16 @@ function setupEvents() {
 
             if (rawReasoning && state.settings.enableThinking !== false) {
                 const isStreamingComplete = !state.isStreaming;
-                const parsedReasoningHtml = marked.parse(rawReasoning);
                 finalHtml += `
                     <details class="thinking-block" ${!isStreamingComplete ? 'open' : ''}>
                         <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(parsedReasoningHtml, { ADD_TAGS: ['button'] })}</div>
+                        <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
                     </details>
                 `;
             }
 
             if (rawContent) {
-                const parsedHtml = marked.parse(rawContent);
-                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(parsedHtml, { ADD_TAGS: ['button'] })}</div>`;
+                finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
             }
 
             const scrollEl = streamDiv.querySelector('.message-scroll');
@@ -792,12 +790,12 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
             finalHtml += `
                 <details class="thinking-block">
                     <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning), { ADD_TAGS: ['button'] })}</div>
+                    <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
                 </details>
             `;
         }
         if (rawContent) {
-            finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent), { ADD_TAGS: ['button'] })}</div>`;
+            finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
         }
         scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
     }
@@ -836,7 +834,10 @@ function finalizeComparisonColumn(chatId, modelName, meta) {
     const existingMeta = streamDiv.querySelector('.message-meta');
     if (existingMeta) existingMeta.remove();
     if (scrollEl) {
-        scrollEl.insertAdjacentHTML('afterend', `<div class="message-meta">${metaStr}</div>`);
+        const metaEl = document.createElement('div');
+        metaEl.className = 'message-meta';
+        metaEl.textContent = metaStr;
+        scrollEl.insertAdjacentElement('afterend', metaEl);
     }
 
 
@@ -912,12 +913,12 @@ function finalizeStream(chatId, meta) {
                 finalHtml += `
                     <details class="thinking-block">
                         <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${DOMPurify.sanitize(marked.parse(rawReasoning), { ADD_TAGS: ['button'] })}</div>
+                        <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
                     </details>
                 `;
             }
             if (rawContent) {
-                finalHtml += `<div class="markdown-body">${DOMPurify.sanitize(marked.parse(rawContent), { ADD_TAGS: ['button'] })}</div>`;
+                finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
             }
             scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
         }
@@ -952,16 +953,14 @@ function finalizeStream(chatId, meta) {
 
         const metaStr = parts.join(' · ');
 
-        const metaHtml = `<div class="message-meta">${metaStr}</div>`;
-
         const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
         if (existingMeta) existingMeta.remove();
 
-        if (scrollEl) {
-            scrollEl.insertAdjacentHTML('afterend', metaHtml);
-        } else {
-            state.currentStreamDiv.insertAdjacentHTML('beforeend', metaHtml);
-        }
+        const metaEl = document.createElement('div');
+        metaEl.className = 'message-meta';
+        metaEl.textContent = metaStr;
+        if (scrollEl) scrollEl.insertAdjacentElement('afterend', metaEl);
+        else state.currentStreamDiv.appendChild(metaEl);
 
         if (chat) {
 

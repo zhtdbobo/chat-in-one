@@ -1,12 +1,13 @@
 {
   "name": "chat-in-one",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "clean": "rd /s /q dist",
-    "prebuild": "npm run clean",
+    "clean": "if exist dist rd /s /q dist",
+    "predist": "npm run clean",
+    "prepack": "npm run clean",
     "dist": "electron-builder --win",
     "publish": "electron-builder --win --publish always",
     "pack": "electron-builder --win --dir",
@@ -20,16 +21,16 @@
   "author": "chat-in-one Dev Team",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "jest": "^30.3.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@phosphor-icons/web": "^2.1.2",
-    "dompurify": "^3.0.9",
+    "dompurify": "^3.4.12",
     "electron-store": "^10.0.0",
-    "electron-updater": "^6.3.9",
+    "electron-updater": "^6.8.9",
     "highlight.js": "^11.9.0",
     "marked": "^4.3.0",
     "node-fetch": "^3.3.2"
