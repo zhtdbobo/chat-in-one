@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 - `npm start` — launch Electron app in dev mode
-- `npm test` — run all Jest tests (128 tests, 12 suites)
+- `npm test` — run all Jest tests (131 tests, 12 suites)
 - `npm run test:electron` — hidden Electron renderer smoke test with isolated userData and mocked IPC
 - `npm run test:stress` — hidden Electron client stress test with real preload/IPC, loopback HTTP fixtures and isolated disk storage (8 cases, up to 5 million input/output characters)
 - `npm run build:assets` — generate browser-compatible Highlight.js from the installed dependency

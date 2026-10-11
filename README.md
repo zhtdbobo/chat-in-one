@@ -2,23 +2,26 @@
 
 一个支持多家大模型服务商、OpenAI 兼容协议、MCP 工具和技能系统的本地桌面聊天应用，基于 Electron + 原生 JS 实现。
 
-当前版本：`v1.2.4`（Windows x64）
+当前版本：`v1.2.5`（Windows x64）
 
-### v1.2.4 更新
+### v1.2.5 更新
 
-- API Key 使用 Electron `safeStorage` 加密保存，并绑定到已保存的服务商地址
-- IPC 仅接受应用顶层页面调用，阻止远程页面和其他本地文件访问高权限接口
-- 加固 Markdown、服务商、模型、MCP、搭档、附件和历史消息渲染，降低持久化 XSS 风险
-- MCP 改为请求级独立会话，避免并发对话互相清理客户端或错误路由同名工具
-- 支持非流式 JSON 响应，并完善工具调用第二轮请求的错误处理
-- 自动更新优先通过 `gh-proxy.com` 下载 GitHub Release，失败后回退 GitHub 官方源
+- 服务商设置新增「模型目录」：一行一个模型，左侧是发送给接口的模型 ID，右侧是界面显示名称（留空显示 ID）；行尾「>」展开只读能力信息（上下文窗口、最大输出上限、输入类型），垃圾桶图标移除模型，「恢复默认模型」清空当前目录
+- 「获取可用模型」拉取服务商列表后弹出「选择要添加的模型」：可搜索、可全选，点「添加所选」才写入目录，点「取消」不改动现有配置；目录里的模型就是主界面模型选择器与对比列表中可选的模型
+- 渲染器核心拆分为独立模块（请求生命周期、长文本分块、模型参数覆盖）；流式回复改为按请求 ID 路由，对比模式与并发请求互不干扰，错误在收到响应头之前也能正确归属
+- 停止按钮一次停止所有待处理与生成中的请求；生成过程中显示已接收字符数、首个回复片段耗时与总耗时，15 秒没有新片段时给出等待提示
+- 对话设置改为温度与 Top P 数字输入：留空使用服务端默认，手填值按「服务商 + 模型」分别保存；移除历史条数与最大输出限制，改为发送全部历史、输出长度由服务端决定；也不再提供流式输出开关，客户端自动识别 SSE 流式与完整 JSON 回复
+- 长文本：超过 30,000 字符的消息按约 20,000 字符分段显示，可翻段查看；复制、保存与导出仍保留全文。连续 3 分钟没有数据才结束生成，服务端报错、提前断流或手动停止时保留已收到内容与原因
+- 代码块新增「预览」按钮：在独立沙箱页面中运行并回传控制台输出，支持 JavaScript、CSS、HTML 与完整 HTML，按代码块语言选择渲染方式
+- 新增浏览器版 Highlight.js 构建脚本（`npm run build:assets`，生成 36 种常用语言），并接入启动与打包流程
+- 新增渲染器冒烟测试与长文本压力测试（`npm run test:electron` / `npm run test:stress`），并补充渲染器回归、流式回归等单元测试
 
 ### 功能特性
 
 - **多服务商 / 多模型**
   - 在「设置 → 模型服务商」中配置任意数量的 Provider（OpenAI、DeepSeek、阿里云 DashScope、MiniMax 等）
   - 支持 OpenAI 兼容的 `/v1/chat/completions` 接口
-  - 支持从 `/models` 自动拉取模型列表，或手动录入模型 ID
+  - 支持从 `/models` 拉取模型列表并勾选加入「模型目录」，或手动录入模型 ID；目录里可改模型 ID 与显示名称、展开查看只读能力信息
   - 主界面右下角可搜索切换当前会话使用的模型
 
 - **流式对话体验**
@@ -81,6 +84,60 @@ npm run dist
 ```
 
 `npm run pack` 生成免安装目录，`npm run dist` 生成 Windows NSIS 安装包。
+
+#### 发布新版本
+
+自动更新靠 Release 里的 `latest.yml` 判断版本，所以「版本号 → 打包 → 建 Release」三件事都要做，产物一个都不能漏。
+
+1. **改版本号和更新说明**
+   - `package.json` 的 `version`：客户端比对这个值，必须比线上版本大。
+   - 本文件顶部的「当前版本」和「### vX.Y.Z 更新」列表。
+
+2. **提交并跑测试**
+
+   ```bash
+   npm test
+   npm run test:electron
+   git add -A
+   git commit -m "release: vX.Y.Z"
+   ```
+
+3. **打包**
+
+   ```bash
+   npm run dist
+   ```
+
+   `dist/` 里生成三个文件，`latest.yml` 是自动更新清单，**漏传客户端就检查不到更新**：
+
+   | 文件 | 用途 |
+   | --- | --- |
+   | `chat-in-one-Setup-<version>.exe` | 安装包 |
+   | `chat-in-one-Setup-<version>.exe.blockmap` | 差量更新 |
+   | `latest.yml` | 自动更新清单 |
+
+   `npm run dist` 会先执行 `npm run clean` 清空 `dist/`，需要留旧包就先拷贝出去。`npm run publish` 没有 pre 钩子，若刚升级过 Highlight.js 依赖，先跑一次 `npm run build:assets`。
+
+4. **发布 Release**（三种方式任选）
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin master --tags
+   gh release create vX.Y.Z "dist/chat-in-one-Setup-X.Y.Z.exe" "dist/chat-in-one-Setup-X.Y.Z.exe.blockmap" "dist/latest.yml" --title "vX.Y.Z" --notes "见 README 的 vX.Y.Z 更新"
+   ```
+
+   - `gh release create` 建出来的 Release 直接是已发布状态，会触发 `.github/workflows/sync-to-gitee.yml`，把 tag 和三个产物镜像到 Gitee。
+   - 也可以 `GH_TOKEN=<有 repo 权限的 token> npm run publish`（即 `electron-builder --win --publish always`）。它只认 `GH_TOKEN` / `GITHUB_TOKEN` 环境变量，不读 `gh` 的登录态，而且创建的是 **Draft** Release，需要再去 GitHub 点一次「Publish release」。
+   - 或者在 GitHub 网页手动建 Release、拖入那三个文件，最后点「Publish release」。
+
+5. **验证更新**
+
+   - 已安装的旧版本打开「关于 → 检查更新」，应能查到新版本并下载、重启安装。
+   - 更新链路是先走 `gh-proxy.com` 镜像的 generic feed（读取 `latest.yml`），失败后回退 GitHub 官方源，见 `src/js/main/updater.js`。
+   - 检查更新只在打包版生效（`app.isPackaged`），开发模式不会检查。
+   - Release 停留在 Draft 时 `releases/latest/download` 取不到产物，客户端会检查失败。
+
+> 安装包未做代码签名，Windows 可能提示「未知发布者」，要消除需要配置代码签名证书。`GH_TOKEN` 用环境变量传递，不要提交进仓库。
 
 ---
 
@@ -197,8 +254,8 @@ npm run dist
 
 ### 回归测试与资源构建
 
-- `npm test -- --runInBand`：128 项 Jest 测试，覆盖主进程、请求状态、上下文压缩、附件格式、模型参数、长文本缓存、回复格式自动识别、流式结束与 MCP 取消。
-- `npm run test:electron`：在隐藏的 Electron 窗口中运行 52 项页面检查。测试使用临时用户目录和模拟 IPC，不读取真实设置，也不请求模型服务。
+- `npm test -- --runInBand`：131 项 Jest 测试，覆盖主进程、请求状态、上下文压缩、附件格式、模型参数、长文本缓存、回复格式自动识别、流式结束与 MCP 取消。
+- `npm run test:electron`：在隐藏的 Electron 窗口中运行 61 项页面检查。测试使用临时用户目录和模拟 IPC，不读取真实设置，也不请求模型服务。
 - `npm run test:stress`：8 个客户端压力场景，覆盖百万及 500 万字符输入/输出、非流式长回复、服务端完成后保持连接、提前断流、无数据超时、停止与双模型对比。使用真实渲染器、preload、IPC 和本机 HTTP 模拟服务，并校验完整内容、文件保存、重新加载和页面响应。用户数据在隔离临时目录中，不调用真实模型接口；500 万字符是当前测试规模，不代表客户端绝对上限或模型可输出的字数。
 - `npm run build:assets`：从已安装的 Highlight.js 生成浏览器脚本和 36 种常用语言。启动与打包前会自动执行；生成文件位于 `src/js/vendor/`。
 
