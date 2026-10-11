@@ -445,7 +445,6 @@ function detectModelCapabilities(modelId, modelObj = {}) {
 // -----------------------------------------
 let tempProviders = [];
 let currentProviderIndex = -1;
-const providerDetailUiState = {};
 
 function openSettings() {
     if (typeof closeAllModals === 'function') closeAllModals();
@@ -528,7 +527,6 @@ function renderProviderDetail() {
     }
 
     const provider = tempProviders[currentProviderIndex];
-    const uiState = providerDetailUiState[provider.id] || (providerDetailUiState[provider.id] = { modelSearchQuery: '' });
     container.innerHTML = `
         <div class="provider-detail-header">
             <h3>服务商配置</h3>
@@ -553,131 +551,151 @@ function renderProviderDetail() {
                 placeholder="例如: https://api.openai.com/v1 或 https://dashscope.aliyuncs.com/v1">
         </div>
         
-        <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <label style="margin:0">可见模型列表</label>
-                <div style="display:flex; gap:8px;">
-                    <button type="button" class="btn btn-ghost btn-sm" id="test-connection-btn">
-                        <i class="ph ph-plug"></i> 测试连接
-                    </button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="fetch-models-btn">
-                        <i class="ph ph-arrows-counter-clockwise"></i> 获取模型
-                    </button>
+        <div class="form-group model-directory-section">
+            <div class="model-directory-header">
+                <div class="model-directory-heading">
+                    <span class="model-directory-title">模型目录</span>
+                    <span class="model-directory-status" id="model-directory-status"></span>
                 </div>
+                <div class="model-directory-actions">
+                    <button type="button" class="btn-link" id="reset-models-btn">恢复默认模型</button>
+                    <button type="button" class="btn-link" id="fetch-models-btn">获取可用模型</button>
+                </div>
+            </div>
+            <div class="model-directory-list" id="model-directory-list">
+                <!-- One editable row per model -->
             </div>
             <div class="provider-model-tools">
                 <input type="text" class="prov-manual-model" placeholder="手动新增模型 ID（用于不支持 /models 的协议）">
                 <button type="button" class="btn btn-ghost btn-sm" id="add-manual-model-btn">
                     <i class="ph ph-plus"></i> 新增模型
                 </button>
+                <button type="button" class="btn btn-ghost btn-sm" id="test-connection-btn">
+                    <i class="ph ph-plug"></i> 测试连接
+                </button>
             </div>
-            <input type="text" class="prov-model-search" placeholder="搜索模型列表..." />
             <div class="provider-test-result" id="provider-test-result" style="display:none"></div>
-            <div class="multi-select-models" id="models-checklist">
-                <!-- Checklist will be here -->
-            </div>
         </div>
     `;
 
-    // Render Checklist
-    const renderChecklist = () => {
-        const checklist = container.querySelector('#models-checklist');
+    // 模型目录：一行一个模型，左侧是发给接口的模型 ID，右侧是界面显示名
+    const saveModelDirectory = models => {
+        provider.allModels = JSON.stringify(models);
+        provider.visibleModels = models.map(model => model.id).join(', ');
+    };
 
-        // 解析 allModels JSON 或字符串格式（向后兼容）
-        let allModels = [];
-        try {
-            const parsed = JSON.parse(provider.allModels || '[]');
-            allModels = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            // 向后兼容：如果是旧格式（逗号分隔的字符串），转换为新格式
-            const oldFormat = (provider.allModels || "").split(',').map(m => m.trim()).filter(m => m);
-            allModels = oldFormat.map(id => ({
-                id: id,
-                name: id,
-                capabilities: detectModelCapabilities(id)
-            }));
-        }
+    const renderModelDirectory = () => {
+        const list = container.querySelector('#model-directory-list');
+        const status = container.querySelector('#model-directory-status');
+        const models = getProviderModelDirectory(provider);
+        saveModelDirectory(models);
 
-        let visibleModelIds = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-        const q = (uiState.modelSearchQuery || '').trim().toLowerCase();
-        const filteredModels = q ? allModels.filter(m => (m.id || '').toLowerCase().includes(q)) : allModels;
-
-        checklist.innerHTML = '';
-        if (allModels.length === 0) {
-            checklist.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:8px">暂无模型。可点击“获取模型”或使用上方输入框手动新增。</div>';
-            return;
-        }
-        if (filteredModels.length === 0) {
-            checklist.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:8px">未找到匹配的模型</div>';
+        if (status) status.textContent = models.length ? '已自定义模型目录' : '内置默认模型目录';
+        list.innerHTML = '';
+        if (models.length === 0) {
+            list.innerHTML = '<div class="model-directory-empty">暂无模型。点击「获取可用模型」拉取服务商列表，或在下方手动新增模型 ID。</div>';
             return;
         }
 
-        filteredModels.forEach(m => {
-            const modelId = m.id || m;
-            const isVisible = visibleModelIds.includes(modelId);
-            const caps = m.capabilities || detectModelCapabilities(modelId);
+        models.forEach((model, index) => {
+            const row = document.createElement('div');
+            row.className = 'model-directory-row';
+            row.dataset.modelId = model.id;
 
-            const item = document.createElement('div');
-            item.className = 'model-check-item';
-            item.innerHTML = `
-                <input type="checkbox" ${isVisible ? 'checked' : ''} id="chk-${escapeHtml(modelId)}" value="${escapeHtml(modelId)}" data-model='${JSON.stringify(m).replace(/'/g, "&#039;")}'>
-                <label for="chk-${escapeHtml(modelId)}">${escapeHtml(modelId)}</label>
-                <div class="model-capabilities-mini">
-                    <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
-                    <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
-                    <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
-                </div>
-                <button type="button" class="btn btn-icon btn-ghost btn-sm delete-model-btn" title="从列表中移除此模型">
-                    <i class="ph ph-trash"></i>
-                </button>
-            `;
+            const main = document.createElement('div');
+            main.className = 'model-directory-row-main';
 
-            // Toggle visibility
-            item.querySelector('input').addEventListener('change', (e) => {
-                const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-                if (e.target.checked) {
-                    if (!currentVisible.includes(modelId)) currentVisible.push(modelId);
-                } else {
-                    const idx = currentVisible.indexOf(modelId);
-                    if (idx > -1) currentVisible.splice(idx, 1);
+            const idInput = document.createElement('input');
+            idInput.type = 'text';
+            idInput.className = 'model-id-input';
+            idInput.value = model.id;
+            idInput.placeholder = '模型 ID';
+            idInput.setAttribute('aria-label', '模型 ID（发送给接口）');
+            idInput.title = '发送给接口的模型 ID';
+            idInput.addEventListener('change', () => {
+                const nextId = idInput.value.trim();
+                if (!nextId) {
+                    idInput.value = model.id;
+                    showNotification('模型 ID 不能为空', 'error');
+                    return;
                 }
-                provider.visibleModels = currentVisible.join(', ');
+                if (nextId === model.id) return;
+                if (models.some((entry, i) => i !== index && entry.id === nextId)) {
+                    idInput.value = model.id;
+                    showNotification('该模型 ID 已存在', 'error');
+                    return;
+                }
+                const previousId = model.id;
+                model.id = nextId;
+                if (!model.name || model.name === previousId) model.name = nextId;
+                saveModelDirectory(models);
+                renderModelDirectory();
             });
 
-            // Delete model from allModels
-            item.querySelector('.delete-model-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                showConfirmDialog(`确认从本地列表中移除模型 ${modelId}？\n如果是服务商提供的模型，下次点击“获取模型”时仍会自动找回。`, () => {
-                    // Update allModels
-                    const newAllModels = allModels.filter(mod => (mod.id || mod) !== modelId);
-                    provider.allModels = JSON.stringify(newAllModels);
-
-                    // Also remove from visibleModels
-                    const visible = (provider.visibleModels || "").split(',').map(v => v.trim()).filter(v => v !== modelId);
-                    provider.visibleModels = visible.join(', ');
-
-                    renderChecklist();
-                });
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'model-name-input';
+            nameInput.value = model.name && model.name !== model.id ? model.name : '';
+            nameInput.placeholder = '显示名称（默认同模型 ID）';
+            nameInput.setAttribute('aria-label', '显示名称');
+            nameInput.title = '模型选择器里显示的名称，留空则显示模型 ID';
+            nameInput.addEventListener('input', () => {
+                model.name = nameInput.value.trim() || model.id;
+                saveModelDirectory(models);
             });
-            checklist.appendChild(item);
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'btn btn-icon btn-ghost btn-sm model-info-toggle';
+            toggle.title = '模型参数详情';
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerHTML = '<i class="ph ph-caret-right"></i>';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn btn-icon btn-ghost btn-sm model-row-delete';
+            removeBtn.title = '从模型目录移除';
+            removeBtn.innerHTML = '<i class="ph ph-trash"></i>';
+            removeBtn.addEventListener('click', () => {
+                showConfirmDialog(`确认从模型目录中移除模型 ${model.id}？\n下次点击「获取可用模型」时可以重新添加。`, () => {
+                    saveModelDirectory(models.filter((entry, i) => i !== index));
+                    renderModelDirectory();
+                }, null, { confirmText: '移除' });
+            });
+
+            const details = document.createElement('div');
+            details.className = 'model-directory-row-details';
+            if (typeof createModelCapabilityCard === 'function') details.append(createModelCapabilityCard(model));
+
+            toggle.addEventListener('click', () => {
+                const expanded = details.classList.toggle('expanded');
+                toggle.classList.toggle('expanded', expanded);
+                toggle.setAttribute('aria-expanded', String(expanded));
+            });
+
+            main.append(idInput, nameInput, toggle, removeBtn);
+            row.append(main, details);
+            list.append(row);
         });
     };
-    renderChecklist();
+    renderModelDirectory();
 
-    const modelSearchInput = container.querySelector('.prov-model-search');
-    if (modelSearchInput) {
-        modelSearchInput.value = uiState.modelSearchQuery || '';
-        modelSearchInput.addEventListener('input', () => {
-            uiState.modelSearchQuery = modelSearchInput.value || '';
-            renderChecklist();
-        });
+    const resetModelsBtn = container.querySelector('#reset-models-btn');
+    if (resetModelsBtn) {
+        resetModelsBtn.onclick = () => {
+            showConfirmDialog('确认恢复默认模型目录？\n当前目录中的模型与显示名称会被清空，需要重新「获取可用模型」或手动新增。', () => {
+                provider.allModels = '';
+                provider.visibleModels = '';
+                renderProviderDetail();
+                renderProvidersSidebar();
+                showNotification('已恢复默认模型目录', 'success');
+            }, null, { confirmText: '恢复默认' });
+        };
     }
 
     // Bindings
     container.querySelector('#del-current-provider').onclick = () => {
         showConfirmDialog('确认删除此服务商？', () => {
-            delete providerDetailUiState[provider.id];
             tempProviders.splice(currentProviderIndex, 1);
             currentProviderIndex = tempProviders.length > 0 ? 0 : -1;
             renderProvidersSidebar();
@@ -753,20 +771,17 @@ function renderProviderDetail() {
                 throw new Error("未能从任何候选地址获取模型列表，或返回格式不支持");
             }
 
-            // Store all models as JSON in allModels
-            provider.allModels = JSON.stringify(normalizedModels);
-            // Initialize visibleModels as empty (user needs to manually enable)
-            if (!provider.visibleModels) {
-                provider.visibleModels = '';
-            }
+            // 保留本次没有返回、但已经在目录里的模型；勾选结果在用户确认后写入目录
+            const fetchedIds = new Set(normalizedModels.map(model => model.id));
+            const keptModels = getProviderModelDirectory(provider).filter(model => !fetchedIds.has(model.id));
 
-            // Show model selection panel
-            showModelSelectionPanel(normalizedModels, provider, () => {
+            showModelSelectionPanel(normalizedModels, provider, selectedModels => {
+                if (!selectedModels) return; // 取消：不改动现有目录
+                saveModelDirectory([...keptModels, ...selectedModels]);
                 renderProviderDetail();
                 renderProvidersSidebar();
+                showNotification(`已添加 ${selectedModels.length} 个模型到目录`, "success");
             });
-
-            showNotification(`成功获取 ${normalizedModels.length} 个模型，请在面板中选择要在主界面显示的模型`, "success");
 
         } catch (e) {
             showNotification("获取失败: " + e.message, "error");
@@ -774,7 +789,7 @@ function renderProviderDetail() {
             const btn = container.querySelector('#fetch-models-btn');
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="ph ph-arrows-counter-clockwise"></i> 获取模型';
+                btn.innerHTML = '<i class="ph ph-arrows-counter-clockwise"></i> 获取可用模型';
             }
         }
     };
@@ -846,19 +861,7 @@ function renderProviderDetail() {
             }
 
             // 解析当前所有模型（支持新旧格式）
-            let all = [];
-            try {
-                const parsed = JSON.parse(provider.allModels || '[]');
-                all = Array.isArray(parsed) ? parsed : [];
-            } catch (e) {
-                const oldFormat = (provider.allModels || "").split(',').map(m => m.trim()).filter(Boolean);
-                all = oldFormat.map(id => ({
-                    id: id,
-                    name: id,
-                    capabilities: detectModelCapabilities(id),
-                    capabilitiesSource: 'inferred'
-                }));
-            }
+            const all = getProviderModelDirectory(provider);
 
             // 检查重复
             if (!all.find(m => m.id === modelId)) {
@@ -869,11 +872,7 @@ function renderProviderDetail() {
                     capabilitiesSource: 'inferred'
                 });
             }
-            provider.allModels = JSON.stringify(all);
-
-            const visible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(Boolean);
-            if (!visible.includes(modelId)) visible.push(modelId);
-            provider.visibleModels = visible.join(', ');
+            saveModelDirectory(all);
 
             if (input) input.value = '';
             renderProviderDetail();

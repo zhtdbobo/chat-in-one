@@ -87,7 +87,8 @@ function renderSearchableModelSelect() {
         state.settings.providers.forEach(p => {
             // Use visibleModels instead of models to only show models enabled in settings
             const models = (p.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-            const filtered = models.filter(m => m.toLowerCase().includes(query));
+            const filtered = models.filter(m => m.toLowerCase().includes(query)
+                || getModelDisplayName(p, m).toLowerCase().includes(query));
 
             if (filtered.length > 0) {
                 const groupLabel = document.createElement('div');
@@ -97,14 +98,16 @@ function renderSearchableModelSelect() {
 
                 filtered.forEach(m => {
                     const val = `${p.id}|${m}`;
+                    const label = getModelDisplayName(p, m);
                     const opt = document.createElement('div');
                     opt.className = `select-option ${val === currentVal ? 'selected' : ''}`;
-                    opt.textContent = m;
+                    opt.textContent = label;
+                    opt.title = label === m ? m : `${label} (${m})`;
                     opt.dataset.value = val;
                     if (!firstMatch) firstMatch = opt;
 
                     if (val === currentVal) {
-                        selectedText.textContent = m;
+                        selectedText.textContent = label;
                     }
 
                     opt.addEventListener('click', (e) => {
@@ -126,7 +129,7 @@ function renderSearchableModelSelect() {
                             const prevSelected = optionsList.querySelector('.select-option.selected');
                             if (prevSelected) prevSelected.classList.remove('selected');
                             opt.classList.add('selected');
-                            selectedText.textContent = m;
+                            selectedText.textContent = label;
                         }
                     });
                     optionsList.appendChild(opt);
@@ -195,6 +198,7 @@ function renderMultiModelList() {
             models.forEach(m => {
                 const modelId = `${p.id}|${m}`;
                 const isChecked = state.selectedComparisonModels.includes(modelId);
+                const label = getModelDisplayName(p, m);
 
                 const item = document.createElement('label');
                 item.className = 'setting-item-row';
@@ -210,8 +214,8 @@ function renderMultiModelList() {
                 item.innerHTML = `
                     <input type="checkbox" value="${escapeHtml(modelId)}" ${isChecked ? 'checked' : ''} style="width:15px;height:15px;flex-shrink:0;">
                     <div style="flex:1; min-width:0;">
-                        <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(m)}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(p.name)}</div>
+                        <div style="font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(label)}</div>
+                        <div style="font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(label === m ? (p.name || '') : `${m} · ${p.name || ''}`)}</div>
                     </div>
                 `;
 
@@ -334,10 +338,9 @@ function showNotification(message, type = 'info', duration = 3000) {
 // Model Selection Panel
 // -----------------------------------------
 let modelCapabilityFieldId = 0;
-function createModelCapabilityCard(model, name) {
+function createModelCapabilityCard(model) {
     const info = getModelCapabilityInfo(typeof model === 'object' ? model : {});
     const card = document.createElement('section'); card.className = 'model-capability-card';
-    if (name) { const heading = document.createElement('div'); heading.className = 'model-capability-name'; heading.textContent = name; card.append(heading); }
     const fields = document.createElement('div'); fields.className = 'model-capability-fields';
     for (const [labelText, value] of [['上下文窗口（Token）', info.contextWindowTokens], ['最大输出上限（Token）', info.maxOutputTokens]]) {
         const item = document.createElement('div'); item.className = 'setting-item';
@@ -373,8 +376,9 @@ function createModelCapabilityCard(model, name) {
     return card;
 }
 
-function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
-    // Create modal overlay
+// Dialog shown right after fetching a provider's model list: pick the models to add to the directory.
+// onDone(selectedModels) receives the ticked models; onDone(null) means the user cancelled.
+function showModelSelectionPanel(fetchedModels, provider, onDone) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay model-selection-overlay';
     modal.id = 'model-selection-modal';
@@ -382,135 +386,166 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
     const panel = document.createElement('div');
     panel.className = 'model-selection-panel';
 
-    let searchQuery = '';
-    const modelsList = document.createElement('div');
-    modelsList.className = 'model-selection-list';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-ghost btn-sm model-panel-close';
+    closeBtn.title = '关闭';
+    closeBtn.innerHTML = '<i class="ph ph-x"></i>';
 
-    const updateModelsList = () => {
-        const query = searchQuery.toLowerCase();
-        const visibleModels = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-        
-        // 排序：已启用的模型放在最上面
-        let filtered = fetchedModels.filter(m => {
-            const modelId = m.id || m;
-            return modelId.toLowerCase().includes(query);
-        });
-        filtered.sort((a, b) => {
-            const aId = a.id || a;
-            const bId = b.id || b;
-            const aVisible = visibleModels.includes(aId);
-            const bVisible = visibleModels.includes(bId);
-            if (aVisible && !bVisible) return -1;
-            if (!aVisible && bVisible) return 1;
-            return aId.localeCompare(bId);
-        });
+    const title = document.createElement('div');
+    title.className = 'model-selection-title';
+    title.textContent = '选择要添加的模型';
 
-        modelsList.innerHTML = '';
-        filtered.forEach(model => {
-            const modelId = model.id || model;
-            const isVisible = visibleModels.includes(modelId);
-            const caps = model.capabilities || {};
-            
-            const item = document.createElement('div');
-            item.className = `model-selection-item ${isVisible ? 'selected' : ''}`;
-            item.innerHTML = `
-                <div class="model-option-details"><span class="model-name">${escapeHtml(modelId)}</span></div>
-                <div class="model-capabilities-indicators" style="display: flex; gap: 4px; font-size: 12px;">
-                    <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
-                    <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
-                    <span title="工具" style="opacity: ${caps.tools ? 1 : 0.3};"><i class="ph ph-wrench"></i></span>
-                </div>
-                <button class="btn btn-sm model-toggle-btn ${isVisible ? 'btn-primary' : 'btn-ghost'}">
-                    <i class="ph ${isVisible ? 'ph-eye' : 'ph-eye-slash'}"></i>
-                </button>
-            `;
-            item.querySelector('.model-option-details').append(createModelCapabilityCard(model));
-            item.querySelector('button').dataset.model = modelId;
+    const subtitle = document.createElement('p');
+    subtitle.className = 'model-selection-subtitle';
+    subtitle.textContent = '以下是模型提供商的可用模型，勾选要添加的模型。';
 
-            item.querySelector('button').addEventListener('click', (e) => {
-                e.stopPropagation();
-                const button = e.target.closest('button');
-                const modelName = button.dataset.model;
-                const currentVisible = (provider.visibleModels || "").split(',').map(m => m.trim()).filter(m => m);
-
-                if (currentVisible.includes(modelName)) {
-                    const idx = currentVisible.indexOf(modelName);
-                    currentVisible.splice(idx, 1);
-                    button.innerHTML = '<i class="ph ph-eye-slash"></i>';
-                    button.classList.remove('btn-primary');
-                    button.classList.add('btn-ghost');
-                    item.classList.remove('selected');
-                } else {
-                    currentVisible.push(modelName);
-                    button.innerHTML = '<i class="ph ph-eye"></i>';
-                    button.classList.remove('btn-ghost');
-                    button.classList.add('btn-primary');
-                    item.classList.add('selected');
-                }
-
-                provider.visibleModels = currentVisible.join(', ');
-                onModelsUpdate();
-            });
-
-            modelsList.appendChild(item);
-        });
-
-        if (filtered.length === 0) {
-            modelsList.innerHTML = '<div class="empty-search-result">未找到匹配的模型</div>';
-        }
-    };
-
+    const toolbar = document.createElement('div');
+    toolbar.className = 'model-selection-toolbar';
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.className = 'model-search-input';
-    searchInput.placeholder = '搜索模型...';
-    searchInput.addEventListener('input', (e) => {
-        searchQuery = e.target.value;
-        updateModelsList();
-    });
+    searchInput.placeholder = '搜索模型';
+    const selectAllBtn = document.createElement('button');
+    selectAllBtn.type = 'button';
+    selectAllBtn.className = 'btn-link model-select-all';
+    selectAllBtn.textContent = '全选';
+    toolbar.append(searchInput, selectAllBtn);
 
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'btn btn-ghost btn-sm model-panel-close';
-    closeBtn.innerHTML = '<i class="ph ph-x"></i>';
-    closeBtn.addEventListener('click', () => {
-        modal.remove();
-    });
+    const listEl = document.createElement('div');
+    listEl.className = 'model-selection-list';
 
-    panel.appendChild(closeBtn);
-    panel.appendChild(searchInput);
-    panel.appendChild(modelsList);
+    const footer = document.createElement('div');
+    footer.className = 'model-selection-footer';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn btn-ghost';
+    cancelBtn.textContent = '取消';
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.textContent = '添加所选';
+    footer.append(cancelBtn, confirmBtn);
+
+    panel.append(closeBtn, title, subtitle, toolbar, listEl, footer);
     modal.appendChild(panel);
-    document.body.appendChild(modal);
 
-    // Close on overlay click and sync data
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    });
+    const modelId = model => String(model?.id || model || '').trim();
+    const listedIds = new Set((typeof getProviderModelDirectory === 'function'
+        ? getProviderModelDirectory(provider) : []).map(model => model.id));
+    const selectedIds = new Set(fetchedModels.map(modelId).filter(id => listedIds.has(id)));
+    let searchQuery = '';
+    let settled = false;
 
-    // Cleanup - sync data when closing
-    const originalRemove = modal.remove.bind(modal);
-    modal.remove = function () {
-        onModelsUpdate();
-        originalRemove();
+    const matchingModels = () => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return fetchedModels;
+        return fetchedModels.filter(model => {
+            const id = modelId(model).toLowerCase();
+            const name = String(model?.name || '').toLowerCase();
+            return id.includes(query) || name.includes(query);
+        });
     };
 
-    updateModelsList();
+    const updateSelectAllLabel = models => {
+        const allPicked = models.length > 0 && models.every(model => selectedIds.has(modelId(model)));
+        selectAllBtn.textContent = allPicked ? '取消全选' : '全选';
+        selectAllBtn.disabled = models.length === 0;
+    };
+
+    const renderList = () => {
+        const models = matchingModels();
+        listEl.innerHTML = '';
+        if (models.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-search-result';
+            empty.textContent = '未找到匹配的模型';
+            listEl.appendChild(empty);
+        }
+        models.forEach(model => {
+            const id = modelId(model);
+            const name = String(model?.name || '');
+            const item = document.createElement('label');
+            item.className = 'model-selection-item';
+            item.dataset.modelId = id;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'model-select-checkbox';
+            checkbox.checked = selectedIds.has(id);
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) selectedIds.add(id); else selectedIds.delete(id);
+                updateSelectAllLabel(matchingModels());
+            });
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'model-name';
+            nameEl.textContent = id;
+
+            item.append(checkbox, nameEl);
+            if (name && name !== id) {
+                const displayEl = document.createElement('span');
+                displayEl.className = 'model-display-name';
+                displayEl.textContent = name;
+                item.appendChild(displayEl);
+            }
+            listEl.appendChild(item);
+        });
+        updateSelectAllLabel(models);
+    };
+
+    const close = result => {
+        if (settled) return;
+        settled = true;
+        modal.remove();
+        if (onDone) onDone(result);
+    };
+
+    searchInput.addEventListener('input', () => {
+        searchQuery = searchInput.value;
+        renderList();
+    });
+
+    selectAllBtn.addEventListener('click', () => {
+        const models = matchingModels();
+        const allPicked = models.length > 0 && models.every(model => selectedIds.has(modelId(model)));
+        models.forEach(model => {
+            if (allPicked) selectedIds.delete(modelId(model)); else selectedIds.add(modelId(model));
+        });
+        renderList();
+    });
+
+    cancelBtn.addEventListener('click', () => close(null));
+    closeBtn.addEventListener('click', () => close(null));
+    confirmBtn.addEventListener('click', () => {
+        const picked = fetchedModels.filter(model => selectedIds.has(modelId(model)));
+        if (picked.length === 0) {
+            showNotification('请至少勾选一个模型', 'warning');
+            return;
+        }
+        close(picked);
+    });
+
+    modal.addEventListener('click', e => {
+        if (e.target === modal) close(null);
+    });
+
+    document.body.appendChild(modal);
+    renderList();
     searchInput.focus();
 }
 
 // -----------------------------------------
 // Confirmation Dialog
 // -----------------------------------------
-function showConfirmDialog(message, onConfirm, onCancel) {
+function showConfirmDialog(message, onConfirm, onCancel, options = {}) {
+    const { confirmText = '删除', cancelText = '取消' } = options;
     const dialog = document.createElement('div');
     dialog.className = 'simple-confirm-dialog';
     dialog.innerHTML = `
         <div class="confirm-dialog-message">${escapeHtml(message)}</div>
         <div class="confirm-dialog-buttons">
-            <button class="btn btn-ghost btn-sm" id="confirm-cancel">取消</button>
-            <button class="btn btn-danger btn-sm" id="confirm-ok">删除</button>
+            <button class="btn btn-ghost btn-sm" id="confirm-cancel">${escapeHtml(cancelText)}</button>
+            <button class="btn btn-danger btn-sm" id="confirm-ok">${escapeHtml(confirmText)}</button>
         </div>
     `;
 

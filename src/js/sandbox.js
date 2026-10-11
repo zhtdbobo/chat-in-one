@@ -146,6 +146,7 @@ window.openSandbox = function (htmlContent, language = '') {
 
     currentSandboxDoc = doc;
     if (sandboxReady) e.iframe.contentWindow.postMessage({ type: 'sandbox-render', html: doc }, '*');
+    else e.iframe.src = e.iframe.src; // Reload: a startup handshake fired before our message listener existed and was lost.
 
     // Guard: if panel is too small, notify
     requestAnimationFrame(() => {

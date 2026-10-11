@@ -544,66 +544,136 @@
     border-color: #ef4444;
 }
 
-/* Model Checklist in Settings */
-.multi-select-models {
+/* Model directory in provider settings */
+.model-directory-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.model-directory-heading {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 8px;
-    background: var(--bg-base);
-    margin-top: 8px;
+    gap: 2px;
+    min-width: 0;
 }
 
-.model-check-item {
+.model-directory-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.model-directory-status {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.model-directory-actions {
     display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    padding: 2px 0;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.btn-link:hover:not(:disabled) {
+    color: var(--bg-primary);
+}
+
+.btn-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.model-directory-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.model-directory-empty {
+    padding: 10px 12px;
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.model-directory-row {
+    padding: 8px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    transition: border-color var(--transition);
+}
+
+.model-directory-row:hover {
+    border-color: var(--border-focus);
+}
+
+.model-directory-row-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 8px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: all var(--transition);
-    cursor: pointer;
 }
 
-.model-check-item:hover {
-    background: var(--bg-surface-elevated);
-}
-
-.model-check-item input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
-    margin: 0;
-    cursor: pointer;
-}
-
-.model-check-item label {
-    margin: 0;
+.model-directory-row-main input {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px;
+    font-family: inherit;
     font-size: 13px;
-    cursor: pointer;
-    flex: 1;
-    user-select: none;
     color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color var(--transition);
 }
 
-.model-check-item .delete-model-btn {
-    opacity: 0;
-    transition: opacity var(--transition);
-    padding: 4px;
-    height: 24px;
-    width: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.model-directory-row-main input:focus {
+    border-color: var(--border-focus);
 }
 
-.model-check-item:hover .delete-model-btn {
-    opacity: 1;
+.model-directory-row-main input::placeholder {
+    color: var(--text-muted);
+}
+
+.model-row-delete {
+    color: var(--text-muted);
+}
+
+.model-row-delete:hover {
+    color: #ef4444;
+}
+
+.model-directory-row-details {
+    display: none;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.model-directory-row-details.expanded {
+    display: block;
 }
 
 
@@ -611,15 +681,12 @@
     display: flex;
     gap: 8px;
     align-items: center;
+    margin-top: 10px;
     margin-bottom: 10px;
 }
 
 .provider-model-tools input {
     flex: 1;
-}
-
-.prov-model-search {
-    margin-top: 8px;
 }
 
 .provider-test-result {
@@ -762,54 +829,6 @@
 .companion-card-v2 .card-content {
     flex: 1;
     min-width: 0;
-}
-
-/* =============================================
-   Model Capabilities Indicators
-   ============================================= */
-
-.model-capabilities-mini {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    font-size: 12px;
-    margin: 0 8px;
-}
-
-.model-capabilities-mini span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    color: var(--text-secondary);
-    transition: opacity var(--transition), color var(--transition);
-}
-
-.model-capabilities-mini span:hover {
-    color: var(--text-primary);
-}
-
-.model-capabilities-indicators {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    font-size: 12px;
-}
-
-.model-capabilities-indicators span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    color: var(--text-secondary);
-    transition: opacity var(--transition), color var(--transition);
-}
-
-.model-capabilities-indicators span:hover {
-    color: var(--text-primary);
-}
 }
 
 .companion-card-v2 .card-name {

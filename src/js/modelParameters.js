@@ -29,6 +29,35 @@
         return models.find(model => (model?.id || model?.name) === modelName) || {};
     }
 
+    // Every model of a provider keeps its raw server metadata; the id is what the request sends,
+    // the name is only what the interface shows.
+    function getProviderModelEntries(provider) {
+        let models = [];
+        try { models = JSON.parse(provider?.allModels || '[]'); }
+        catch (_) { models = String(provider?.allModels || '').split(','); } // legacy comma separated list
+        if (!Array.isArray(models)) models = [];
+        return models.map(model => {
+            const id = String((typeof model === 'string' ? model : model?.id || model?.name || model?.model) || '').trim();
+            if (!id) return null;
+            return typeof model === 'object' && model !== null ? { ...model, id, name: model.name || id } : { id, name: id };
+        }).filter(Boolean);
+    }
+
+    // The model directory is what the pickers offer: the enabled list when it exists, otherwise the
+    // legacy fetched catalog, plus any enabled id that has no catalog entry left.
+    function getProviderModelDirectory(provider) {
+        const entries = getProviderModelEntries(provider);
+        const enabled = String(provider?.visibleModels || '').split(',').map(id => id.trim()).filter(Boolean);
+        if (!enabled.length) return entries;
+        const byId = new Map(entries.map(entry => [entry.id, entry]));
+        return enabled.map(id => byId.get(id) || { id, name: id });
+    }
+
+    function getModelDisplayName(provider, modelName) {
+        const entry = getProviderModelEntries(provider).find(model => model.id === modelName);
+        return entry && entry.name && entry.name !== entry.id ? entry.name : modelName;
+    }
+
     function getModelParameterInfo(model = {}) {
         const supported = Array.isArray(model.supported_parameters) ? model.supported_parameters : null;
         const definitions = {
@@ -150,7 +179,8 @@
         return config;
     }
 
-    return { parameterNumber, getProviderModelMetadata, getConversationModelMetadata, rememberProviderModelMetadata, getModelParameterInfo, getModelCapabilityInfo,
+    return { parameterNumber, getProviderModelMetadata, getProviderModelEntries, getProviderModelDirectory,
+        getModelDisplayName, getConversationModelMetadata, rememberProviderModelMetadata, getModelParameterInfo, getModelCapabilityInfo,
         getConversationNumericOverrides, rememberConversationModelOverrides, changeConversationModel,
         validateModelParameterOverrides, buildSamplingRequestConfig };
 });

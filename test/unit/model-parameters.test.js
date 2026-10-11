@@ -1,6 +1,7 @@
 const { getModelParameterInfo, getConversationNumericOverrides, validateModelParameterOverrides,
     buildSamplingRequestConfig, getConversationModelMetadata, rememberProviderModelMetadata,
-    getModelCapabilityInfo, changeConversationModel, rememberConversationModelOverrides } = require('../../src/js/modelParameters');
+    getModelCapabilityInfo, changeConversationModel, rememberConversationModelOverrides,
+    getProviderModelEntries, getProviderModelDirectory, getModelDisplayName } = require('../../src/js/modelParameters');
 
 test('server defaults retain zero values and do not become request overrides', () => {
     const info=getModelParameterInfo({default_parameters:{temperature:0,top_p:'0.85',max_tokens:1024}});
@@ -108,4 +109,29 @@ test('switching models ignores stored output overrides and discards removed cont
     changeConversationModel(chat,'p1|b');expect(chat.modelSettingsVersion).toBe(2);expect(chat.maxMessageCount).toBeUndefined();
     expect(chat.maxOutputTokens).toBeUndefined();expect(chat.temperature).toBe(0.9);
     changeConversationModel(chat,'p1|a');expect(chat.temperature).toBe(0.7);expect(chat.maxOutputTokens).toBeUndefined();
+});
+
+test('the model directory keeps raw metadata, request ids and interface names apart', () => {
+    const provider={id:'p1',allModels:JSON.stringify([
+        {id:'deepseek-flash',name:'deepseek-flash',context_length:131072,top_provider:{max_completion_tokens:32768}}])};
+    expect(getProviderModelEntries(provider)).toEqual([{id:'deepseek-flash',name:'deepseek-flash',context_length:131072,top_provider:{max_completion_tokens:32768}}]);
+    expect(getModelDisplayName(provider,'deepseek-flash')).toBe('deepseek-flash');
+    const renamed={...provider,allModels:JSON.stringify([{id:'deepseek-flash',name:'快速模型',context_length:131072}])};
+    expect(getModelDisplayName(renamed,'deepseek-flash')).toBe('快速模型');
+    expect(getModelDisplayName(renamed,'missing-model')).toBe('missing-model');
+    expect(getModelCapabilityInfo(getProviderModelEntries(renamed)[0]).contextWindowTokens).toBe(131072);
+});
+
+test('the directory follows the enabled list and keeps enabled ids that lost their catalog entry', () => {
+    const provider={id:'p1',allModels:JSON.stringify([{id:'a'},{id:'b'},{id:'c'}]),visibleModels:'b, legacy'};
+    expect(getProviderModelDirectory(provider).map(model=>model.id)).toEqual(['b','legacy']);
+    expect(getProviderModelDirectory({id:'p1',allModels:provider.allModels,visibleModels:''}).map(model=>model.id)).toEqual(['a','b','c']);
+});
+
+test('legacy comma separated model lists and blank entries stay readable', () => {
+    const provider={id:'p1',allModels:'old-a, old-b'};
+    expect(getProviderModelEntries(provider)).toEqual([{id:'old-a',name:'old-a'},{id:'old-b',name:'old-b'}]);
+    expect(getProviderModelEntries({id:'p1',allModels:JSON.stringify([{name:'by-name'},{id:'  '},null])}))
+        .toEqual([{id:'by-name',name:'by-name'}]);
+    expect(getProviderModelDirectory({id:'p1'})).toEqual([]);
 });

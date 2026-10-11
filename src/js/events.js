@@ -601,9 +601,6 @@ function updateConversationParameterHints(chat) {
         ? '对比模式的温度与 Top P 同时用于所选模型；留空时各模型使用各自的服务端默认。发送全部历史，输出长度由各服务端决定。'
         : '温度与 Top P 按模型分别保存；留空使用服务端默认。发送全部历史，输出长度由服务端决定。';
     document.getElementById('thinking-setting').style.display = targets.some(target => target.modelName.toLowerCase() === 'kimi-k2.6') ? '' : 'none';
-    const capabilities = document.getElementById('conversation-model-capabilities');
-    capabilities.replaceChildren(...targets.map(target => createModelCapabilityCard(
-        getConversationModelMetadata(target.provider, target.modelName), target.provider.name + ' / ' + target.modelName)));
     for (const field of conversationNumberFields) {
         const input = document.getElementById(field.id);
         const hint = document.getElementById(field.id + '-hint');
