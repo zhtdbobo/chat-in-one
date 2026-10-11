@@ -378,6 +378,10 @@ function setupIpcHandlers() {
                 models = data.data;
             }
 
+            // Preserve explicitly published provider-wide defaults alongside model-specific metadata.
+            const common = Object.fromEntries(['default_parameters', 'parameter_defaults', 'defaults', 'parameter_limits', 'supported_parameters']
+                .filter(key => data[key] !== undefined).map(key => [key, data[key]]));
+            if (Object.keys(common).length) models = models.map(model => model && typeof model === 'object' ? { ...common, ...model } : model);
             return { ok: true, models };
         } catch (err) {
             const error = err?.name === 'AbortError' ? 'Timeout after 12000ms' : (err.message || String(err));

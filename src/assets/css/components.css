@@ -587,16 +587,24 @@
 }
 
 .specific-model-settings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
     margin-top: 24px;
     padding-top: 20px;
     border-top: 1px solid var(--border-subtle);
 }
+.specific-model-settings > :not(.setting-item) { grid-column: 1 / -1; }
+.specific-model-settings > .setting-item { min-width: 0; margin-bottom: 0; }
+.specific-model-settings > .model-parameter-status,
+.specific-model-settings > .model-capability-heading,
+.specific-model-settings > .model-override-hint { margin: 0; }
 
 .specific-model-settings .settings-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 0;
 }
 
 .specific-model-settings .settings-header h3 {
@@ -610,7 +618,7 @@
     margin-bottom: 20px;
 }
 
-.setting-item label {
+.setting-item label, .model-input-label {
     display: block;
     font-size: 13px;
     font-weight: 500;
@@ -618,58 +626,48 @@
     margin-bottom: 8px;
 }
 
-.slider-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.toggle-container {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-}
-
-.setting-item label i {
+.model-number-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
     font-size: 14px;
-    color: var(--text-muted);
-    cursor: help;
-}
-
-.slider-container input[type="range"] {
-    flex: 1;
-    -webkit-appearance: none;
-    height: 6px;
-    background: var(--border-subtle);
-    border-radius: 3px;
+    height: 42px;
+    line-height: 20px;
     outline: none;
+    box-sizing: border-box;
 }
-
-.slider-container input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    background: var(--bg-primary);
-    border-radius: 50%;
-    cursor: pointer;
+.model-number-input:not([readonly]):focus { border-color: var(--brand-primary, #3b82f6); }
+.model-number-input[readonly] { cursor: default; }
+.model-number-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.parameter-hint, .model-parameter-status {
+    margin: 7px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
 }
-
-.slider-container input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    background: var(--bg-primary);
-    border-radius: 50%;
-    cursor: pointer;
-    border: none;
+.model-parameter-status { margin: -4px 0 18px; }
+.model-capability-heading { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+.model-capability-card { margin-bottom: 0; }
+#conversation-model-capabilities .model-capability-card + .model-capability-card { margin-top: 20px; }
+.model-capability-name { font-size: 13px; font-weight: 600; margin-bottom: 12px; overflow-wrap: anywhere; }
+.model-capability-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.model-capability-fields > .setting-item { min-width: 0; margin-bottom: 0; }
+.model-input-options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 14px; color: var(--text-primary); }
+.model-input-options label { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: inherit; font-weight: 400; }
+.model-input-types input { margin: 0; }
+.model-override-hint { margin-bottom: 20px; }
+.model-option-details { flex: 1; min-width: 0; margin-right: 12px; }
+.model-option-details .model-capability-card { margin: 8px 0 0; }
+@media (max-width: 480px) {
+    .specific-model-settings, .model-capability-fields { grid-template-columns: minmax(0, 1fr); }
 }
-
-.slider-container span {
-    min-width: 80px;
-    text-align: right;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
+.toggle-container { display: flex; align-items: center; justify-content: flex-end; }
+.setting-item label i { font-size: 14px; color: var(--text-muted); cursor: help; }
 
 .conversation-settings-footer {
     display: flex;

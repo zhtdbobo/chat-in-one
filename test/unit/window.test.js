@@ -25,6 +25,8 @@ jest.mock('electron', () => {
             this.focus = jest.fn();
             this.restore = jest.fn(() => { this.minimized = false; });
             this.loadFile = jest.fn();
+            this.setTitleBarOverlay = jest.fn();
+            this.setBackgroundColor = jest.fn();
             this.isMinimized = jest.fn(() => this.minimized);
             this.isVisible = jest.fn(() => this.visible);
             this.isDestroyed = jest.fn(() => this.destroyed);
@@ -58,6 +60,26 @@ describe('Window tray safety', () => {
         jest.resetModules();
         trayInstances.length = 0;
         browserWindowInstance = null;
+    });
+
+    test('theme changes ignore auxiliary windows when no main window exists', () => {
+        const windowModule=require('../../src/js/main/window');
+        expect(()=>windowModule.updateTitlebarTheme('dark')).not.toThrow();
+        expect(windowModule.updateTitlebarTheme('dark')).toBe(false);
+    });
+
+    test('theme changes update the configured main window', () => {
+        const windowModule=require('../../src/js/main/window');windowModule.createWindow();
+        expect(windowModule.updateTitlebarTheme('dark')).toBe(true);
+        expect(browserWindowInstance.setTitleBarOverlay).toHaveBeenCalledWith({color:'#1a1b1e',symbolColor:'#ffffff'});
+        expect(browserWindowInstance.setBackgroundColor).toHaveBeenCalledWith('#1a1b1e');
+    });
+
+    test('a native overlay error cannot crash the main process', () => {
+        const windowModule=require('../../src/js/main/window');windowModule.createWindow();
+        browserWindowInstance.setTitleBarOverlay.mockImplementation(()=>{throw new Error('Titlebar overlay is not enabled');});
+        expect(windowModule.updateTitlebarTheme('light')).toBe(false);
+        browserWindowInstance.destroyed=true;expect(windowModule.updateTitlebarTheme('dark')).toBe(false);
     });
 
     test('tray click does not crash when main window is destroyed', () => {

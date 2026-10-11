@@ -273,7 +273,12 @@ function estimateTokensFromText(text) {
     // - CJK chars ~ 1 token / char
     // - Non-CJK ~ 1 token / 4 chars
     // This is only for warning UI; providers differ.
-    const cjk = (s.match(/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff\uac00-\ud7af]/g) || []).length;
+    let cjk = 0;
+    for (let index = 0; index < s.length; index++) {
+        const code = s.charCodeAt(index);
+        if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf) ||
+            (code >= 0x3040 && code <= 0x30ff) || (code >= 0xac00 && code <= 0xd7af)) cjk++;
+    }
     const nonCjkChars = Math.max(0, s.length - cjk);
     return Math.ceil(cjk * 1.0 + nonCjkChars / 4);
 }
@@ -289,6 +294,9 @@ function estimateTokensFromMessageContent(content) {
             const t = String(item.type || '').toLowerCase();
             if (t === 'text') {
                 sum += estimateTokensFromText(item.text || '');
+            } else if (t === 'file') {
+                // Base64 is a transport encoding, not text tokens. PDF page cost is provider-dependent.
+                sum += 1000;
             } else if (t === 'image' || t === 'image_url') {
                 // Images are not tokenized like text, but they do consume context budget.
                 // Use a conservative fixed cost so we can warn early.
@@ -340,7 +348,7 @@ function estimateConversationTokens({ systemPrompt, messages, maxOutputTokens, m
     const promptTokens = estimateTokensFromText(systemPrompt || '');
     const msgTokens = estimateTokensFromMessages(messages || []);
 
-    // If user sets "无限制" (0), the provider will still cap it; reserve a decent default
+    // With no output override the server chooses its limit; this reserve is an estimate only.
     const outputReserve = (maxOutputTokens && maxOutputTokens > 0) ? maxOutputTokens : 2048;
 
     const estimatedInput = promptTokens + msgTokens;
@@ -362,32 +370,5 @@ function estimateConversationTokens({ systemPrompt, messages, maxOutputTokens, m
  * Returns what parameters will actually be sent to the API for a given model.
  */
 function getEffectiveModelParams(modelName, params = {}) {
-    const model = String(modelName || '').trim().toLowerCase();
-    const { temperature, top_p, enableThinking } = params;
-
-    // Kimi k2.6: fixed sampling params + thinking control
-    if (model === 'kimi-k2.6') {
-        return {
-            temperature: null,
-            top_p: 0.95,
-            presence_penalty: 0,
-            frequency_penalty: 0,
-            thinking: enableThinking !== false
-        };
-    }
-
-    if (model.startsWith('kimi-k2-thinking')) {
-        return { temperature: temperature ?? 1.0, top_p: 1.0 };
-    }
-
-    if (model.startsWith('kimi-k2')) {
-        return { temperature: temperature ?? 0.6, top_p: 1.0 };
-    }
-
-    if (model.startsWith('moonshot-v1')) {
-        return { temperature: temperature ?? 0.0, top_p: 1.0 };
-    }
-
-    // Generic OpenAI-compatible fallback
-    return { temperature: temperature ?? 0.7, top_p: top_p ?? 1.0 };
+    return buildSamplingRequestConfig(modelName, params);
 }

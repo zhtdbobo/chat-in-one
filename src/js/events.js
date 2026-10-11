@@ -164,7 +164,8 @@ function setupEvents() {
                 if (!codeEl) return;
                 const codeText = codeEl?.dataset?.rawB64 ? decodeBase64Utf8(codeEl.dataset.rawB64) : (codeEl?.innerText || '');
                 if (typeof window.openSandbox === 'function') {
-                    window.openSandbox(codeText);
+                    const language = Array.from(codeEl.classList).find(name => name !== 'hljs') || '';
+                    window.openSandbox(codeText, language);
                 }
                 return;
             }
@@ -220,6 +221,7 @@ function setupEvents() {
     // Comparison Mode Toggle
     if (comparisonToggleBtn) {
         comparisonToggleBtn.addEventListener('click', () => {
+            if (isChatBusy()) return;
             state.isComparisonMode = !state.isComparisonMode;
             
             // Update the state of the specific chat
@@ -262,19 +264,8 @@ function setupEvents() {
     if (cancelMultiModelBtn) cancelMultiModelBtn.addEventListener('click', closeMultiModelModal);
     if (confirmMultiModelBtn) confirmMultiModelBtn.addEventListener('click', confirmMultiModelSelection);
 
-    // Stop button
-    if (stopBtn) {
-        stopBtn.addEventListener('click', () => {
-            window.api.stopStream();
-            if (state.currentStreamDiv) {
-                const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
-                if (scrollEl) {
-                    scrollEl.innerHTML += '<br><span style="color:var(--text-muted)"> [已停止生成]</span>';
-                }
-            }
-            finalizeStream(state.currentChatId, {});
-        });
-    }
+    // Stop both pending and streaming requests.
+    if (stopBtn) stopBtn.addEventListener('click', stopChatRequests);
 
     // Conversation settings button
     if (conversationSettingsBtn) {
@@ -288,7 +279,6 @@ function setupEvents() {
         addBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             addDropdown.classList.toggle('show');
-            // Close other dropdowns
             document.getElementById('mcp-selection-dropdown').classList.remove('show');
         });
 
@@ -548,41 +538,6 @@ function setupEvents() {
         saveConversationSettingsBtn.addEventListener('click', saveConversationSettings);
     }
 
-    // Slider event listeners for conversation settings
-    const maxMessageCountSlider = document.getElementById('max-message-count');
-    const maxMessageCountValue = document.getElementById('max-message-count-value');
-    if (maxMessageCountSlider && maxMessageCountValue) {
-        maxMessageCountSlider.addEventListener('input', () => {
-            const value = parseInt(maxMessageCountSlider.value);
-            maxMessageCountValue.textContent = value === 15 ? '无限制' : value;
-        });
-    }
-
-    const temperatureSlider = document.getElementById('temperature');
-    const temperatureValue = document.getElementById('temperature-value');
-    if (temperatureSlider && temperatureValue) {
-        temperatureSlider.addEventListener('input', () => {
-            temperatureValue.textContent = temperatureSlider.value;
-        });
-    }
-
-    const topPSlider = document.getElementById('top-p');
-    const topPValue = document.getElementById('top-p-value');
-    if (topPSlider && topPValue) {
-        topPSlider.addEventListener('input', () => {
-            topPValue.textContent = topPSlider.value;
-        });
-    }
-
-    const maxOutputTokensSlider = document.getElementById('max-output-tokens');
-    const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
-    if (maxOutputTokensSlider && maxOutputTokensValue) {
-        maxOutputTokensSlider.addEventListener('input', () => {
-            const val = parseInt(maxOutputTokensSlider.value);
-            maxOutputTokensValue.textContent = val >= 8100 ? '无限制' : val;
-        });
-    }
-
     // Global event delegation for code block copy buttons
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.code-copy-btn');
@@ -614,590 +569,180 @@ function setupEvents() {
         });
     }
 
-    // Stream IPC Listeners
-    window.api.onStreamStart((data) => {
-        state.isStreaming = true;
-        if (sendBtn) sendBtn.style.display = 'none';
-        if (stopBtn) stopBtn.style.display = 'flex';
-
-        if (state.isComparisonMode && data.modelName) {
-            // Find the model's column body
-            const matchedModelId = state.selectedComparisonModels.find(id => id.endsWith('|' + data.modelName) || id === data.modelName);
-            const safeId = (matchedModelId || data.modelName).replace(/[^a-zA-Z0-9]/g, '-');
-            const colId = `comp-body-${safeId}`;
-            const colBody = document.getElementById(colId);
-
-            if (colBody) {
-                // Determine the model's display name for metadata
-                const [pId, mName] = (matchedModelId || '').split('|');
-
-                // In full column mode, we APPEND a message item to the column instead of clearing it.
-                // This preserves history while showing the new response.
-                const div = renderMessageItem('assistant', '');
-                div.classList.add('currently-streaming');
-                colBody.appendChild(div);
-                
-                state.comparisonStreams[data.modelName] = div.querySelector('.message-content');
-
-                // Scroll the column body to bottom
-                colBody.scrollTop = colBody.scrollHeight;
-
-                // Update header status
-                const col = colBody.closest('.comparison-column');
-                if (col) {
-                    const status = col.querySelector('.model-status');
-                    if (status) {
-                        status.textContent = '正在生成...';
-                        status.classList.add('streaming');
-                    }
-                }
-            } else {
-                console.warn('[Comparison] Could not find column body:', colId, 'for model:', data.modelName);
-            }
-        } else {
-            const div = renderMessageItem('assistant', '');
-            if (messagesList) {
-                messagesList.appendChild(div);
-            } else {
-                messageContainer.appendChild(div);
-            }
-            state.currentStreamDiv = div.querySelector('.message-content');
-        }
-        scrollToBottom();
-    });
-
-    window.api.onStreamChunk((data) => {
-        const streamDiv = (state.isComparisonMode && data.modelName)
-            ? state.comparisonStreams[data.modelName]
-            : state.currentStreamDiv;
-
-        if (!streamDiv) return;
-
-        try {
-            if (data.tool_call) {
-                streamDiv.dataset.toolStatus = data.tool_call;
-            }
-            if (data.reasoning_content) {
-                const currentReasoning = streamDiv.dataset.reasoning || '';
-                streamDiv.dataset.reasoning = currentReasoning + data.reasoning_content;
-                // If we get reasoning, clear tool status
-                if (streamDiv.dataset.toolStatus) delete streamDiv.dataset.toolStatus;
-            }
-            if (data.content) {
-                const currentRaw = streamDiv.dataset.raw || '';
-                streamDiv.dataset.raw = currentRaw + data.content;
-                // If we get content, clear tool status
-                if (streamDiv.dataset.toolStatus) delete streamDiv.dataset.toolStatus;
-            }
-
-            const rawContent = streamDiv.dataset.raw || '';
-            const rawReasoning = streamDiv.dataset.reasoning || '';
-            const toolStatus = streamDiv.dataset.toolStatus;
-
-            let finalHtml = '';
-
-            if (toolStatus === 'calling') {
-                finalHtml += `
-                    <div class="tool-status">
-                        <i class="ph ph-spinner"></i>
-                        <span>正在调用工具...</span>
-                    </div>
-                `;
-            } else if (toolStatus === 'responding') {
-                finalHtml += `
-                    <div class="tool-status">
-                        <i class="ph ph-spinner"></i>
-                        <span>正在生成回答...</span>
-                    </div>
-                `;
-            }
-
-            if (rawReasoning && state.settings.enableThinking !== false) {
-                const isStreamingComplete = !state.isStreaming;
-                finalHtml += `
-                    <details class="thinking-block" ${!isStreamingComplete ? 'open' : ''}>
-                        <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
-                    </details>
-                `;
-            }
-
-            if (rawContent) {
-                finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
-            }
-
-            const scrollEl = streamDiv.querySelector('.message-scroll');
-            if (scrollEl) {
-                scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
-
-                // Highlighting is now handled by custom marked renderer
-            }
-            scrollToBottom();
-        } catch (e) {
-            console.error('Error in onStreamChunk UI update:', e);
-        }
-    });
-
-    window.api.onStreamEnd((data) => {
-        if (state.isComparisonMode && data.modelName) {
-            finalizeComparisonColumn(data.chatId, data.modelName, data);
-        } else {
-            finalizeStream(data.chatId, data);
-        }
-    });
-
-    window.api.onStreamError((data) => {
-        if (state.isComparisonMode && data.modelName) {
-            // Show error in the specific model column
-            const streamDiv = state.comparisonStreams[data.modelName];
-            if (streamDiv) {
-                const scrollEl = streamDiv.querySelector('.message-scroll');
-                if (scrollEl) {
-                    scrollEl.innerHTML = `<div class="markdown-body"><span style="color:var(--color-error, #ef4444)">❌ 发生错误: ${escapeHtml(data.error)}</span></div>`;
-                }
-            }
-            finalizeComparisonColumn(data.chatId, data.modelName, {});
-        } else {
-            if (state.currentStreamDiv) {
-                const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
-                if (scrollEl) {
-                    scrollEl.innerHTML += `<br><span style="color:red"> [发生错误: ${escapeHtml(data.error)}]</span>`;
-                }
-            } else {
-                renderMessageItem('system', `API 连接错误: ${data.error}`);
-            }
-            finalizeStream(data.chatId, {});
-        }
-    });
+    // Events are routed by request identity, including errors before HTTP headers arrive.
+    window.api.onStreamStart(handleStreamStart);
+    window.api.onStreamChunk(handleStreamChunk);
+    window.api.onStreamEnd(finishChatRequest);
+    window.api.onStreamError(finishChatRequest);
 }
 
-/**
- * Finalize a single comparison column when its stream ends.
- * Replaces finalizeStream for comparison mode.
- */
-function finalizeComparisonColumn(chatId, modelName, meta) {
-    const streamDiv = state.comparisonStreams[modelName];
-    if (!streamDiv) return;
+// Conversation settings: form values are overrides; server defaults are hints only.
+let conversationSettingsRevision = 0;
+let conversationSettingsChatId = null;
+const conversationMetadataRequests = new Map();
+const conversationNumberFields = [
+    { id: 'temperature', key: 'temperature', chatKey: 'temperature', label: '温度' },
+    { id: 'top-p', key: 'top_p', chatKey: 'topP', label: 'Top P' }
+];
 
-    // Final render
-    const rawContent = streamDiv.dataset.raw || '';
-    const rawReasoning = streamDiv.dataset.reasoning || '';
-    const scrollEl = streamDiv.querySelector('.message-scroll');
-
-    if (scrollEl) {
-        let finalHtml = '';
-        if (rawReasoning && state.settings.enableThinking !== false) {
-            finalHtml += `
-                <details class="thinking-block">
-                    <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
-                </details>
-            `;
-        }
-        if (rawContent) {
-            finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
-        }
-        scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
-    }
-
-    // Meta info
-    const textRawForCount = typeof rawContent === 'string' ? rawContent : String(rawContent || '');
-    const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-    const wordCount = zhCount + enCount;
-    const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
-
-    // 获取服务商名称
-    const chat = state.chats.find(c => c.id === chatId);
-    let providerNameLabel = '';
-    if (chat && chat.model && chat.model.includes('|')) {
-        const pId = chat.model.split('|')[0];
-        const provider = state.settings.providers.find(p => p.id === pId);
-        if (provider) providerNameLabel = provider.name;
-    }
-
-    const latencyS = meta.firstTokenLatency != null ? (meta.firstTokenLatency / 1000).toFixed(1) + 's' : '';
-
-    const parts = [];
-    if (providerNameLabel) {
-        parts.push(`${providerNameLabel} (${meta.model || modelName})`);
-    } else {
-        parts.push(meta.model || modelName);
-    }
-    parts.push(`${tokens} tokens`);
-    parts.push(`${wordCount} words`);
-    if (latencyS) parts.push(latencyS);
-    if (meta.time) parts.push(meta.time);
-
-    const metaStr = parts.join(' · ');
-
-    const existingMeta = streamDiv.querySelector('.message-meta');
-    if (existingMeta) existingMeta.remove();
-    if (scrollEl) {
-        const metaEl = document.createElement('div');
-        metaEl.className = 'message-meta';
-        metaEl.textContent = metaStr;
-        scrollEl.insertAdjacentElement('afterend', metaEl);
-    }
-
-
-    // Update column header status  
-    const col = streamDiv.closest('.comparison-column');
-    if (col) {
-        const status = col.querySelector('.model-status');
-        if (status) {
-            status.textContent = '✓ 完成';
-            status.classList.remove('streaming');
-        }
-    }
-
-    // Save to chat state
-    if (chat) {
-
-        chat.messages.push({
-            role: 'assistant',
-            content: { content: rawContent, reasoning_content: rawReasoning },
-            model: meta.model || modelName,
-            comparisonModelName: modelName,
-            usage: meta.usage,
-            firstTokenLatency: meta.firstTokenLatency,
-            time: meta.time
-        });
-        saveChats();
-    }
-
-    // Remove from active streams map
-    delete state.comparisonStreams[modelName];
-
-    // Check if all comparison streams are done
-    if (Object.keys(state.comparisonStreams).length === 0) {
-        state.isStreaming = false;
-        if (sendBtn) { sendBtn.disabled = false; sendBtn.style.display = 'flex'; }
-        if (stopBtn) stopBtn.style.display = 'none';
-        messageInput.focus();
-
-        // Auto-generate title
-        if (chat && chat.title === '新对话') {
-            chat.title = generateTitleFromContent(chat.messages[0]?.content);
-            renderChatList();
-            saveChats();
-        }
-    }
-    scrollToBottom();
+function getConversationSettingsTargets(chat) {
+    const ids = chat.isComparisonMode && chat.comparisonModels?.length >= 2 ? chat.comparisonModels : [chat.model];
+    return ids.map(id => {
+        const [providerId, modelName] = String(id || '').split('|');
+        const provider = (state.settings.providers || []).find(item => item.id === providerId);
+        return provider && modelName ? { provider, modelName,
+            info: getModelParameterInfo(getConversationModelMetadata(provider, modelName)) } : null;
+    }).filter(Boolean);
 }
 
-function finalizeStream(chatId, meta) {
-    state.isStreaming = false;
-    if (sendBtn) {
-        sendBtn.disabled = false;
-        sendBtn.style.display = 'flex';
+function updateConversationParameterHints(chat) {
+    const targets = getConversationSettingsTargets(chat);
+    document.querySelector('.model-override-hint').textContent = targets.length > 1
+        ? '对比模式的温度与 Top P 同时用于所选模型；留空时各模型使用各自的服务端默认。发送全部历史，输出长度由各服务端决定。'
+        : '温度与 Top P 按模型分别保存；留空使用服务端默认。发送全部历史，输出长度由服务端决定。';
+    document.getElementById('thinking-setting').style.display = targets.some(target => target.modelName.toLowerCase() === 'kimi-k2.6') ? '' : 'none';
+    const capabilities = document.getElementById('conversation-model-capabilities');
+    capabilities.replaceChildren(...targets.map(target => createModelCapabilityCard(
+        getConversationModelMetadata(target.provider, target.modelName), target.provider.name + ' / ' + target.modelName)));
+    for (const field of conversationNumberFields) {
+        const input = document.getElementById(field.id);
+        const hint = document.getElementById(field.id + '-hint');
+        const limits = targets.map(target => target.info.parameters[field.key]);
+        const unsupported = limits.some(limit => limit.supported === false);
+        const fixed = limits.length > 0 && limits.every(limit => limit.fixed);
+        input.disabled = unsupported || fixed;
+        if (input.disabled) input.value = '';
+        const minValues = limits.map(limit => limit.min).filter(value => value !== undefined);
+        const maxValues = limits.map(limit => limit.max).filter(value => value !== undefined);
+        input.min = String(minValues.length ? Math.max(...minValues) : 0);
+        if (maxValues.length) input.max = String(Math.min(...maxValues));
+        else input.removeAttribute('max');
+        const defaults = limits.map(limit => limit.defaultValue);
+        const sameDefault = defaults.length > 0 && defaults.every(value => value !== undefined && value === defaults[0]);
+        input.placeholder = unsupported ? '当前模型不支持' : fixed && sameDefault ? '服务端固定：' + defaults[0]
+            : sameDefault ? '服务端默认：' + defaults[0] + '（留空）' : '服务端默认（留空）';
+        let message = unsupported ? '所选模型不支持此参数，使用服务端行为。'
+            : sameDefault ? '服务端' + (fixed ? '固定值' : '默认值') + '：' + defaults[0] + '。'
+            : limits.some(limit => limit.defaultValue !== undefined)
+                ? targets.map(target => target.provider.name + ' / ' + target.modelName + '：' + (target.info.parameters[field.key].defaultValue ?? '默认值未提供')).join('；')
+                : '服务端默认值未提供；留空由服务端决定。';
+        if (maxValues.length && !fixed) message += ' 可设置上限：' + Math.min(...maxValues) + '。';
+        hint.textContent = message;
     }
-    if (stopBtn) stopBtn.style.display = 'none';
-    messageInput.focus();
-
-    // Save to state
-    if (state.currentStreamDiv) {
-        const finalContent = state.currentStreamDiv.dataset.raw || '';
-        const finalReasoning = state.currentStreamDiv.dataset.reasoning || '';
-
-        // After stream is done, close the reasoning details
-        const detailsEl = state.currentStreamDiv.querySelector('details.thinking-block');
-        if (detailsEl) detailsEl.removeAttribute('open');
-
-        const rawContent = state.currentStreamDiv.dataset.raw || '';
-        const rawReasoning = state.currentStreamDiv.dataset.reasoning || '';
-        const scrollEl = state.currentStreamDiv.querySelector('.message-scroll');
-        if (scrollEl) {
-            let finalHtml = '';
-            if (rawReasoning && state.settings.enableThinking !== false) {
-                finalHtml += `
-                    <details class="thinking-block">
-                        <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                        <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
-                    </details>
-                `;
-            }
-            if (rawContent) {
-                finalHtml += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
-            }
-            scrollEl.innerHTML = finalHtml || '<div class="markdown-body"></div>';
-        }
-
-        // Append message meta
-        const textRawForCount = typeof finalContent === 'string' ? finalContent : String(finalContent || '');
-        const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
-        const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-        const wordCount = zhCount + enCount;
-        const tokens = meta.usage?.total_tokens ?? meta.usage?.completion_tokens ?? meta.usage?.output_tokens ?? '—';
-        const latencyS = meta.firstTokenLatency != null ? (meta.firstTokenLatency / 1000).toFixed(1) + 's' : '';
-
-        // 获取服务商名称
-        const chat = state.chats.find(c => c.id === chatId);
-        let providerNameLabel = '';
-        if (chat && chat.model && chat.model.includes('|')) {
-            const pId = chat.model.split('|')[0];
-            const provider = state.settings.providers.find(p => p.id === pId);
-            if (provider) providerNameLabel = provider.name;
-        }
-
-        const parts = [];
-        if (providerNameLabel) {
-            parts.push(`${providerNameLabel} (${meta.model || '—'})`);
-        } else {
-            parts.push(meta.model || '—');
-        }
-        parts.push(`${tokens} tokens`);
-        parts.push(`${wordCount} words`);
-        if (latencyS) parts.push(latencyS);
-        if (meta.time) parts.push(meta.time);
-
-        const metaStr = parts.join(' · ');
-
-        const existingMeta = state.currentStreamDiv.querySelector('.message-meta');
-        if (existingMeta) existingMeta.remove();
-
-        const metaEl = document.createElement('div');
-        metaEl.className = 'message-meta';
-        metaEl.textContent = metaStr;
-        if (scrollEl) scrollEl.insertAdjacentElement('afterend', metaEl);
-        else state.currentStreamDiv.appendChild(metaEl);
-
-        if (chat) {
-
-            chat.messages.push({ role: 'assistant', content: { content: finalContent, reasoning_content: finalReasoning }, model: meta.model, usage: meta.usage, firstTokenLatency: meta.firstTokenLatency, time: meta.time });
-
-            // Auto generate title for first message
-            if (chat.messages.length === 2 && chat.title === '新对话') {
-                chat.title = generateTitleFromContent(chat.messages[0].content);
-                renderChatList();
-            }
-            saveChats();
-        }
-    }
-
-    state.currentStreamDiv = null;
-    scrollToBottom();
 }
 
-// Conversation Settings Functions
+function refreshOpenConversationModelSettings(chat) {
+    if (conversationSettingsChatId !== chat.id || conversationSettingsModal.style.display === 'none') return;
+    const values = getConversationNumericOverrides(chat);
+    for (const field of conversationNumberFields) {
+        document.getElementById(field.id).value = values[field.key] ?? '';
+    }
+    updateConversationParameterHints(chat);
+    const revision = ++conversationSettingsRevision;
+    void refreshConversationParameterMetadata(chat, revision);
+}
+
+async function refreshConversationParameterMetadata(chat, revision) {
+    const providers = [...new Map(getConversationSettingsTargets(chat).map(target => [JSON.stringify([target.provider.id, target.provider.endpoint]), { ...target.provider }])).values()];
+    const status = document.getElementById('model-parameter-status');
+    if (!providers.length || providers.some(provider => !provider.endpoint || !provider.apiKey)) {
+        status.textContent = '配置服务商后可自动读取默认参数；数值留空时使用服务端默认。';
+        return;
+    }
+    status.textContent = '正在读取服务端模型参数…';
+    const results = await Promise.all(providers.map(provider => {
+        const key = JSON.stringify([provider.id, provider.endpoint]);
+        if (!conversationMetadataRequests.has(key)) {
+            const request = Promise.resolve().then(() => window.api.fetchProviderModels({
+                providerId: provider.id, endpoint: provider.endpoint, apiKey: provider.apiKey
+            })).then(result => {
+                if (result?.ok && Array.isArray(result.models)) rememberProviderModelMetadata(provider, result.models);
+                return result;
+            }).catch(() => ({ ok: false })).finally(() => conversationMetadataRequests.delete(key));
+            conversationMetadataRequests.set(key, request);
+        }
+        return conversationMetadataRequests.get(key);
+    }));
+    // A late response must not alter another chat's form or overwrite typed values.
+    if (revision !== conversationSettingsRevision || state.currentChatId !== chat.id || conversationSettingsModal.style.display === 'none') return;
+    updateConversationParameterHints(chat);
+    status.textContent = results.every(result => result?.ok)
+        ? '已读取模型信息。默认值和参数范围以服务端公开的信息为准；留空使用服务端默认。'
+        : '服务端模型信息读取失败，显示已缓存的信息；留空仍使用服务端默认。';
+}
+
 function openConversationSettings() {
-    if (conversationSettingsModal) {
-        // Get current chat
-        const activeChat = state.chats.find(c => c.id === state.currentChatId);
-        if (activeChat) {
-            // Extract model name from chat.model (format: "providerId|modelName")
-            let modelName = '';
-            if (activeChat.model && activeChat.model.includes('|')) {
-                modelName = activeChat.model.split('|').map(s => s.trim())[1];
-            }
-
-            // Get effective model parameters for the current model
-            const effectiveParams = getEffectiveModelParams(modelName, {
-                temperature: activeChat.temperature,
-                top_p: activeChat.topP,
-                enableThinking: activeChat.enableThinking ?? state.settings.enableThinking !== false
-            });
-
-            // Set conversation name
-            const nameInput = document.getElementById('conversation-name');
-            if (nameInput) {
-                nameInput.value = activeChat.title || 'Untitled';
-            }
-
-            // Set system prompt
-            const promptInput = document.getElementById('conversation-prompt');
-            if (promptInput) {
-                promptInput.value = activeChat.systemPrompt || state.settings.systemPrompt || 'You are a helpful assistant.';
-            }
-
-            // Set max message count
-            const maxMessageCountSlider = document.getElementById('max-message-count');
-            const maxMessageCountValue = document.getElementById('max-message-count-value');
-            if (maxMessageCountSlider && maxMessageCountValue) {
-                const value = activeChat.maxMessageCount || 15;
-                maxMessageCountSlider.value = value;
-                maxMessageCountValue.textContent = value === 15 ? '无限制' : value;
-            }
-
-            // Set temperature — show effective value or "不可用" if not sent
-            const temperatureSlider = document.getElementById('temperature');
-            const temperatureValue = document.getElementById('temperature-value');
-            if (temperatureSlider && temperatureValue) {
-                if (effectiveParams.temperature === null) {
-                    temperatureSlider.value = 1;
-                    temperatureSlider.disabled = true;
-                    temperatureSlider.title = '该模型固定此参数，不可调整';
-                    temperatureValue.textContent = '不可用';
-                } else {
-                    temperatureSlider.disabled = false;
-                    temperatureSlider.title = '';
-                    const value = activeChat.temperature ?? effectiveParams.temperature;
-                    temperatureSlider.value = value;
-                    temperatureValue.textContent = value;
-                }
-            }
-
-            // Set top P — show effective value
-            const topPSlider = document.getElementById('top-p');
-            const topPValue = document.getElementById('top-p-value');
-            if (topPSlider && topPValue) {
-                const effectiveTopP = effectiveParams.top_p;
-                const savedTopP = activeChat.topP;
-                // If effective top_p is fixed (model override), show it but keep slider adjustable
-                if (savedTopP && savedTopP !== effectiveTopP && effectiveParams.temperature !== null) {
-                    // User has a saved value that differs from model's effective default
-                    topPSlider.value = savedTopP;
-                    topPValue.textContent = savedTopP;
-                } else {
-                    topPSlider.value = effectiveTopP;
-                    topPValue.textContent = effectiveTopP;
-                }
-            }
-
-            // Set max output tokens
-            const maxOutputTokensSlider = document.getElementById('max-output-tokens');
-            const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
-            if (maxOutputTokensSlider && maxOutputTokensValue) {
-                // If 0, null, or 8100, treat as infinite (8100)
-                const value = (activeChat.maxOutputTokens === 0 || !activeChat.maxOutputTokens || activeChat.maxOutputTokens >= 8100) ? 8100 : activeChat.maxOutputTokens;
-                maxOutputTokensSlider.value = value;
-                maxOutputTokensValue.textContent = value >= 8100 ? '无限制' : value;
-            }
-
-            // Set stream output
-            const streamOutputToggle = document.getElementById('stream-output');
-            if (streamOutputToggle) {
-                streamOutputToggle.checked = activeChat.streamOutput !== false;
-            }
-
-            // Show/hide thinking toggle based on model support
-            const thinkingSetting = document.getElementById('thinking-setting');
-            const thinkingToggle = document.getElementById('enable-thinking');
-            if (thinkingSetting && thinkingToggle) {
-                if (effectiveParams.thinking !== undefined) {
-                    thinkingSetting.style.display = '';
-                    thinkingToggle.checked = activeChat.enableThinking ?? state.settings.enableThinking !== false;
-                } else {
-                    thinkingSetting.style.display = 'none';
-                }
-            }
-        }
-
-        conversationSettingsModal.style.display = 'flex';
+    const chat = state.chats.find(item => item.id === state.currentChatId);
+    if (!chat || !conversationSettingsModal) return;
+    conversationSettingsChatId = chat.id;
+    const revision = ++conversationSettingsRevision;
+    document.getElementById('conversation-name').value = chat.title || '未命名';
+    document.getElementById('conversation-prompt').value = chat.systemPrompt ?? state.settings.systemPrompt ?? 'You are a helpful assistant.';
+    const values = getConversationNumericOverrides(chat);
+    for (const field of conversationNumberFields) {
+        const input = document.getElementById(field.id);
+        input.value = values[field.key] ?? '';
     }
+    const thinking = document.getElementById('conversation-enable-thinking');
+    thinking.checked = chat.enableThinking ?? (state.settings.enableThinking !== false);
+    document.getElementById('thinking-setting').style.display = getConversationSettingsTargets(chat)
+        .some(target => target.modelName.toLowerCase() === 'kimi-k2.6') ? '' : 'none';
+    updateConversationParameterHints(chat);
+    conversationSettingsModal.style.display = 'flex';
+    void refreshConversationParameterMetadata(chat, revision);
 }
 
 function closeConversationSettings() {
-    if (conversationSettingsModal) {
-        conversationSettingsModal.style.display = 'none';
-    }
+    conversationSettingsRevision++;
+    conversationSettingsChatId = null;
+    if (conversationSettingsModal) conversationSettingsModal.style.display = 'none';
 }
 
 function saveConversationSettings() {
-    if (!state.currentChatId) return;
-
-    const activeChat = state.chats.find(c => c.id === state.currentChatId);
-    if (activeChat) {
-        // Save conversation name
-        const nameInput = document.getElementById('conversation-name');
-        if (nameInput) {
-            activeChat.title = nameInput.value.trim() || 'Untitled';
+    const chat = state.chats.find(item => item.id === state.currentChatId);
+    if (!chat || chat.id !== conversationSettingsChatId) return;
+    const values = {};
+    try {
+        for (const field of conversationNumberFields) {
+            const input = document.getElementById(field.id);
+            if (input.disabled) continue;
+            if (!input.checkValidity()) { input.reportValidity(); throw new Error('请检查' + field.label + '的输入范围。'); }
+            if (input.value.trim()) {
+                const value = parameterNumber(input.value);
+                if (value === undefined) throw new Error(field.label + '必须是有效数字。');
+                values[field.key] = value;
+            }
         }
-
-        // Save system prompt
-        const promptInput = document.getElementById('conversation-prompt');
-        if (promptInput) {
-            activeChat.systemPrompt = promptInput.value.trim();
-        }
-
-        // Save max message count
-        const maxMessageCountSlider = document.getElementById('max-message-count');
-        if (maxMessageCountSlider) {
-            activeChat.maxMessageCount = parseInt(maxMessageCountSlider.value);
-        }
-
-        // Save temperature
-        const temperatureSlider = document.getElementById('temperature');
-        if (temperatureSlider) {
-            activeChat.temperature = parseFloat(temperatureSlider.value);
-        }
-
-        // Save top P
-        const topPSlider = document.getElementById('top-p');
-        if (topPSlider) {
-            activeChat.topP = parseFloat(topPSlider.value);
-        }
-
-        // Save max output tokens
-        const maxOutputTokensSlider = document.getElementById('max-output-tokens');
-        if (maxOutputTokensSlider) {
-            activeChat.maxOutputTokens = parseInt(maxOutputTokensSlider.value);
-        }
-
-        // Save stream output
-        const streamOutputToggle = document.getElementById('stream-output');
-        if (streamOutputToggle) {
-            activeChat.streamOutput = streamOutputToggle.checked;
-        }
-
-        // Save enableThinking (per-chat override) if thinking setting is visible
-        const thinkingSetting = document.getElementById('thinking-setting');
-        const thinkingToggle = document.getElementById('enable-thinking');
-        if (thinkingSetting && thinkingToggle && thinkingSetting.style.display !== 'none') {
-            activeChat.enableThinking = thinkingToggle.checked;
-        }
-
-        // Save changes
-        saveChats();
-        renderChatList();
-
-        // Update current chat title
-        if (currentChatTitle) {
-            currentChatTitle.textContent = activeChat.title;
-        }
-
-        closeConversationSettings();
-        showNotification('对话设置已保存', 'success');
+        const targets = getConversationSettingsTargets(chat);
+        if (targets.length) targets.forEach(target => validateModelParameterOverrides(values, target.info));
+        else validateModelParameterOverrides(values);
+    } catch (error) {
+        showNotification(error.message, 'error');
+        return;
     }
+    // Validate the whole form before mutating or saving any chat settings.
+    chat.title = document.getElementById('conversation-name').value.trim() || '未命名';
+    chat.systemPrompt = document.getElementById('conversation-prompt').value.trim();
+    for (const field of conversationNumberFields) {
+        if (values[field.key] === undefined) delete chat[field.chatKey];
+        else chat[field.chatKey] = values[field.key];
+    }
+    chat.modelSettingsVersion = 2;
+    delete chat.maxMessageCount;
+    delete chat.maxOutputTokens;
+    rememberConversationModelOverrides(chat);
+    delete chat.streamOutput;
+    if (document.getElementById('thinking-setting').style.display !== 'none') {
+        chat.enableThinking = document.getElementById('conversation-enable-thinking').checked;
+    }
+    saveChats();
+    renderChatList();
+    currentChatTitle.textContent = chat.title;
+    closeConversationSettings();
+    showNotification('对话设置已保存', 'success');
 }
 
 function resetModelSettings() {
-    // Reset sliders to default values
-    const maxMessageCountSlider = document.getElementById('max-message-count');
-    const maxMessageCountValue = document.getElementById('max-message-count-value');
-    if (maxMessageCountSlider && maxMessageCountValue) {
-        maxMessageCountSlider.value = 15;
-        maxMessageCountValue.textContent = '无限制';
-    }
-
-    const temperatureSlider = document.getElementById('temperature');
-    const temperatureValue = document.getElementById('temperature-value');
-    if (temperatureSlider && temperatureValue) {
-        temperatureSlider.value = 0.7;
-        temperatureValue.textContent = '0.7';
-    }
-
-    const topPSlider = document.getElementById('top-p');
-    const topPValue = document.getElementById('top-p-value');
-    if (topPSlider && topPValue) {
-        topPSlider.value = 1;
-        topPValue.textContent = '1.0';
-    }
-
-    const maxOutputTokensSlider = document.getElementById('max-output-tokens');
-    const maxOutputTokensValue = document.getElementById('max-output-tokens-value');
-    if (maxOutputTokensSlider && maxOutputTokensValue) {
-        maxOutputTokensSlider.value = 8100;
-        maxOutputTokensValue.textContent = '无限制';
-    }
-
-    const streamOutputToggle = document.getElementById('stream-output');
-    if (streamOutputToggle) {
-        streamOutputToggle.checked = true;
-    }
-
-    const thinkingToggle = document.getElementById('enable-thinking');
-    if (thinkingToggle) {
-        thinkingToggle.checked = true;
-    }
+    for (const field of conversationNumberFields) document.getElementById(field.id).value = '';
+    document.getElementById('conversation-enable-thinking').checked = state.settings.enableThinking !== false;
 }

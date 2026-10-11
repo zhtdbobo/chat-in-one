@@ -108,13 +108,15 @@ function renderSearchableModelSelect() {
                     }
 
                     opt.addEventListener('click', (e) => {
+                        if (isChatBusy()) return;
                         e.stopPropagation();
                         dropdown.classList.remove('show');
 
                         if (!state.currentChatId) return;
                         const chat = state.chats.find(c => c.id === state.currentChatId);
                         if (chat) {
-                            chat.model = val;
+                            changeConversationModel(chat, val);
+                            refreshOpenConversationModelSettings(chat);
                             state.settings.lastUsedModel = val;
                             window.api.saveSettings(state.settings);
                             saveChats();
@@ -168,6 +170,7 @@ function renderSearchableModelSelect() {
 // Multi-Model Comparison UI Functions
 // -----------------------------------------
 function openMultiModelModal() {
+    if (isChatBusy()) return;
     renderMultiModelList();
     multiModelModal.style.display = 'flex';
 }
@@ -244,6 +247,7 @@ function renderMultiModelList() {
 }
 
 function confirmMultiModelSelection() {
+    if (isChatBusy()) return;
     if (state.selectedComparisonModels.length < 2) {
         showNotification('请至少选择 2 个模型进行对比', 'warning');
         return;
@@ -329,6 +333,46 @@ function showNotification(message, type = 'info', duration = 3000) {
 // -----------------------------------------
 // Model Selection Panel
 // -----------------------------------------
+let modelCapabilityFieldId = 0;
+function createModelCapabilityCard(model, name) {
+    const info = getModelCapabilityInfo(typeof model === 'object' ? model : {});
+    const card = document.createElement('section'); card.className = 'model-capability-card';
+    if (name) { const heading = document.createElement('div'); heading.className = 'model-capability-name'; heading.textContent = name; card.append(heading); }
+    const fields = document.createElement('div'); fields.className = 'model-capability-fields';
+    for (const [labelText, value] of [['上下文窗口（Token）', info.contextWindowTokens], ['最大输出上限（Token）', info.maxOutputTokens]]) {
+        const item = document.createElement('div'); item.className = 'setting-item';
+        const label = document.createElement('label'); label.textContent = labelText;
+        const field = document.createElement('input'); field.type = 'text'; field.readOnly = true;
+        field.className = 'model-number-input'; field.id = 'model-capability-field-' + ++modelCapabilityFieldId; label.htmlFor = field.id;
+        field.value = value === undefined ? '未提供' : String(value); field.setAttribute('aria-label', labelText);
+        item.append(label, field); fields.append(item);
+        if (value === undefined) {
+            const hint = document.createElement('p'); hint.className = 'parameter-hint';
+            hint.textContent = labelText.startsWith('最大输出') ? '未获取到输出上限；实际限制以服务端为准。' : '未获取到模型上下文窗口。';
+            field.title = hint.textContent; item.append(hint);
+        }
+    }
+    card.append(fields);
+    const types = document.createElement('div'); types.className = 'model-input-types';
+    const title = document.createElement('div'); title.className = 'model-input-label'; title.textContent = '输入类型'; types.append(title);
+    const options = document.createElement('div'); options.className = 'model-input-options'; types.append(options);
+    if (!info.inputTypes) {
+        const unknown = document.createElement('span'); unknown.textContent = '未提供（暂无法确认）'; options.append(unknown);
+        const hint = document.createElement('p'); hint.className = 'parameter-hint';
+        hint.textContent = '未获取到支持的输入格式；这不表示模型不支持图片。'; types.append(hint);
+    }
+    else {
+        const names = { text: '文本', image: '图片', audio: '音频', video: '视频', file: '文件' };
+        for (const type of [...new Set(['text', 'image', ...info.inputTypes])]) {
+            const label = document.createElement('label'), check = document.createElement('input');
+            check.type = 'checkbox'; check.disabled = true; check.checked = info.inputTypes.includes(type);
+            label.append(check, document.createTextNode(names[type] || type)); options.append(label);
+        }
+    }
+    card.append(types);
+    return card;
+}
+
 function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
     // Create modal overlay
     const modal = document.createElement('div');
@@ -370,7 +414,7 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
             const item = document.createElement('div');
             item.className = `model-selection-item ${isVisible ? 'selected' : ''}`;
             item.innerHTML = `
-                <span class="model-name">${escapeHtml(modelId)}</span>
+                <div class="model-option-details"><span class="model-name">${escapeHtml(modelId)}</span></div>
                 <div class="model-capabilities-indicators" style="display: flex; gap: 4px; font-size: 12px;">
                     <span title="视觉" style="opacity: ${caps.vision ? 1 : 0.3};"><i class="ph ph-image"></i></span>
                     <span title="推理" style="opacity: ${caps.reasoning ? 1 : 0.3};"><i class="ph ph-brain"></i></span>
@@ -380,6 +424,7 @@ function showModelSelectionPanel(fetchedModels, provider, onModelsUpdate) {
                     <i class="ph ${isVisible ? 'ph-eye' : 'ph-eye-slash'}"></i>
                 </button>
             `;
+            item.querySelector('.model-option-details').append(createModelCapabilityCard(model));
             item.querySelector('button').dataset.model = modelId;
 
             item.querySelector('button').addEventListener('click', (e) => {

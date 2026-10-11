@@ -23,17 +23,25 @@ function detectModelCapabilities(modelId, modelObj = {}) {
 
     // 先检查API返回的能力信息（优先级最高）
     if (modelObj) {
+        const inputTypes = getModelCapabilityInfo(modelObj).inputTypes;
+        if (modelObj.capabilities && typeof modelObj.capabilities === 'object' && !Array.isArray(modelObj.capabilities)) {
+            return { ...capabilities, ...modelObj.capabilities, ...(inputTypes ? { vision: inputTypes.includes('image') } : {}) };
+        }
         if (modelObj.capabilities && Array.isArray(modelObj.capabilities)) {
             capabilities.vision = modelObj.capabilities.includes('vision');
             capabilities.reasoning = modelObj.capabilities.includes('reasoning');
             capabilities.tools = modelObj.capabilities.includes('tools');
-            return capabilities;
+            return { ...capabilities, ...(inputTypes ? { vision: inputTypes.includes('image') } : {}) };
         }
         if (modelObj.vision !== undefined || modelObj.reasoning !== undefined || modelObj.tools !== undefined) {
             capabilities.vision = !!modelObj.vision;
             capabilities.reasoning = !!modelObj.reasoning;
             capabilities.tools = !!modelObj.tools;
-            return capabilities;
+            return { ...capabilities, ...(inputTypes ? { vision: inputTypes.includes('image') } : {}) };
+        }
+        if (inputTypes) {
+            return { vision: inputTypes.includes('image'), reasoning: !!modelObj.reasoning,
+                tools: !!modelObj.tools || modelObj.supported_parameters?.includes('tools') || false };
         }
     }
 
@@ -704,6 +712,7 @@ function renderProviderDetail() {
 
             // 规范化模型对象结构，提取 id 并检测能力
             const normalizedModels = models.map(m => {
+                if (!m || (typeof m !== 'object' && typeof m !== 'string')) return null;
                 const modelId = m.id || m.name || m.model || (typeof m === 'string' ? m : '');
                 if (!modelId) return null;
 
@@ -731,9 +740,11 @@ function renderProviderDetail() {
                 }
 
                 return {
+                    ...(typeof m === 'object' ? m : {}),
                     id: modelId,
                     name: m.name || modelId,
-                    capabilities: capabilities,
+                    capabilities,
+                    capabilitiesSource: m.capabilities !== undefined || m.vision !== undefined || getModelCapabilityInfo(m).inputTypes ? 'server' : 'inferred',
                     contextWindowTokens: contextWindowTokens
                 };
             }).filter(m => m !== null);
@@ -844,7 +855,8 @@ function renderProviderDetail() {
                 all = oldFormat.map(id => ({
                     id: id,
                     name: id,
-                    capabilities: detectModelCapabilities(id)
+                    capabilities: detectModelCapabilities(id),
+                    capabilitiesSource: 'inferred'
                 }));
             }
 
@@ -853,7 +865,8 @@ function renderProviderDetail() {
                 all.push({
                     id: modelId,
                     name: modelId,
-                    capabilities: detectModelCapabilities(modelId)
+                    capabilities: detectModelCapabilities(modelId),
+                    capabilitiesSource: 'inferred'
                 });
             }
             provider.allModels = JSON.stringify(all);
@@ -1041,6 +1054,13 @@ async function handleSettingsSave(e) {
     }
 
     state.settings = newSettings;
+    // Saved model lists replace earlier discovery results for this provider endpoint.
+    for (const provider of state.settings.providers || []) {
+        try {
+            const models = JSON.parse(provider.allModels || '[]');
+            if (Array.isArray(models)) rememberProviderModelMetadata(provider, models);
+        } catch (_) { /* legacy comma-separated list */ }
+    }
     updateSearchBtnState();
 
     updateBadge();

@@ -612,3 +612,16 @@ body.light-theme .comparison-header .model-status.streaming {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+.long-text-notice, .request-status, .message-warning {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 8px 0;
+    overflow-wrap: anywhere;
+}
+.message-warning { border-left: 3px solid #e9a23b; padding: 8px 12px; background: var(--bg-surface-elevated); }
+.long-text-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.long-text-controls input { width: 72px; padding: 5px; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 6px; }
+.long-text-content { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.65; margin: 0; }
+.request-status.waiting { color: #b7791f; }

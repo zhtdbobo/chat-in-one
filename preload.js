@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('api', {
 
     // Stream Chat API
     sendMessageStream: (requestData) => ipcRenderer.send('send-message-stream', requestData),
-    stopStream: () => ipcRenderer.invoke('stop-stream'),
+    stopStream: (requestIds) => ipcRenderer.invoke('stop-stream', requestIds),
     updateTitlebarTheme: (theme) => ipcRenderer.send('update-titlebar-theme', theme),
 
     // Window Management API

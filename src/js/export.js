@@ -86,11 +86,13 @@ function exportChats() {
 }
 
 function importChats(e) {
+    if (isChatBusy()) return;
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function (event) {
+        if (isChatBusy()) { e.target.value = ''; return; }
         try {
             const importedChats = JSON.parse(event.target.result);
             if (!Array.isArray(importedChats)) {
@@ -176,6 +178,7 @@ function showDeleteConfirm(chatItemEl, chatId) {
 }
 
 function executeDeleteChat(chatId) {
+    if (isChatBusy()) return;
     state.chats = state.chats.filter(c => c.id !== chatId);
     saveChats();
     renderChatList();

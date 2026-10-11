@@ -279,4 +279,16 @@ describe('IPC Module', () => {
             expect(result.error).toContain('Missing endpoint');
         });
     });
+    test('fetch-provider-models preserves server defaults, limits and supported parameters', async () => {
+        const previousFetch=global.fetch;
+        global.fetch=jest.fn().mockResolvedValue({ok:true,json:async()=>({
+            default_parameters:{temperature:0.6},data:[{id:'model',default_parameters:{temperature:0},
+                supported_parameters:['temperature','max_tokens'],top_provider:{max_completion_tokens:8192}}]
+        })});
+        try {
+            setupIpcHandlers();const handler=ipcMain.handle.mock.calls.find(call=>call[0]==='fetch-provider-models')[1];
+            const result=await handler(trustedEvent,{providerId:'p1',endpoint:'https://api.one.example/v1',apiKey:'__MASKED__'});
+            expect(result.models[0]).toMatchObject({default_parameters:{temperature:0},supported_parameters:['temperature','max_tokens'],top_provider:{max_completion_tokens:8192}});
+        } finally {global.fetch=previousFetch;}
+    });
 });

@@ -91,18 +91,19 @@ describe('Store Module', () => {
             expect(fs.writeFileSync).toHaveBeenCalled();
         });
 
-        test('should handle write errors gracefully', () => {
+        test('should propagate write failures so the renderer can report unsaved chats', () => {
             fs.existsSync.mockReturnValue(false);
-            fs.writeFileSync.mockImplementation(() => {
+            fs.writeFileSync.mockImplementationOnce(() => {
                 throw new Error('Write error');
             });
-            console.error = jest.fn();
+            const errorLog = jest.spyOn(console, 'error').mockImplementation(() => {});
             const store = new SimpleStore({
                 name: 'test',
                 defaults: { test: 'default' }
             });
-            store.set('test', 'new value');
-            expect(console.error).toHaveBeenCalledWith('Failed to write to store:', expect.any(Error));
+            expect(() => store.set('test', 'new value')).toThrow('Write error');
+            expect(errorLog).toHaveBeenCalledWith('Failed to write to store:', expect.any(Error));
+            errorLog.mockRestore();
         });
     });
 });

@@ -31,78 +31,20 @@ describe('Stream Module', () => {
     });
 
     describe('buildModelRequestConfig', () => {
-        test('should return default config for unknown model', () => {
-            const config = buildModelRequestConfig('unknown-model');
-            expect(config).toEqual({
-                temperature: 0.7,
-                top_p: 1,
-                n: 1
-            });
+        test('omits sampling parameters when using server defaults', () => {
+            expect(buildModelRequestConfig('unknown-model')).toEqual({});
         });
-
-        test('should return config for kimi-k2.6 model', () => {
-            const config = buildModelRequestConfig('kimi-k2.6');
-            expect(config).toEqual({
-                top_p: 0.95,
-                n: 1,
-                presence_penalty: 0,
-                frequency_penalty: 0,
-                thinking: { type: 'enabled' }
-            });
+        test('kimi-k2.6 keeps the thinking option without forcing sampling defaults', () => {
+            expect(buildModelRequestConfig('kimi-k2.6')).toEqual({ thinking: { type: 'enabled' } });
         });
-
-        test('should return config for kimi-k2-thinking model', () => {
-            const config = buildModelRequestConfig('kimi-k2-thinking-v1');
-            expect(config).toEqual({
-                temperature: 1.0,
-                top_p: 1.0,
-                n: 1
-            });
+        test.each(['kimi-k2-thinking-v1', 'kimi-k2-v1', 'moonshot-v1'])('%s uses server sampling defaults', model => {
+            expect(buildModelRequestConfig(model)).toEqual({});
         });
-
-        test('should return config for kimi-k2 model', () => {
-            const config = buildModelRequestConfig('kimi-k2-v1');
-            expect(config).toEqual({
-                temperature: 0.6,
-                top_p: 1.0,
-                n: 1
-            });
+        test('preserves explicit temperature and top_p values', () => {
+            expect(buildModelRequestConfig('unknown-model', { temperature: 0.5, top_p: 0.8 })).toEqual({ temperature: 0.5, top_p: 0.8 });
         });
-
-        test('should return config for moonshot-v1 model', () => {
-            const config = buildModelRequestConfig('moonshot-v1');
-            expect(config).toEqual({
-                temperature: 0.0,
-                top_p: 1.0,
-                n: 1
-            });
-        });
-
-        test('should use provided temperature and top_p values', () => {
-            const config = buildModelRequestConfig('unknown-model', {
-                temperature: 0.5,
-                top_p: 0.8
-            });
-            expect(config).toEqual({
-                temperature: 0.5,
-                top_p: 0.8,
-                n: 1
-            });
-        });
-
-        test('should handle disabled thinking for kimi-k2.6', () => {
-            const config = buildModelRequestConfig('kimi-k2.6', {
-                enableThinking: false
-            });
-            // When thinking is disabled, the thinking parameter should not be sent
-            // to maintain compatibility with endpoints that don't support it
-            expect(config).toEqual({
-                top_p: 0.95,
-                n: 1,
-                presence_penalty: 0,
-                frequency_penalty: 0
-            });
-            expect(config.thinking).toBeUndefined();
+        test('disabled thinking does not send a thinking parameter', () => {
+            expect(buildModelRequestConfig('kimi-k2.6', { enableThinking: false })).toEqual({});
         });
     });
 

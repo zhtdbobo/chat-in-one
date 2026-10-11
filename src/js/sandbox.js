@@ -1,6 +1,9 @@
 // sandbox.js - Handles the Frontend UI Rendering Sandbox
 
 let currentSandboxContent = '';
+let currentSandboxLanguage = '';
+let currentSandboxDoc = '';
+let sandboxReady = false;
 let isResizingSandbox = false;
 
 // Lazy DOM refs
@@ -39,25 +42,24 @@ function addConsoleEntry(level, message) {
 // -----------------------------------------
 // Content type detection
 // -----------------------------------------
-function detectType(raw) {
+function detectType(raw, language = '') {
+    if (/^(js|javascript|ts|typescript)$/.test(language)) return 'js';
+    if (/^(css|scss|less)$/.test(language)) return 'css';
+    if (/^(html|xml)$/.test(language)) return /<!doctype|<html/i.test(raw) ? 'full-html' : 'html-fragment';
     const low = raw.toLowerCase();
     if (low.includes('<!doctype') || low.includes('<html')) return 'full-html';
 
     const hasHtmlTags = /<[a-z][\s\S]*?>/i.test(raw);
     if (hasHtmlTags) return 'html-fragment';
 
-    // CSS: selector blocks or at-rules
-    if (/[.#@\w]\s*\{[\s\S]*\}/i.test(raw) || /@(media|keyframes|import|font-face|supports|layer)/i.test(raw)) return 'css';
-
-    // JS: common keywords / expressions
     if (/(console\.|let |const |var |function |=>|import |export |class |new Promise)/.test(raw)) return 'js';
+    if (/[.#@\w]\s*\{[\s\S]*\}/i.test(raw) || /@(media|keyframes|import|font-face|supports|layer)/i.test(raw)) return 'css';
 
     return 'text';
 }
 
 // Build full HTML document for srcdoc
 function buildDoc(content, type) {
-    if (type === 'full-html') return content;
 
     const proxy = `<script>
 window.console = new Proxy(console, {
@@ -72,6 +74,13 @@ window.onerror = (m,s,l) => { try { window.parent.postMessage({type:'sandbox-err
 window.addEventListener('unhandledrejection', e => { try { window.parent.postMessage({type:'sandbox-error',message:'Unhandled Promise: '+String(e.reason),lineno:0},'*'); }catch(e){} });
 <\/script>`;
 
+    if (type === 'full-html') {
+        // Install the console bridge before user scripts, including complete HTML documents.
+        if (/<head[^>]*>/i.test(content)) return content.replace(/<head[^>]*>/i, match => match + proxy);
+        if (/<html[^>]*>/i.test(content)) return content.replace(/<html[^>]*>/i, match => match + '<head>' + proxy + '</head>');
+        return proxy + content;
+    }
+
     const baseStyle = `body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:16px;background:#fff;color:#222;box-sizing:border-box;}
 *{box-sizing:border-box;}
 @media(prefers-color-scheme:dark){body{background:#1a1a2e;color:#e0e0e0;}}`;
@@ -83,22 +92,22 @@ window.addEventListener('unhandledrejection', e => { try { window.parent.postMes
     if (type === 'js') {
         // Escape </script> inside user code to prevent premature closing
         const safe = content.replace(/<\/script>/gi, '<\\/script>');
-        return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + proxy + '<script>' + safe + '<\/script></body></html>';
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + '<script>' + safe + '<\/script></body></html>';
     }
 
     if (type === 'text') {
         const safe = content.replace(/<\/script>/gi, '<\\/script>');
-        return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + proxy + '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.6;"><code>' + safe.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</code></pre></body></html>';
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.6;"><code>' + safe.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</code></pre></body></html>';
     }
 
     // html-fragment
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + proxy + content + '</body></html>';
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + baseStyle + '</style>' + proxy + '</head><body>' + content + '</body></html>';
 }
 
 // -----------------------------------------
 // Public API
 // -----------------------------------------
-window.openSandbox = function (htmlContent) {
+window.openSandbox = function (htmlContent, language = '') {
     const e = els();
     if (!e.area || !e.resizer || !e.iframe) {
         if (typeof showNotification === 'function') showNotification('Sandbox 未初始化', 'error');
@@ -106,6 +115,7 @@ window.openSandbox = function (htmlContent) {
     }
 
     currentSandboxContent = htmlContent;
+    currentSandboxLanguage = language;
     const raw = String(htmlContent || '');
 
     // Clear console
@@ -119,7 +129,7 @@ window.openSandbox = function (htmlContent) {
     e.resizer.style.display = 'block';
 
     // Detect & build
-    const type = detectType(raw);
+    const type = detectType(raw, language);
     const doc = buildDoc(raw, type);
 
     // Update type badge
@@ -134,7 +144,8 @@ window.openSandbox = function (htmlContent) {
         badge.textContent = label;
     }
 
-    e.iframe.srcdoc = doc;
+    currentSandboxDoc = doc;
+    if (sandboxReady) e.iframe.contentWindow.postMessage({ type: 'sandbox-render', html: doc }, '*');
 
     // Guard: if panel is too small, notify
     requestAnimationFrame(() => {
@@ -149,7 +160,9 @@ window.closeSandbox = function () {
     const e = els();
     if (e.area) e.area.style.display = 'none';
     if (e.resizer) e.resizer.style.display = 'none';
-    if (e.iframe) e.iframe.srcdoc = '';
+    if (e.iframe && sandboxReady) e.iframe.contentWindow.postMessage({ type: 'sandbox-render', html: '' }, '*');
+    currentSandboxDoc = '';
+    currentSandboxLanguage = '';
     if (e.consoleOutput) e.consoleOutput.innerHTML = '';
     currentSandboxContent = '';
 };
@@ -188,7 +201,7 @@ function initSandbox() {
     if (e.closeBtn) e.closeBtn.addEventListener('click', window.closeSandbox);
     if (e.refreshBtn) {
         e.refreshBtn.addEventListener('click', () => {
-            if (currentSandboxContent) window.openSandbox(currentSandboxContent);
+            if (currentSandboxContent) window.openSandbox(currentSandboxContent, currentSandboxLanguage);
         });
     }
 
@@ -218,8 +231,11 @@ window.addEventListener('message', (event) => {
     if (!iframe || event.source !== iframe.contentWindow) return;
 
     const d = event.data || {};
-    if (d.type === 'sandbox-console') {
-        addConsoleEntry(d.level, d.args.join(' '));
+    if (d.type === 'sandbox-ready') {
+        sandboxReady = true;
+        if (currentSandboxDoc) iframe.contentWindow.postMessage({ type: 'sandbox-render', html: currentSandboxDoc }, '*');
+    } else if (d.type === 'sandbox-console' && Array.isArray(d.args)) {
+        addConsoleEntry(['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log', d.args.map(String).join(' '));
     } else if (d.type === 'sandbox-error') {
         addConsoleEntry('error', '第 ' + d.lineno + ' 行: ' + d.message);
     }

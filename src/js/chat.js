@@ -5,7 +5,7 @@
 // -----------------------------------------
 function createNewChat() {
     if (typeof closeAllModals === 'function') closeAllModals();
-    if (state.isStreaming) return;
+    if (isChatBusy()) return;
 
     // Clear attachments preview and message input
     const attachmentsPreview = document.getElementById('attachments-preview');
@@ -67,7 +67,7 @@ function createNewChat() {
 
 function switchChat(chatId) {
     if (typeof closeAllModals === 'function') closeAllModals();
-    if (state.isStreaming) return;
+    if (isChatBusy()) return;
 
     // Clear attachments preview and message input
     const attachmentsPreview = document.getElementById('attachments-preview');
@@ -98,19 +98,20 @@ function switchChat(chatId) {
         messageContainer.classList.add('switching');
         messageContainer.classList.add('no-animation');
 
-        // 使用 rAF 确保 switching class 已被应用（容器已隐藏），再渲染消息
         requestAnimationFrame(() => {
-            renderMessages(chat.messages);
+            if (state.currentChatId !== chat.id) return;
             scrollToBottom();
 
             // 等待 DOM 布局完成后再显示（双 rAF 确保浏览器已完成 layout + paint）
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
+                    if (state.currentChatId !== chat.id) return;
                     // 先移除 switching 显示容器（no-animation 仍然保持，确保没有过渡动画）
                     messageContainer.classList.remove('switching');
 
                     // 再使用一帧延迟后移除 no-animation，恢复后续新消息的动画
                     requestAnimationFrame(() => {
+                        if (state.currentChatId !== chat.id) return;
                         messageContainer.classList.remove('no-animation');
                     });
                 });
@@ -161,6 +162,7 @@ function switchChat(chatId) {
             // Force maximize for best view (with restoration support)
             if (window.api && window.api.isMaximized) {
                 window.api.isMaximized().then(isMax => {
+                    if (state.currentChatId !== chat.id || !state.isComparisonMode) return;
                     // Only record original state if we weren't already in comparison mode
                     if (!wasComparison) state.wasMaximizedBeforeComparison = isMax;
                     if (!isMax) window.api.maximizeWindow();
@@ -178,6 +180,8 @@ function switchChat(chatId) {
                 state.wasMaximizedBeforeComparison = null; // reset
             }
         }
+        // Sync the layout first, then replace history before a send can append a live reply.
+        renderMessages(chat.messages);
     }
 
     renderChatList(); // Update active class
@@ -275,7 +279,13 @@ async function copyToClipboard(text, btn) {
 }
 
 function saveChats() {
-    window.api.saveChats(state.chats);
+    return window.api.saveChats(state.chats).then(saved => {
+        if (saved === false) throw new Error('未能写入对话文件');
+        return saved;
+    }).catch(error => {
+        showNotification('对话保存失败：' + error.message + '。当前页面内容仍保留，请先导出对话。', 'error', 10000);
+        return false;
+    });
 }
 
 // -----------------------------------------
@@ -330,26 +340,26 @@ function renderMessages(messages) {
                 // Column Body (List of messages)
                 const body = document.createElement('div');
                 body.className = 'comparison-body';
-                body.id = `comp-body-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                body.id = comparisonColumnId(modelId);
                 
                 // Render this specific model's timeline
                 messages.forEach(msg => {
                     const role = msg.role || 'assistant';
                     // Show every user message, but only assistant messages aimed at this specific model
-                    if (role === 'user' || (role === 'assistant' && (msg.comparisonModelName === mName || msg.comparisonModelName === modelId))) {
+                    if (role === 'user' || role === 'system' || (role === 'assistant' && (msg.comparisonModelId ? msg.comparisonModelId === modelId : (msg.comparisonModelName === mName || msg.comparisonModelName === modelId)))) {
                         const payload = (msg && typeof msg === 'object' && 'content' in msg) ? msg.content : msg;
                         const messageItem = renderMessageItem(role, payload, msg);
                         if (messageItem) {
                             messageItem.style.marginBottom = '20px'; // Add some spacing
                             body.appendChild(messageItem);
                         }
-                    } else if (role === 'system' && String(msg.content).includes('[对话摘要]')) {
-                        // Always show system summaries in all columns
-                        const messageItem = renderMessageItem('system', msg.content, msg);
-                        if (messageItem) body.appendChild(messageItem);
                     }
                 });
 
+                const lastResponse = messages.filter(msg => msg.role === 'assistant' && (msg.comparisonModelId
+                    ? msg.comparisonModelId === modelId
+                    : msg.comparisonModelName === mName || msg.comparisonModelName === modelId)).at(-1);
+                if (lastResponse) header.querySelector('.model-status').textContent = { error: '发生错误', cancelled: '已停止', truncated: '达到输出上限', interrupted: '回复中断' }[lastResponse.status] || '✓ 完成';
                 col.appendChild(body);
                 container.appendChild(col);
             });
@@ -365,9 +375,9 @@ function renderMessages(messages) {
                 const msg = messages[i];
 
                 // 检查是否为旧版对比模式的历史响应 (打包显示)
-                if (msg && typeof msg === 'object' && msg.role === 'assistant' && msg.comparisonModelName) {
+                if (msg && typeof msg === 'object' && msg.role === 'assistant' && (msg.comparisonModelId || msg.comparisonModelName)) {
                     const compGroup = [];
-                    while (i < messages.length && messages[i] && typeof messages[i] === 'object' && messages[i].role === 'assistant' && messages[i].comparisonModelName) {
+                    while (i < messages.length && messages[i] && typeof messages[i] === 'object' && messages[i].role === 'assistant' && (messages[i].comparisonModelId || messages[i].comparisonModelName)) {
                         compGroup.push(messages[i]);
                         i++;
                     }
@@ -390,30 +400,14 @@ function renderMessages(messages) {
                         col.style.flexDirection = 'column';
 
                         const pName = cMsg.comparisonModelName;
-                        const cPayload = cMsg.content;
-                        const cRaw = (cPayload && typeof cPayload === 'object' && cPayload.content !== undefined) ? cPayload.content : String(cPayload || '');
-                        const cReasoning = (cPayload && typeof cPayload === 'object' && cPayload.reasoning_content) ? cPayload.reasoning_content : '';
-
-                        let htmlContent = '';
-                        if (cReasoning && state.settings.enableThinking !== false) {
-                            htmlContent += `<details class="thinking-block"><summary><i class="ph ph-brain"></i> 思考过程</summary><div class="thinking-content markdown-body">${renderMarkdownSafe(cReasoning)}</div></details>`;
-                        }
-                        if (cRaw) {
-                            htmlContent += `<div class="markdown-body">${renderMarkdownSafe(cRaw)}</div>`;
-                        }
-
-                        col.innerHTML = `
-                            <div class="comparison-header" style="padding:10px 14px; background:var(--bg-surface-elevated); border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; font-size:13px;">
-                                <div class="model-name"><strong>${escapeHtml(pName)}</strong></div>
-                                <div class="model-status" style="border:none;">✓ 完成</div>
-                            </div>
-                            <div class="comparison-body" style="padding:14px; flex:1; overflow-y:auto;">
-                                <div class="message-content" style="padding:0; background:transparent;">
-                                    ${htmlContent}
-                                    <div class="message-meta" style="margin-top:16px;">模型: ${escapeHtml(cMsg.model || pName)}</div>
-                                </div>
-                            </div>
-                        `;
+                        const status = { error: '发生错误', cancelled: '已停止', truncated: '达到输出上限', interrupted: '回复中断' }[cMsg.status] || '✓ 完成';
+                        const header = document.createElement('div');
+                        header.className = 'comparison-header';
+                        header.innerHTML = '<div class="model-name"><strong>' + escapeHtml(pName) + '</strong></div><div class="model-status">' + status + '</div>';
+                        const body = document.createElement('div');
+                        body.className = 'comparison-body';
+                        body.appendChild(renderMessageItem('assistant', cMsg.content, cMsg));
+                        col.append(header, body);
                         grid.appendChild(col);
                     });
                     fragment.appendChild(grid);
@@ -448,11 +442,30 @@ function renderMessages(messages) {
 
 function renderMarkdownSafe(text) {
     const raw = typeof text === 'string' ? text : String(text ?? '');
+    if (raw.length > RICH_TEXT_LIMIT) return '<pre class="long-text-content">' + escapeHtml(raw) + '</pre>';
     try {
-        return DOMPurify.sanitize(marked.parse(raw), {
+        const sanitized = DOMPurify.sanitize(marked.parse(raw), {
             FORBID_TAGS: ['button', 'form', 'input', 'textarea', 'select', 'option', 'style'],
             FORBID_ATTR: ['id', 'name', 'style']
         });
+        // Create application controls only after untrusted Markdown is sanitized.
+        const root = document.createElement('div');
+        root.innerHTML = sanitized;
+        root.querySelectorAll('.code-block > pre > code[data-raw-b64]').forEach(code => {
+            const block = code.closest('.code-block');
+            let actions = block.querySelector('.code-actions');
+            if (!actions) { actions = document.createElement('div'); actions.className = 'code-actions'; block.prepend(actions); }
+            actions.replaceChildren();
+            for (const [name, icon, label] of [['preview', 'play', '预览'], ['copy', 'copy', '复制']]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'code-action-btn code-' + name + '-btn';
+                button.title = label + '代码';
+                button.innerHTML = '<i class="ph ph-' + icon + '"></i><span>' + label + '</span>';
+                actions.appendChild(button);
+            }
+        });
+        return root.innerHTML;
     } catch (e) {
         console.error('Markdown render error, fallback to plain text:', e);
         return `<pre class="markdown-body">${escapeHtml(raw)}</pre>`;
@@ -480,12 +493,12 @@ function renderMessageItem(role, content, fullMsgObj = null) {
             htmlContent += `
                 <details class="thinking-block">
                     <summary><i class="ph ph-brain"></i> 思考过程</summary>
-                    <div class="thinking-content markdown-body">${renderMarkdownSafe(rawReasoning)}</div>
+                    <div class="thinking-content markdown-body">${rawReasoning.length > RICH_TEXT_LIMIT ? '<div class="long-reasoning-slot"></div>' : renderMarkdownSafe(rawReasoning)}</div>
                 </details>
             `;
         }
         if (rawContent != null && rawContent !== '') {
-            htmlContent += `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
+            htmlContent += rawContent.length > RICH_TEXT_LIMIT ? '<div class="long-content-slot"></div>' : `<div class="markdown-body">${renderMarkdownSafe(rawContent)}</div>`;
         }
 
         // Add attachments
@@ -524,6 +537,10 @@ function renderMessageItem(role, content, fullMsgObj = null) {
         }
     }
 
+    if (fullMsgObj?.error) htmlContent += '<div class="message-error">❌ ' + escapeHtml(fullMsgObj.error) + '</div>';
+    if (fullMsgObj?.warning) htmlContent += '<div class="message-warning">' + escapeHtml(fullMsgObj.warning) + '</div>';
+    if (fullMsgObj?.status === 'cancelled') htmlContent += '<div class="tool-status">已停止生成</div>';
+
     const dataRaw = (content && typeof content === 'object' && content.content !== undefined) ? content.content : content;
     const dataReasoning = (content && typeof content === 'object' && content.reasoning_content) ? content.reasoning_content : '';
 
@@ -541,15 +558,17 @@ function renderMessageItem(role, content, fullMsgObj = null) {
                     ${role === 'user' ? '<button class="message-action-btn edit-msg-btn" title="编辑并重新发送"><i class="ph ph-pencil-simple"></i></button>' : ''}
                 </div>
             ` : ''}
+            ${role === 'assistant' && !fullMsgObj ? '<div class="request-status" role="status"></div>' : ''}
         </div>
     `;
+
+    wrapper.querySelector('.long-content-slot')?.append(createLongTextView(String(dataRaw)).element);
+    wrapper.querySelector('.long-reasoning-slot')?.append(createLongTextView(String(dataReasoning)).element);
 
     // Attempt to render history meta info if available
     if (fullMsgObj) {
         const textRawForCount = typeof dataRaw === 'string' ? dataRaw : String(dataRaw || '');
-        const zhCount = (textRawForCount.match(/[\u4e00-\u9fa5]/g) || []).length;
-        const enCount = textRawForCount.replace(/[\u4e00-\u9fa5]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-        const wordCount = zhCount + enCount;
+        const wordCount = countMessageWords(textRawForCount);
 
         if (role === 'assistant') {
             const tokens = fullMsgObj.usage?.total_tokens ?? fullMsgObj.usage?.completion_tokens ?? fullMsgObj.usage?.output_tokens ?? '—';
@@ -560,7 +579,7 @@ function renderMessageItem(role, content, fullMsgObj = null) {
                 // Determine model provider name if available
                 const chat = state.chats.find(c => c.id === state.currentChatId);
                 if (chat && chat.model && chat.model.includes('|')) {
-                    const pId = chat.model.split('|')[0];
+                    const pId = fullMsgObj.providerId || chat.model.split('|')[0];
                     const provider = state.settings.providers.find(p => p.id === pId);
                     if (provider) providerNameLabel = provider.name;
                 }
@@ -574,7 +593,8 @@ function renderMessageItem(role, content, fullMsgObj = null) {
             }
             if (tokens !== '—' || fullMsgObj.usage) parts.push(`${tokens} tokens`);
             parts.push(`${wordCount} words`);
-            if (latencyS) parts.push(latencyS);
+            if (latencyS) parts.push('首个回复片段 ' + latencyS);
+            if (fullMsgObj.totalDurationMs != null) parts.push('总耗时 ' + (fullMsgObj.totalDurationMs / 1000).toFixed(1) + 's');
             if (fullMsgObj.time) parts.push(fullMsgObj.time);
 
             const metaStr = parts.join(' · ');
@@ -603,14 +623,14 @@ function renderMessageItem(role, content, fullMsgObj = null) {
     if (role === 'assistant' || role === 'user') {
         const copyBtn = wrapper.querySelector('.copy-btn');
         const messageContentEl = wrapper.querySelector('.message-content');
-        copyBtn.addEventListener('click', () => copyToClipboard(messageContentEl?.dataset?.raw || '', copyBtn));
+        copyBtn.addEventListener('click', () => copyToClipboard(getMessageRawText(messageContentEl), copyBtn));
 
         // Edit & resend for user messages
         const editBtn = wrapper.querySelector('.edit-msg-btn');
         if (editBtn && role === 'user') {
             editBtn.addEventListener('click', function handleEditClick() {
-                if (state.isStreaming) return;
-                const currentText = messageContentEl.dataset.raw || '';
+                if (isChatBusy()) return;
+                const currentText = getMessageRawText(messageContentEl);
                 const messageScroll = wrapper.querySelector('.message-scroll');
                 const actionsEl = wrapper.querySelector('.message-actions');
                 const metaEl = wrapper.querySelector('.message-meta');
@@ -668,6 +688,7 @@ function renderMessageItem(role, content, fullMsgObj = null) {
                 });
 
                 submitBtn.addEventListener('click', function() {
+                    if (isChatBusy()) return;
                     var newText = ta.value.trim();
                     if (!newText) return;
 
@@ -697,245 +718,61 @@ function renderMessageItem(role, content, fullMsgObj = null) {
 
     const messageContentEl = wrapper.querySelector('.message-content');
     if (messageContentEl) {
-        messageContentEl.dataset.raw = dataRaw ?? '';
-        messageContentEl.dataset.reasoning = dataReasoning ?? '';
+        messageContentEl.rawText = dataRaw ?? '';
+        if (String(dataRaw ?? '').length <= RICH_TEXT_LIMIT) messageContentEl.dataset.raw = dataRaw ?? '';
+        if (String(dataReasoning ?? '').length <= RICH_TEXT_LIMIT) messageContentEl.dataset.reasoning = dataReasoning ?? '';
     }
 
     return wrapper;
 }
 
 function sendMessage() {
-    if (state.isStreaming) return;
-
-    // Get current chat model
+    if (isChatBusy()) return;
     const chat = state.chats.find(c => c.id === state.currentChatId);
     if (!chat) return;
-
-    let providerId, modelName;
-    if (chat.model && chat.model.includes('|')) {
-        [providerId, modelName] = chat.model.split('|').map(s => s.trim());
-    } else {
-        // Fallback to first available provider/model if not set
-        const providers = state.settings.providers || [];
-        if (providers.length > 0) {
-            providerId = providers[0].id;
-            const models = (providers[0].models || "").split(',').map(m => m.trim()).filter(m => m);
-            modelName = models[0];
-        }
-    }
-
-    if (!providerId || !modelName) {
-        alert("请先在设置中选择或配置一个有效的模型。");
-        return;
-    }
-
-    const provider = state.settings.providers.find(p => p.id === providerId);
-    if (!provider) {
-        alert("找不到与此模型对应的服务商配置，请检查设置。");
-        return;
-    }
-    if (!provider.apiKey || !provider.endpoint) {
-        alert("当前模型所属的服务商未配置完整（Base URL 或 API Key 缺失），请在设置中配置。");
-        openSettings();
-        return;
-    }
-
+    const comparison = state.isComparisonMode && state.selectedComparisonModels.length >= 2;
+    const modelIds = comparison ? state.selectedComparisonModels : [chat.model];
     const text = messageInput.value.trim();
-
-    // Get attachments
     const attachmentsList = document.getElementById('attachments-list');
-    const attachments = [];
-
-    if (attachmentsList) {
-        const attachmentItems = attachmentsList.querySelectorAll('[data-file-name]');
-        attachmentItems.forEach(item => {
-            attachments.push({
-                name: item.dataset.fileName,
-                type: item.dataset.fileType,
-                size: parseInt(item.dataset.fileSize),
-                data: item.dataset.fileData
-            });
-        });
-    }
-
-    // 检查模型是否支持所有附件类型
-    if (attachments.length > 0) {
-        // 检查模型vision能力
-        const modelCapabilities = detectModelCapabilities(modelName, {});
-
-        if (!modelCapabilities.vision) {
-            showNotification(`❌ 模型 "${modelName}" 不支持图片上传。请选择支持视觉能力的模型。`, 'error');
-            console.warn(`Model ${modelName} does not support vision capabilities`);
-            return;
-        }
-
-        console.log(`✓ 模型 "${modelName}" 支持视觉能力，可以发送图片消息`);
-    }
-
+    const attachments = Array.from(attachmentsList?.querySelectorAll('[data-file-name]') || []).map(item => ({
+        name: item.dataset.fileName, type: item.dataset.fileType,
+        size: parseInt(item.dataset.fileSize, 10), data: item.dataset.fileData
+    }));
     if (!text && attachments.length === 0) return;
-
-    // Process User Message (do NOT mutate chat yet; we may block due to context length)
-    const messageContent = attachments.length > 0
-        ? { content: text, attachments }
-        : { content: text };
-
-    // Get conversation-specific settings (needed for context estimation and sending)
-    let finalSystemPrompt = chat.systemPrompt || state.settings.systemPrompt || '';
-    const temperature = chat.temperature || 0.7;
-    const topP = chat.topP || 1;
-    let maxOutputTokens = chat.maxOutputTokens || 0;
-    if (maxOutputTokens >= 8100) maxOutputTokens = 0;
-    const streamOutput = chat.streamOutput !== false;
-
-    // Per-chat enableThinking override (falls back to global setting)
-    const enableThinking = chat.enableThinking ?? state.settings.enableThinking !== false;
-
-    // Skill Override
-    if (state.activeSkillId) {
-        chat.skillId = state.activeSkillId; // 把搭档关联到当前对话
-        const allCompanions = getAllCompanions();
-        const skill = allCompanions.find(s => s.id === state.activeSkillId);
-        if (skill && skill.prompt) {
-            finalSystemPrompt = skill.prompt;
-        }
-    }
-
-    if (state.settings.enableSearch) {
-        finalSystemPrompt += "\n\n[System Nudge: Web Search is ENABLED. Please use your online search capabilities or tools to provide the most up-to-date information if the user's request requires it. If you don't have direct tools, acknowledge the current date and provide the best available knowledge.]";
-    }
-
-    // Apply max message count if set
-    let messagesToSend = [...chat.messages, { role: 'user', content: messageContent }];
-    if (chat.maxMessageCount && chat.maxMessageCount < 15) {
-        messagesToSend = messagesToSend.slice(-chat.maxMessageCount);
-    }
-
-    // Prepare messages for model - include attachments for models that support them
-    let messagesForModel = messagesToSend.map(msg => {
-        try {
-            if (typeof msg.content === 'object' && msg.content !== null) {
-                // For user messages with attachments or assistant messages with reasoning
-                if (msg.content.content !== undefined) {
-                    // Check if there are attachments
-                    if (msg.content.attachments && msg.content.attachments.length > 0) {
-                        // For messages with attachments, create a content array that includes both text and attachments
-                        // Using a neutral format that will be converted by messageFormatConverter
-                        const contentArray = [];
-
-                        // Add text content if it exists
-                        if (msg.content.content) {
-                            contentArray.push({
-                                type: "text",
-                                text: msg.content.content
-                            });
-                        }
-
-                        // Add attachments in neutral format
-                        msg.content.attachments.forEach(attachment => {
-                            const base64Data = attachment.data.includes(',')
-                                ? attachment.data.split(',')[1]
-                                : attachment.data;
-
-                            contentArray.push({
-                                type: "image",
-                                source: {
-                                    type: "base64",
-                                    media_type: attachment.type,
-                                    data: base64Data
-                                }
-                            });
-                        });
-
-                        return {
-                            role: msg.role,
-                            content: contentArray
-                        };
-                    } else {
-                        // For messages without attachments
-                        return {
-                            role: msg.role,
-                            content: msg.content.content
-                        };
-                    }
-                } else if (msg.content.reasoning_content !== undefined) {
-                    // For assistant messages with reasoning
-                    return {
-                        role: msg.role,
-                        content: msg.content.content || ''
-                    };
-                }
-                // Fallback for any other object format
-                return {
-                    role: msg.role,
-                    content: JSON.stringify(msg.content)
-                };
-            } else if (typeof msg.content === 'string') {
-                // For plain text messages
-                return msg;
-            } else {
-                // Fallback for any other type
-                return {
-                    role: msg.role,
-                    content: String(msg.content)
-                };
-            }
-        } catch (error) {
-            console.error('Error processing message:', error);
-            // Fallback to avoid breaking the entire process
-            return {
-                role: msg.role,
-                content: 'Error processing message'
-            };
-        }
-    });
-
-    // Convert messages to provider-specific format before sending
+    const messageContent = { content: text, ...(attachments.length ? { attachments } : {}) };
+    let finalSystemPrompt = chat.systemPrompt ?? state.settings.systemPrompt ?? '';
+    const overrides = getConversationNumericOverrides(chat);
+    const enableThinking = chat.enableThinking ?? (state.settings.enableThinking !== false);
+    const skill = state.activeSkillId && getAllCompanions().find(s => s.id === state.activeSkillId);
+    if (skill?.prompt) finalSystemPrompt = skill.prompt;
+    if (state.settings.enableSearch) finalSystemPrompt += '\n\n[System Nudge: Web Search is ENABLED. Use available search tools when needed.]';
+    const requests = [];
     try {
-        if (typeof convertMessageForProvider === 'function' && providerId) {
-            messagesForModel = convertMessageForProvider(providerId, messagesForModel, provider.endpoint);
-            console.log(`✓ 已将消息转换为 ${provider.name} 格式`);
-        }
-    } catch (e) {
-        console.warn('消息格式转换失败，使用原始格式:', e);
-    }
-
-    // Context length warning / blocking (best-effort heuristic)
-    try {
-        if (typeof estimateConversationTokens === 'function') {
-            const contextLimitTokens = (typeof getContextWindowTokensFromProvider === 'function')
-                ? getContextWindowTokensFromProvider(provider, modelName)
-                : null;
-            const est = estimateConversationTokens({
-                systemPrompt: finalSystemPrompt,
-                messages: messagesForModel,
-                maxOutputTokens,
-                modelName,
-                contextLimitTokens
-            });
-
-            const hardBlockAt = Math.floor(est.contextLimit * 0.98);
-            const warnAt = Math.floor(est.contextLimit * 0.85);
-
-            if (est.estimatedTotal > hardBlockAt) {
-                showNotification(
-                    `❌ 上下文过长：预计 ${est.estimatedTotal} tokens（上限约 ${est.contextLimit}）。请减少历史消息/设置“最大消息数”或缩短输入后再发送。`,
-                    'error',
-                    6000
-                );
-                return;
+        for (const modelId of modelIds) {
+            const [providerId, modelName] = String(modelId || '').split('|');
+            const provider = (state.settings.providers || []).find(p => p.id === providerId);
+            if (!provider || !modelName || !provider.endpoint || !provider.apiKey) {
+                throw new Error('请先配置所有选中模型的服务商、API Key 和模型 ID。');
             }
-            if (est.estimatedTotal > warnAt) {
-                showNotification(
-                    `⚠️ 接近上下文上限：预计 ${est.estimatedTotal}/${est.contextLimit} tokens。若发送失败，请减少历史消息或缩短输入。`,
-                    'warning',
-                    5000
-                );
+            const parameterInfo = getModelParameterInfo(getConversationModelMetadata(provider, modelName));
+            validateModelParameterOverrides(overrides, parameterInfo);
+            const messages = prepareMessagesForModel([...chat.messages, { role: 'user', content: messageContent }], provider, modelName, comparison);
+            if (typeof estimateConversationTokens === 'function') {
+                const est = estimateConversationTokens({ systemPrompt: finalSystemPrompt, messages, modelName,
+                    contextLimitTokens: getContextWindowTokensFromProvider(provider, modelName) });
+                if (est.estimatedTotal > Math.floor(est.contextLimit * 0.98)) showNotification('模型「' + modelName + '」输入可能超过上下文上限（估算）。完整输入仍会发送，实际限制由服务端校验。', 'warning', 8000);
+                if (est.estimatedTotal > Math.floor(est.contextLimit * 0.85)) showNotification('模型「' + modelName + '」接近上下文上限。', 'warning');
             }
+            requests.push({ requestId: generateId(), endpoint: provider.endpoint, providerId, modelName,
+                systemPrompt: finalSystemPrompt, messages, chatId: chat.id, isComparisonStream: comparison,
+                enableThinking, ...Object.fromEntries(['temperature', 'top_p'].filter(key => overrides[key] !== undefined).map(key => [key, overrides[key]])),
+                mcpServerIds: (state.settings.mcpServers || []).filter(s => (state.enabledMcpServerIds || []).includes(s.id)).map(s => s.id) });
         }
-    } catch (e) {
-        console.warn('Context estimation failed:', e);
+    } catch (error) {
+        showNotification(error.message, 'error', 6000);
+        return;
     }
-
+    chat.skillId = state.activeSkillId || null;
     // Now commit the user message to UI/state
     const d = new Date();
     const timeStr = String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -970,95 +807,19 @@ function sendMessage() {
 
     saveChats();
 
-    // Check if model supports attachments (after conversion)
-    const hasAttachments = messagesForModel.some(msg => Array.isArray(msg.content));
-    if (!hasAttachments && attachments.length > 0) {
-        // Model doesn't have attachments but user tried to send them
+
+    if (attachmentsList) attachmentsList.innerHTML = '';
+    const attachmentsPreview = document.getElementById('attachments-preview');
+    if (attachmentsPreview) attachmentsPreview.style.display = 'none';
+    for (const id of ['image-upload-input', 'file-upload-input']) {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
     }
-
-    // Clear attachments after sending
-    if (attachmentsList) {
-        attachmentsList.innerHTML = '';
-        const attachmentsPreview = document.getElementById('attachments-preview');
-        if (attachmentsPreview) {
-            attachmentsPreview.style.display = 'none';
-        }
-
-        // Also reset upload inputs to allow uploading again immediately
-        const imageUploadInput = document.getElementById('image-upload-input');
-        const fileUploadInput = document.getElementById('file-upload-input');
-        if (imageUploadInput) imageUploadInput.value = '';
-        if (fileUploadInput) fileUploadInput.value = '';
-    }
-
-    // Dispatch to Electron Main Process
-    if (state.isComparisonMode && state.selectedComparisonModels.length >= 2) {
-        // Parallel multi-model comparison
-        messageContainer.classList.add('comparison-layout');
-
-        // Reset streams tracking map
-        state.comparisonStreams = {};
-
-        // Render columns FIRST so they exist when stream-start arrives
-        renderComparisonEmptyState();
-
-        state.selectedComparisonModels.forEach(modelId => {
-            const [pId, mName] = modelId.split('|');
-            const prov = state.settings.providers.find(p => p.id === pId);
-            if (!prov) return;
-
-            // Convert messages for each provider
-            let messagesForThisModel = messagesToSend.map(msg => {
-                if (typeof msg.content === 'object' && msg.content !== null) {
-                    return { role: msg.role, content: msg.content.content || '' };
-                }
-                return msg;
-            });
-
-            if (typeof convertMessageForProvider === 'function') {
-                try {
-                    messagesForThisModel = convertMessageForProvider(pId, messagesForThisModel, prov.endpoint);
-                } catch (e) {
-                    console.warn('Message format conversion failed for', pId, e);
-                }
-            }
-
-            window.api.sendMessageStream({
-                endpoint: prov.endpoint,
-                providerId: prov.id,
-                modelName: mName,
-                systemPrompt: finalSystemPrompt,
-                messages: messagesForThisModel,
-                chatId: chat.id,
-                isComparisonStream: true,  // Flag to prevent aborting sibling streams
-                enableThinking: enableThinking,
-                temperature: temperature,
-                top_p: topP,
-                max_tokens: maxOutputTokens,
-                stream: streamOutput,
-                mcpServerIds: (state.settings.mcpServers || []).filter(s =>
-                    (state.enabledMcpServerIds || []).includes(s.id)
-                ).map(s => s.id)
-            });
-        });
-    } else {
-        // Normal single model sending
-        window.api.sendMessageStream({
-            endpoint: provider.endpoint,
-            providerId: provider.id,
-            modelName: modelName,
-            systemPrompt: finalSystemPrompt,
-            messages: messagesForModel,
-            chatId: chat.id,
-            enableThinking: enableThinking,
-            temperature: temperature,
-            top_p: topP,
-            max_tokens: maxOutputTokens,
-            stream: streamOutput,
-            mcpServerIds: (state.settings.mcpServers || []).filter(s =>
-                (state.enabledMcpServerIds || []).includes(s.id)
-            ).map(s => s.id)
-        });
+    if (comparison) renderComparisonEmptyState();
+    beginChatRequests(requests);
+    for (const request of requests) {
+        try { window.api.sendMessageStream(request); }
+        catch (error) { finishChatRequest({ ...request, error: error.message }); }
     }
 }
 
@@ -1087,76 +848,22 @@ function getCurrentChatProviderAndModel(chat) {
 }
 
 function getContextWindowTokensFromProvider(provider, modelName) {
-    if (!provider || !modelName) return null;
-    let allModels = [];
-    try {
-        const parsed = JSON.parse(provider.allModels || '[]');
-        allModels = Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-        allModels = [];
-    }
-    const hit = allModels.find(m => (m?.id || m?.name) === modelName) || allModels.find(m => String(m?.id || '').toLowerCase() === String(modelName).toLowerCase());
-    if (!hit) return null;
-
-    const candidates = [
-        hit.contextWindowTokens,
-        hit.context_window,
-        hit.contextWindow,
-        hit.context_length,
-        hit.contextLength,
-        hit.max_context_tokens,
-        hit.maxContextTokens,
-        hit.max_input_tokens,
-        hit.maxInputTokens,
-        hit.input_tokens,
-        hit.inputTokens
-    ];
-    for (const v of candidates) {
-        const n = typeof v === 'string' ? parseInt(v, 10) : v;
-        if (Number.isFinite(n) && n > 0) return n;
-    }
-    return null;
+    return getModelParameterInfo(getConversationModelMetadata(provider, modelName)).contextWindowTokens || null;
 }
 
 function buildMessagesForModelPreview(chat, extraUserText = '') {
     if (!chat) return [];
-    let msgs = chat.messages || [];
-    if (chat.maxMessageCount && chat.maxMessageCount < 15) {
-        msgs = msgs.slice(-chat.maxMessageCount);
-    }
-
-    // Optional preview includes current input (not committed yet)
+    const { provider, modelName } = getCurrentChatProviderAndModel(chat);
+    let messages = chat.messages || [];
     const trimmed = String(extraUserText || '').trim();
-    if (trimmed) {
-        msgs = [...msgs, { role: 'user', content: { content: trimmed } }];
+    if (trimmed) messages = [...messages, { role: 'user', content: { content: trimmed } }];
+    if (!provider) return messages;
+    try {
+        return prepareMessagesForModel(messages, provider, modelName, !!chat.isComparisonMode);
+    } catch (_) {
+        // Estimation remains available even if a model cannot accept a stored attachment.
+        return messages;
     }
-
-    // Convert to model format used by sendMessage() (best-effort; for estimation only)
-    return msgs.map(msg => {
-        if (msg && typeof msg.content === 'object' && msg.content !== null) {
-            if (msg.content.content !== undefined) {
-                if (msg.content.attachments && msg.content.attachments.length > 0) {
-                    const contentArray = [];
-                    if (msg.content.content) contentArray.push({ type: "text", text: msg.content.content });
-                    msg.content.attachments.forEach(att => {
-                        const base64Data = att.data?.includes(',') ? att.data.split(',')[1] : att.data;
-                        contentArray.push({
-                            type: "image",
-                            source: { type: "base64", media_type: att.type, data: base64Data }
-                        });
-                    });
-                    return { role: msg.role, content: contentArray };
-                }
-                return { role: msg.role, content: msg.content.content };
-            }
-            if (msg.content.reasoning_content !== undefined) {
-                return { role: msg.role, content: msg.content.content || '' };
-            }
-            return { role: msg.role, content: JSON.stringify(msg.content) };
-        }
-        if (typeof msg?.content === 'string') return msg;
-        return { role: msg?.role || 'user', content: String(msg?.content ?? '') };
-    });
 }
 
 function getCurrentContextUsageEstimate({ includeDraftInput = false } = {}) {
@@ -1176,9 +883,6 @@ function getCurrentContextUsageEstimate({ includeDraftInput = false } = {}) {
         systemPrompt += "\n\n[System Nudge: Web Search is ENABLED. Please use your online search capabilities or tools to provide the most up-to-date information if the user's request requires it. If you don't have direct tools, acknowledge the current date and provide the best available knowledge.]";
     }
 
-    let maxOutputTokens = chat.maxOutputTokens || 0;
-    if (maxOutputTokens >= 8100) maxOutputTokens = 0;
-
     const draft = includeDraftInput ? (messageInput?.value || '') : '';
     const messagesForModel = buildMessagesForModelPreview(chat, draft);
 
@@ -1186,94 +890,57 @@ function getCurrentContextUsageEstimate({ includeDraftInput = false } = {}) {
     return estimateConversationTokens({
         systemPrompt,
         messages: messagesForModel,
-        maxOutputTokens,
         modelName,
         contextLimitTokens
     });
 }
 
 async function compressCurrentChatContext() {
-    if (state.isStreaming) return;
-
+    if (isChatBusy()) return;
     const chat = state.chats.find(c => c.id === state.currentChatId);
     if (!chat) return;
-
     const { modelName, provider } = getCurrentChatProviderAndModel(chat);
     if (!provider?.apiKey || !provider?.endpoint) {
-        showNotification('请先在设置中配置当前模型的服务商（Endpoint / API Key）', 'error', 4000);
-        openSettings();
+        showNotification('请先配置当前模型的服务商', 'error');
         return;
     }
-
-    const keepLast = 6; // keep recent turns intact
-    if ((chat.messages || []).length <= keepLast + 2) {
-        showNotification('当前对话内容较少，无需压缩。', 'info', 2500);
+    const keepLast = 6;
+    const snapshot = chat.messages.slice();
+    if (snapshot.length <= keepLast + 2) {
+        showNotification('当前对话内容较少，无需压缩。', 'info');
         return;
     }
-
-    // Build transcript from older messages (exclude existing summaries to avoid snowball)
-    const older = (chat.messages || [])
-        .filter(m => !(m?.role === 'system' && typeof m?.content === 'string' && m.content.includes('[对话摘要]')))
-        .slice(0, Math.max(0, (chat.messages.length - keepLast)));
-
-    const recent = (chat.messages || []).slice(-keepLast);
-
-    const transcriptLines = [];
-    for (const m of older) {
-        const role = m?.role || 'assistant';
-        let c = m?.content;
-        if (Array.isArray(c)) {
-            const parts = c.map(p => p?.type === 'text' ? p.text : '[image]').filter(Boolean).join(' ');
-            transcriptLines.push(`${role}: ${parts}`);
-        } else if (c && typeof c === 'object') {
-            const text = c.content != null ? String(c.content) : JSON.stringify(c);
-            const imgCount = Array.isArray(c.attachments) ? c.attachments.filter(a => String(a?.type || '').startsWith('image/')).length : 0;
-            transcriptLines.push(`${role}: ${text}${imgCount ? ` [images:${imgCount}]` : ''}`);
-        } else {
-            transcriptLines.push(`${role}: ${String(c ?? '')}`);
-        }
+    const older = snapshot.slice(0, -keepLast);
+    const transcript = older.map(m => {
+        const payload = m.content;
+        const text = Array.isArray(payload)
+            ? payload.filter(part => part?.type === 'text').map(part => part.text).join(' ')
+            : typeof payload === 'string' ? payload : (payload?.content || '');
+        const files = (payload?.attachments || []).map(a => '[附件: ' + a.name + ']').join(' ');
+        const model = m.comparisonModelId || m.comparisonModelName;
+        return m.role + (model ? ' (' + model + ')' : '') + ': ' + text + ' ' + files;
+    }).join('\n');
+    state.isCompressing = true;
+    updateRequestControls();
+    try {
+        showNotification('正在压缩上下文…', 'info');
+        const res = await window.api.summarizeChat({ endpoint: provider.endpoint, providerId: provider.id, modelName,
+            systemPrompt: 'You are a helpful assistant.', temperature: 0.2, max_tokens: 800,
+            messages: [{ role: 'user', content: '请把下列对话及已有摘要合并成中文长期记忆摘要。保留关键事实、目标、约束和待办，不要编造。\n\n' + transcript }] });
+        if (!res?.ok || !res.summary) throw new Error(res?.error || '未收到摘要');
+        // Do not overwrite edits or deleted conversations. Preserve any appended messages.
+        if (!state.chats.includes(chat) || !snapshot.every((m, i) => chat.messages[i] === m)) throw new Error('对话已发生变化，请重新压缩。');
+        const appended = chat.messages.slice(snapshot.length);
+        chat.messages = [{ role: 'system', content: '[对话摘要] (' + new Date().toLocaleString() + ')\n' + res.summary }, ...snapshot.slice(-keepLast), ...appended];
+        saveChats();
+        if (state.currentChatId === chat.id) { renderMessages(chat.messages); scrollToBottom(); }
+        showNotification('已压缩早期对话，保留最近 ' + keepLast + ' 条消息。', 'success');
+    } catch (error) {
+        showNotification('压缩失败：' + error.message, 'error', 6000);
+    } finally {
+        state.isCompressing = false;
+        updateRequestControls();
     }
-
-    const instruction = [
-        "你是一个对话压缩器。请把“对话记录”压缩成可用于后续继续对话的长期记忆摘要。",
-        "要求：",
-        "- 保留关键事实、用户目标、偏好、约束、已做过的尝试、结论、待办/未解决问题、重要上下文。",
-        "- 用中文输出，结构化为要点列表，尽量短但信息密度高。",
-        "- 不要编造未出现的信息；不需要客套。",
-        "",
-        "对话记录：",
-        transcriptLines.join('\n')
-    ].join('\n');
-
-    showNotification('正在压缩上下文…', 'info', 1800);
-
-    const res = await window.api.summarizeChat({
-        endpoint: provider.endpoint,
-        providerId: provider.id,
-        modelName,
-        systemPrompt: 'You are a helpful assistant.',
-        temperature: 0.2,
-        max_tokens: 800,
-        messages: [{ role: 'user', content: instruction }]
-    });
-
-    if (!res?.ok || !res?.summary) {
-        showNotification('压缩失败：' + (res?.error || 'Unknown error'), 'error', 6000);
-        return;
-    }
-
-    const now = new Date();
-    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const summaryMsg = {
-        role: 'system',
-        content: `[对话摘要] (${stamp})\n${res.summary}`
-    };
-
-    chat.messages = [summaryMsg, ...recent];
-    saveChats();
-    renderMessages(chat.messages);
-    scrollToBottom();
-    showNotification('已压缩：早期对话已替换为摘要（保留最近 ' + keepLast + ' 条消息）', 'success', 3500);
 }
 
 // Textarea auto-resize - moved to setupEvents() in events.js

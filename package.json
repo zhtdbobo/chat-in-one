@@ -4,14 +4,20 @@
   "description": "chat-in-one",
   "main": "main.js",
   "scripts": {
+    "build:assets": "node scripts/build-highlight.js",
+    "prestart": "npm run build:assets",
     "start": "electron .",
     "clean": "if exist dist rd /s /q dist",
-    "predist": "npm run clean",
-    "prepack": "npm run clean",
+    "predist": "npm run build:assets && npm run clean",
+    "prepack": "npm run build:assets && npm run clean",
     "dist": "electron-builder --win",
     "publish": "electron-builder --win --publish always",
     "pack": "electron-builder --win --dir",
-    "test": "jest"
+    "test": "jest",
+    "test:electron": "electron test/electron/renderer-smoke.cjs",
+    "test:stress": "electron test/electron/long-text-stress.cjs",
+    "pretest:stress": "npm run build:assets",
+    "pretest:electron": "npm run build:assets"
   },
   "keywords": [
     "ai",

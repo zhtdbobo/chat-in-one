@@ -92,6 +92,7 @@ class SimpleStore {
             fs.writeFileSync(this.path, JSON.stringify(this.data, null, 2));
         } catch (e) {
             console.error("Failed to write to store:", e);
+            throw e;
         }
     }
 }

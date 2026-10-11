@@ -132,15 +132,16 @@ function getIsQuitting() {
 }
 
 function updateTitlebarTheme(theme) {
-    const windows = BrowserWindow.getAllWindows();
-    if (windows.length > 0) {
-        if (theme === 'dark') {
-            windows[0].setTitleBarOverlay({ color: '#1a1b1e', symbolColor: '#ffffff' });
-            windows[0].setBackgroundColor('#1a1b1e');
-        } else {
-            windows[0].setTitleBarOverlay({ color: '#f8fafc', symbolColor: '#000000' });
-            windows[0].setBackgroundColor('#f8fafc');
-        }
+    // Only createWindow() enables the native overlay. Auxiliary windows may not have it.
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    const dark = theme === 'dark', color = dark ? '#1a1b1e' : '#f8fafc';
+    mainWindow.setBackgroundColor(color);
+    try {
+        mainWindow.setTitleBarOverlay({color,symbolColor:dark?'#ffffff':'#000000'});
+        return true;
+    } catch (error) {
+        console.warn('Could not update native titlebar:', error.message);
+        return false;
     }
 }
 

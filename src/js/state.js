@@ -6,7 +6,8 @@ let state = {
     chats: [],
     currentChatId: null,
     isStreaming: false,
-    currentStreamDiv: null,
+    isCompressing: false,
+    activeRequests: {}, // requestId -> pending or streaming request
     isExportMode: false,
     activeSkillId: null,
     enabledMcpServerIds: [],
@@ -14,7 +15,6 @@ let state = {
     isNewFreshChat: false,
     isComparisonMode: false,
     selectedComparisonModels: [], // array of "providerId|modelName"
-    comparisonStreams: {}, // modelName -> DOM element mapping
     wasMaximizedBeforeComparison: false
 };
 

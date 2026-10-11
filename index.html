@@ -27,7 +27,7 @@
 
     <!-- Local Highlight.js for Code syntax highlighting -->
     <link rel="stylesheet" href="./node_modules/highlight.js/styles/github-dark.min.css">
-    <script src="./node_modules/highlight.js/lib/core.js"></script>
+    <script src="src/js/vendor/highlight.js"></script>
 
     <!-- Local Phosphor Icons -->
     <link rel="stylesheet" href="./node_modules/@phosphor-icons/web/src/regular/style.css">
@@ -288,53 +288,27 @@
                         <div class="specific-model-settings">
                             <div class="settings-header">
                                 <h3>模型参数设置</h3>
-                                <button class="btn btn-ghost btn-sm" id="reset-model-settings-btn">重置</button>
+                                <button class="btn btn-ghost btn-sm" id="reset-model-settings-btn">恢复默认</button>
+                            </div>
+                            <p class="model-parameter-status" id="model-parameter-status" aria-live="polite">数值留空时使用服务端默认值。</p>
+                            <div class="model-capability-heading">当前模型能力（只读）</div>
+                            <div id="conversation-model-capabilities" aria-live="polite"></div>
+                            <p class="parameter-hint model-override-hint">温度与 Top P 按模型分别保存；留空使用服务端默认。发送全部历史，输出长度由服务端决定。</p>
+                            <div class="setting-item">
+                                <label for="temperature">温度 <i class="ph ph-info" title="控制生成文本的随机性；留空使用服务端默认值"></i></label>
+                                <input type="number" class="model-number-input" id="temperature" min="0" step="any" placeholder="服务端默认（留空）" aria-describedby="temperature-hint">
+                                <p class="parameter-hint" id="temperature-hint">服务端默认值未提供。</p>
                             </div>
                             <div class="setting-item">
-                                <label for="max-message-count">上下文消息数量 <i class="ph ph-info"
-                                        title="设置上下文窗口中的最大消息数量"></i></label>
-                                <div class="slider-container">
-                                    <input type="range" id="max-message-count" min="1" max="15" value="15">
-                                    <span id="max-message-count-value">无限制</span>
-                                </div>
-                            </div>
-                            <div class="setting-item">
-                                <label for="temperature">温度 <i class="ph ph-info" title="控制生成文本的随机性，值越高越随机"></i></label>
-                                <div class="slider-container">
-                                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7">
-                                    <span id="temperature-value">0.7</span>
-                                </div>
-                            </div>
-                            <div class="setting-item">
-                                <label for="top-p">Top P <i class="ph ph-info" title="控制词汇分布的广度，值越低越集中"></i></label>
-                                <div class="slider-container">
-                                    <input type="range" id="top-p" min="0" max="1" step="0.1" value="1">
-                                    <span id="top-p-value">1.0</span>
-                                </div>
-                            </div>
-                            <div class="setting-item">
-                                <label for="max-output-tokens">最大输出 Token <i class="ph ph-info"
-                                        title="设置生成文本的最大 token 数"></i></label>
-                                <div class="slider-container">
-                                    <input type="range" id="max-output-tokens" min="100" max="8100" step="100"
-                                        value="8100">
-                                    <span id="max-output-tokens-value">无限制</span>
-                                </div>
-                            </div>
-                            <div class="setting-item">
-                                <label for="stream-output">流式输出 <i class="ph ph-info" title="是否启用流式输出"></i></label>
-                                <div class="toggle-container">
-                                    <label class="switch">
-                                        <input type="checkbox" id="stream-output" checked>
-                                        <span class="slider round"></span>
-                                    </label>
-                                </div>
+                                <label for="top-p">Top P <i class="ph ph-info" title="控制采样范围；留空使用服务端默认值"></i></label>
+                                <input type="number" class="model-number-input" id="top-p" min="0" max="1" step="any" placeholder="服务端默认（留空）" aria-describedby="top-p-hint">
+                                <p class="parameter-hint" id="top-p-hint">服务端默认值未提供。</p>
                             </div>
                             <div class="setting-item" id="thinking-setting" style="display:none;">
-                                <label for="enable-thinking">深度思考 <i class="ph ph-info" title="启用模型的推理/思考能力。关闭后可兼容不支持 thinking 参数的 API 端点。"></i></label>
+                                <label for="conversation-enable-thinking">深度思考 <i class="ph ph-info" title="启用模型的推理/思考能力。关闭后可兼容不支持 thinking 参数的 API 端点。"></i></label>
                                 <div class="toggle-container">
                                     <label class="switch">
-                                        <input type="checkbox" id="enable-thinking" checked>
+                                        <input type="checkbox" id="conversation-enable-thinking" checked>
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
@@ -406,7 +380,7 @@
                 </div>
             </div>
             <div class="sandbox-content">
-                <iframe id="sandbox-iframe" sandbox="allow-scripts allow-forms allow-modals" csp="script-src 'unsafe-inline'"></iframe>
+                <iframe id="sandbox-iframe" src="src/preview/index.html" sandbox="allow-scripts allow-forms allow-modals"></iframe>
                 <div class="sandbox-console" id="sandbox-console">
                     <div class="sandbox-console-header">
                         <button id="sandbox-console-toggle" class="sandbox-console-toggle">控制台</button>
@@ -579,6 +553,9 @@
     <script src="src/js/companions.js"></script>
     <script src="src/js/skills.js"></script>
     <script src="src/js/messageFormatConverter.js"></script>
+    <script src="src/js/modelParameters.js"></script>
+    <script src="src/js/longText.js"></script>
+    <script src="src/js/requests.js"></script>
     <script src="src/js/chat.js"></script>
     <script src="src/js/events.js"></script>
     <script src="src/js/sandbox.js"></script>
